@@ -7,8 +7,7 @@ Sub DatenImportierenUndVergleichenOptimiert()
     ' Deklaration der Variablen für die Arbeitsblätter in den Arbeitsmappen
     Dim sfWorksheet As Worksheet ' Arbeitsblatt in der SF.xlsx-Datei
     Dim levelWorksheet As Worksheet ' Arbeitsblatt in der Level.xlsx-Datei
-    Dim zuweisungAktuellWorksheet As Worksheet ' Arbeitsblatt "Zuweisung_Aktuell"
-    Dim zuweisungLevelWorksheet As Worksheet ' Arbeitsblatt "Zuweisung_Level"
+    Dim zuweisungWorksheet As Worksheet ' Arbeitsblatt "Zuweisung_Level"
     
     ' Deklaration der Variablen für die letzte Zeile in den Arbeitsblättern
     Dim sfLastRow As Long ' Letzte Zeile in SF.xlsx
@@ -36,31 +35,34 @@ Sub DatenImportierenUndVergleichenOptimiert()
     Set zuweisungWorkbook = ThisWorkbook
     
     ' Arbeitsblätter in der aktuellen Arbeitsmappe
-    Set zuweisungLevelWorksheet = zuweisungWorkbook.Sheets("Zuweisung_Level")
-    Set zuweisungAktuellWorksheet = zuweisungWorkbook.Sheets("Zuweisung_Aktuell")
+    Set zuweisungWorksheet = zuweisungWorkbook.Sheets("Zuweisung_Level")
+    
+    ' Bestimme die letzte Zeile in SF.xlsx
+    sfLastRow = sfWorksheet.Cells(sfWorksheet.Rows.Count, "A").End(xlUp).Row
     
     ' Lese Daten aus SF.xlsx und speichere sie in einem Array
-    sfLastRow = sfWorksheet.Cells(sfWorksheet.Rows.Count, "A").End(xlUp).Row
     sfData = sfWorksheet.Range("A2:A" & sfLastRow).Value ' Annahme: Daten starten in der zweiten Zeile
     
-    ' Lese Daten aus Level.xlsx und speichere sie in einem Array
+    ' Bestimme die letzte Zeile in Level.xlsx
     levelLastRow = levelWorksheet.Cells(levelWorksheet.Rows.Count, "A").End(xlUp).Row
+    
+    ' Lese Daten aus Level.xlsx und speichere sie in einem Array
     levelData = levelWorksheet.Range("A2:D" & levelLastRow).Value ' Annahme: Daten starten in der zweiten Zeile und gehen bis Spalte D
     
     ' Bestimme die letzte Zeile in "Zuweisung_Level"
-    zuweisungLastRow = zuweisungLevelWorksheet.Cells(zuweisungLevelWorksheet.Rows.Count, "A").End(xlUp).Row
+    zuweisungLastRow = zuweisungWorksheet.Cells(zuweisungWorksheet.Rows.Count, "A").End(xlUp).Row
     
     ' Kopiere die Vorgangsnummern aus dem Array in "Zuweisung_Level"
-    zuweisungData = zuweisungLevelWorksheet.Range("A2:A" & zuweisungLastRow).Value ' Annahme: Daten starten in der zweiten Zeile
+    zuweisungData = zuweisungWorksheet.Range("A2:A" & zuweisungLastRow).Value ' Annahme: Daten starten in der zweiten Zeile
     
     ' Durchlaufe alle Vorgangsnummern in "Zuweisung_Level" und vergleiche sie mit "Level"
     For i = LBound(zuweisungData, 1) To UBound(zuweisungData, 1)
         For j = LBound(levelData, 1) To UBound(levelData, 1)
             If zuweisungData(i, 1) = levelData(j, 1) Then
                 ' Wenn eine Übereinstimmung gefunden wird,
-                ' füge die entsprechenden Daten in "Zuweisung_Aktuell" ein
-                zuweisungAktuellWorksheet.Cells(i + 1, 2).Value = levelData(j, 3) ' Spalte C von "Level"
-                zuweisungAktuellWorksheet.Cells(i + 1, 3).Value = levelData(j, 4) ' Spalte D von "Level"
+                ' füge die entsprechenden Daten in "Zuweisung_Level" ein
+                zuweisungWorksheet.Cells(i + 1, 2).Value = levelData(j, 3) ' Spalte C von "Level"
+                zuweisungWorksheet.Cells(i + 1, 3).Value = levelData(j, 4) ' Spalte D von "Level"
                 Exit For ' Beende die Schleife, wenn eine Übereinstimmung gefunden wurde
             End If
         Next j
