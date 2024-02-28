@@ -12,7 +12,7 @@ Sub FilterEinträge()
     Dim MatchFound As Boolean
     
     ' Festlegen der Arbeitsmappe "SF"
-    Set SFWorkbook = Workbooks("SF.xlsx")
+    Set SFWorkbook = Workbooks.Open(ThisWorkbook.Path & "\SF.xlsx")
     ' Festlegen des Arbeitsblatts "Level_Zuordnung"
     Set LevelZuordnungSheet = ThisWorkbook.Sheets("Level_Zuordnung")
     ' Festlegen des Arbeitsblatts in der SF-Arbeitsmappe
@@ -51,4 +51,7 @@ Sub FilterEinträge()
     
     ' Ergebnisse in Spalte A von "Level_Zuordnung" einfügen
     LevelZuordnungSheet.Range("A1").Resize(UBound(FilteredEntries), 1).Value = WorksheetFunction.Transpose(FilteredEntries)
+    
+    ' Arbeitsmappe "SF" schließen
+    SFWorkbook.Close SaveChanges:=False
 End Sub
