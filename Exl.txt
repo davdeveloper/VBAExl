@@ -1,4 +1,5 @@
 Sub FilterUndÜbertragen()
+    Dim sfWorkbook As Workbook
     Dim sfSheet As Worksheet
     Dim levelSheet As Worksheet
     Dim sfLastRow As Long
@@ -8,8 +9,13 @@ Sub FilterUndÜbertragen()
     Dim filteredData As Variant
     Dim i As Long, j As Long
     
-    ' Definiere Arbeitsblätter
-    Set sfSheet = ThisWorkbook.Sheets("SF")
+    ' Öffne die externe Datei "SF"
+    Set sfWorkbook = Workbooks.Open("Pfad zur Datei SF.xlsx") ' Passe den Pfad entsprechend an
+    
+    ' Definiere das Arbeitsblatt in der externen Datei "SF"
+    Set sfSheet = sfWorkbook.Sheets(1) ' Annahme, dass das Arbeitsblatt das erste ist
+    
+    ' Definiere das Arbeitsblatt "Level_Zuordnung" in der aktuellen Arbeitsmappe
     Set levelSheet = ThisWorkbook.Sheets("Level_Zuordnung")
     
     ' Finde die letzte Zeile in SF
@@ -21,14 +27,14 @@ Sub FilterUndÜbertragen()
     ' Wende den Filter an
     With sfSheet
         .AutoFilterMode = False
-        .Range("A1:D1").AutoFilter Field:=4, Criteria1:=filterCriteria
+        .Range("A1:D" & sfLastRow).AutoFilter Field:=4, Criteria1:=filterCriteria
     End With
     
     ' Definiere den relevanten Bereich nach dem Filter
     Set sfRange = sfSheet.Range("A1:A" & sfLastRow).SpecialCells(xlCellTypeVisible)
     
     ' Übertrage die gefilterten Daten in das Arbeitsblatt "Level_Zuordnung"
-    levelSheet.Range("A:A").Clear  ' Lösche alle Daten in Spalte A von "Level_Zuordnung"
+    levelSheet.Range("A:A").Clear ' Lösche alle Daten in Spalte A von "Level_Zuordnung"
     levelLastRow = sfRange.Rows.Count
     If levelLastRow > 1 Then
         filteredData = sfRange.Value
@@ -37,6 +43,9 @@ Sub FilterUndÜbertragen()
     
     ' Deaktiviere den Filter
     sfSheet.AutoFilterMode = False
+    
+    ' Schließe die externe Datei "SF" ohne Speichern
+    sfWorkbook.Close False
     
     ' Hinweis für den Benutzer
     MsgBox "Die Daten wurden erfolgreich übertragen.", vbInformation
