@@ -1,58 +1,43 @@
-Sub FilterUndÜbertragen()
+Sub DatenImportieren()
     Dim sfWorkbook As Workbook
-    Dim sfSheet As Worksheet
-    Dim levelSheet As Worksheet
+    Dim zuweisungWorkbook As Workbook
+    Dim sfWorksheet As Worksheet
+    Dim zuweisungWorksheet As Worksheet
     Dim sfLastRow As Long
-    Dim levelLastRow As Long
-    Dim sfRange As Range
-    Dim filterCriteria As String
-    Dim filteredData() As Variant
-    Dim i As Long
+    Dim zuweisungLastRow As Long
+    Dim i As Long, j As Long
     
-    ' Öffne die SF-Datei
-    Set sfWorkbook = Workbooks.Open("Pfad_zur_SF_Datei.xlsx") ' Passe den Pfad entsprechend an
+    ' Öffne die SF.xlsx-Datei
+    Set sfWorkbook = Workbooks.Open("Pfad_zur_SF.xlsx_Datei")
+    Set sfWorksheet = sfWorkbook.Sheets(1)
     
-    ' Definiere das Arbeitsblatt in der SF-Datei
-    Set sfSheet = sfWorkbook.Sheets(1) ' Das erste Arbeitsblatt in der SF-Datei
+    ' Öffne das aktuelle Arbeitsblatt "Zuweisung_Level"
+    Set zuweisungWorkbook = ThisWorkbook
+    Set zuweisungWorksheet = zuweisungWorkbook.Sheets("Zuweisung_Level")
     
-    ' Definiere das Arbeitsblatt in dieser Datei
-    Set levelSheet = ThisWorkbook.Sheets("Level_Zuordnung")
+    ' Bestimme die letzte Zeile in SF.xlsx
+    sfLastRow = sfWorksheet.Cells(sfWorksheet.Rows.Count, "A").End(xlUp).Row
     
-    ' Finde die letzte Zeile in Spalte A der SF-Datei
-    sfLastRow = sfSheet.Cells(sfSheet.Rows.Count, "A").End(xlUp).Row
+    ' Bestimme die letzte Zeile in "Zuweisung_Level"
+    zuweisungLastRow = zuweisungWorksheet.Cells(zuweisungWorksheet.Rows.Count, "A").End(xlUp).Row
     
-    ' Setze Filterkriterium
-    filterCriteria = "Lidl"
+    ' Filtere nach "Lidl" in Spalte D
+    sfWorksheet.Range("D:D").AutoFilter Field:=1, Criteria1:="Lidl"
     
-    ' Wende den Filter auf Spalte D in der SF-Datei an
-    With sfSheet
-        .AutoFilterMode = False ' Deaktiviere vorhandene Filter
-        .Range("A1:D1").AutoFilter Field:=4, Criteria1:=filterCriteria ' Wende Filter auf Spalte D an
-    End With
+    ' Kopiere die Vorgangsnummern aus Spalte A in "Zuweisung_Level"
+    j = zuweisungLastRow + 1
+    For i = 2 To sfLastRow
+        If Not IsEmpty(sfWorksheet.Cells(i, 1).Value) Then
+            zuweisungWorksheet.Cells(j, 1).Value = sfWorksheet.Cells(i, 1).Value
+            j = j + 1
+        End If
+    Next i
     
-    ' Definiere den relevanten Bereich nach dem Filter in Spalte A
-    Set sfRange = sfSheet.Range("A2:A" & sfLastRow).SpecialCells(xlCellTypeVisible)
+    ' Deaktiviere den Autofilter
+    sfWorksheet.AutoFilterMode = False
     
-    ' Übertrage die gefilterten Daten in das Arbeitsblatt "Level_Zuordnung"
-    levelSheet.Range("A:A").Clear ' Lösche alle Daten in Spalte A von "Level_Zuordnung"
-    levelLastRow = sfRange.Rows.Count
-    If levelLastRow > 1 Then
-        ' Erstelle ein Array, um die gefilterten Daten zu speichern
-        ReDim filteredData(1 To levelLastRow, 1 To 1)
-        ' Durchlaufe die gefilterte Range und übertrage die Daten in das Array
-        For i = 1 To levelLastRow
-            filteredData(i, 1) = sfRange.Cells(i, 1).Value
-        Next i
-        ' Schreibe das Array in die erste Spalte von "Level_Zuordnung"
-        levelSheet.Range("A1").Resize(levelLastRow, 1).Value = filteredData
-    End If
+    ' Schließe die SF.xlsx-Datei ohne zu speichern
+    sfWorkbook.Close SaveChanges:=False
     
-    ' Deaktiviere den Filter in der SF-Datei
-    sfSheet.AutoFilterMode = False
-    
-    ' Schließe die SF-Datei ohne Speichern
-    sfWorkbook.Close False
-    
-    ' Zeige eine Benachrichtigung über die erfolgreiche Übertragung der Daten
-    MsgBox "Die Daten wurden erfolgreich übertragen.", vbInformation
+    MsgBox "Daten wurden importiert.", vbInformation
 End Sub
