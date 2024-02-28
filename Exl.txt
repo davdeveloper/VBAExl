@@ -1,17 +1,21 @@
 Sub DatenImportierenUndVergleichen()
     ' Deklaration der Variablen für die Arbeitsmappen (Excel-Dateien) und Arbeitsblätter
-    Dim sfWorkbook As Workbook
-    Dim levelWorkbook As Workbook
-    Dim zuweisungWorkbook As Workbook
-    Dim sfWorksheet As Worksheet
-    Dim levelWorksheet As Worksheet
-    Dim zuweisungAktuellWorksheet As Worksheet
-    Dim zuweisungLevelWorksheet As Worksheet
+    Dim sfWorkbook As Workbook ' SF.xlsx-Datei
+    Dim levelWorkbook As Workbook ' Level.xlsx-Datei
+    Dim zuweisungWorkbook As Workbook ' Die aktuelle Arbeitsmappe, in der das Makro ausgeführt wird
+    Dim sfWorksheet As Worksheet ' Arbeitsblatt in der SF.xlsx-Datei
+    Dim levelWorksheet As Worksheet ' Arbeitsblatt in der Level.xlsx-Datei
+    Dim zuweisungWorksheet As Worksheet ' Arbeitsblatt "Zuweisung_Level"
     
-    ' Deklaration der Variablen für die letzte Zeile in den Arbeitsblättern
-    Dim sfLastRow As Long
-    Dim levelLastRow As Long
-    Dim zuweisungLastRow As Long
+    ' Deklaration der Variablen für die Arrays
+    Dim sfData As Variant
+    Dim levelData As Variant
+    Dim zuweisungData As Variant
+    
+    ' Deklaration der Variablen für die letzten Zeilen in den Arbeitsblättern
+    Dim sfLastRow As Long ' Letzte Zeile in SF.xlsx
+    Dim levelLastRow As Long ' Letzte Zeile in Level.xlsx
+    Dim zuweisungLastRow As Long ' Letzte Zeile in "Zuweisung_Level"
     
     ' Öffne die SF.xlsx-Datei
     Set sfWorkbook = Workbooks.Open("Pfad_zur_SF.xlsx_Datei")
@@ -24,46 +28,52 @@ Sub DatenImportierenUndVergleichen()
     ' Aktuelle Arbeitsmappe, in der das Makro ausgeführt wird
     Set zuweisungWorkbook = ThisWorkbook
     
-    ' Arbeitsblätter in der aktuellen Arbeitsmappe
-    Set zuweisungLevelWorksheet = zuweisungWorkbook.Sheets("Zuweisung_Level")
-    Set zuweisungAktuellWorksheet = zuweisungWorkbook.Sheets("Zuweisung_Aktuell")
-    
-    ' Bestimme die letzte Zeile in SF.xlsx
-    sfLastRow = sfWorksheet.Cells(sfWorksheet.Rows.Count, "A").End(xlUp).Row
+    ' Arbeitsblatt "Zuweisung_Level" in der aktuellen Arbeitsmappe
+    Set zuweisungWorksheet = zuweisungWorkbook.Sheets("Zuweisung_Level")
     
     ' Filtere nach "Lidl" in Spalte D in SF.xlsx
     sfWorksheet.Range("D:D").AutoFilter Field:=4, Criteria1:="Lidl"
     
-    ' Kopiere die Vorgangsnummern aus Spalte A in "Zuweisung_Level"
-    sfWorksheet.Range("A2:A" & sfLastRow).SpecialCells(xlCellTypeVisible).Copy _
-        Destination:=zuweisungLevelWorksheet.Range("A1")
+    ' Bestimme die letzte Zeile in SF.xlsx
+    sfLastRow = sfWorksheet.Cells(sfWorksheet.Rows.Count, "A").End(xlUp).Row
     
-    ' Deaktiviere den Autofilter in SF.xlsx
+    ' Lese Daten aus SF.xlsx und speichere sie in einem Array
+    sfData = sfWorksheet.Range("A2:A" & sfLastRow).Value ' Annahme: Daten starten in der zweiten Zeile
+    
+    ' Entferne Autofilter in SF.xlsx
     sfWorksheet.AutoFilterMode = False
     
-    ' Bestimme die letzte Zeile in "Zuweisung_Level"
-    zuweisungLastRow = zuweisungLevelWorksheet.Cells(zuweisungLevelWorksheet.Rows.Count, "A").End(xlUp).Row
+    ' Filtere nach "Aktuelles Level" in Spalte C in Level.xlsx
+    levelWorksheet.Range("C:C").AutoFilter Field:=3, Criteria1:="Aktuelles Level"
     
     ' Bestimme die letzte Zeile in Level.xlsx
     levelLastRow = levelWorksheet.Cells(levelWorksheet.Rows.Count, "A").End(xlUp).Row
     
+    ' Lese Daten aus Level.xlsx und speichere sie in einem Array
+    levelData = levelWorksheet.Range("A2:F" & levelLastRow).Value ' Annahme: Daten starten in der zweiten Zeile und gehen bis Spalte F
+    
+    ' Entferne Autofilter in Level.xlsx
+    levelWorksheet.AutoFilterMode = False
+    
+    ' Bestimme die letzte Zeile in "Zuweisung_Level"
+    zuweisungLastRow = zuweisungWorksheet.Cells(zuweisungWorksheet.Rows.Count, "A").End(xlUp).Row
+    
+    ' Kopiere die Vorgangsnummern aus dem Array in "Zuweisung_Level"
+    zuweisungData = zuweisungWorksheet.Range("A2:A" & zuweisungLastRow).Value ' Annahme: Daten starten in der zweiten Zeile
+    
     ' Durchlaufe alle Vorgangsnummern in "Zuweisung_Level" und vergleiche sie mit "Level"
-    Dim sfRange As Range
-    Dim cell As Range
-    Dim levelRange As Range
-    
-    Set sfRange = zuweisungLevelWorksheet.Range("A2:A" & zuweisungLastRow)
-    Set levelRange = levelWorksheet.Range("A2:A" & levelLastRow)
-    
-    For Each cell In sfRange
-        If Not IsError(Application.Match(cell.Value, levelRange, 0)) Then
-            ' Wenn eine Übereinstimmung gefunden wurde, hole die entsprechenden Daten aus "Level"
-            Dim foundRow As Long
-            foundRow = Application.Match(cell.Value, levelRange, 0) + 1 ' Offset um 1, da Match die Zeilennummer relativ zu Range zurückgibt
-            zuweisungAktuellWorksheet.Cells(cell.Row, 2).Value = levelWorksheet.Cells(foundRow, 3).Value ' Spalte C von "Level"
-            zuweisungAktuellWorksheet.Cells(cell.Row, 3).Value = levelWorksheet.Cells(foundRow, 4).Value ' Spalte D von "Level"
-        End If
-    Next cell
+    Dim zuweisungIndex As Long
+    Dim levelIndex As Long
+    For zuweisungIndex = LBound(zuweisungData, 1) To UBound(zuweisungData, 1)
+        For levelIndex = LBound(levelData, 1) To UBound(levelData, 1)
+            If zuweisungData(zuweisungIndex, 1) = levelData(levelIndex, 1) Then
+                ' Wenn eine Übereinstimmung gefunden wird, übertrage die Werte aus "Level"
+                zuweisungWorksheet.Cells(zuweisungIndex + 1, 2).Value = levelData(levelIndex, 5) ' Spalte E von "Level"
+                zuweisungWorksheet.Cells(zuweisungIndex + 1, 3).Value = levelData(levelIndex, 6) ' Spalte F von "Level"
+                Exit For ' Beende die Schleife, wenn eine Übereinstimmung gefunden wurde
+            End If
+        Next levelIndex
+    Next zuweisungIndex
     
     ' Schließe die SF.xlsx-Datei ohne zu speichern
     sfWorkbook.Close SaveChanges:=False
@@ -72,5 +82,4 @@ Sub DatenImportierenUndVergleichen()
     levelWorkbook.Close SaveChanges:=False
     
     ' Zeige eine Meldung, dass der Vorgang abgeschlossen ist
-    MsgBox "Daten wurden importiert, verglichen und ergänzt.", vbInformation
-End Sub
+    MsgBox "Daten wurden importiert, verg
