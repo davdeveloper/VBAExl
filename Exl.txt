@@ -1,8 +1,16 @@
-    ' Finden von Übereinstimmungen und Schreiben der Werte in die Zielarbeitsblatt-Spalten B und C
+' Finden von Übereinstimmungen und Schreiben der Werte in die Zielarbeitsblatt-Spalten B und C
+    Dim dict As Object
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    ' Fülle Dictionary mit den Vorgangsnummern aus der Level-Datei und ihren Werten in Spalte E und F
+    For i = 2 To UBound(levelData, 1)
+        dict(levelData(i, 1)) = Array(levelData(i, 5), levelData(i, 6))
+    Next i
+    
+    ' Schreibe die Werte in das Zielarbeitsblatt
     For i = 2 To wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row
-        matchIndex = Application.Match(wsDest.Cells(i, 1).Value, Application.Index(levelData, 0, 1), 0)
-        If Not IsError(matchIndex) Then
-            wsDest.Cells(i, 2).Value = levelData(matchIndex, 4) ' Wert aus Spalte E in Spalte B schreiben
-            wsDest.Cells(i, 3).Value = levelData(matchIndex, 5) ' Wert aus Spalte F in Spalte C schreiben
+        If dict.exists(wsDest.Cells(i, 1).Value) Then
+            wsDest.Cells(i, 2).Value = dict(wsDest.Cells(i, 1).Value)(0) ' Wert aus Array in Spalte B schreiben
+            wsDest.Cells(i, 3).Value = dict(wsDest.Cells(i, 1).Value)(1) ' Wert aus Array in Spalte C schreiben
         End If
     Next i
