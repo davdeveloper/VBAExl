@@ -45,10 +45,12 @@ Sub FilterUndKopiere()
     ' Schließe die SF-Datei ohne zu speichern
     wbSF.Close False
     
-    ' Lade Daten aus der Level-Datei in ein Array
+    ' Filtere die Daten in Spalte C der Level-Datei nach "Aktuelles Level"
     With wsLevel
+        .Range("C:C").AutoFilter Field:=1, Criteria1:="Aktuelles Level"
         lastRowLevel = .Cells(.Rows.Count, "A").End(xlUp).Row
         levelData = .Range("A1:F" & lastRowLevel).Value
+        .AutoFilterMode = False
     End With
     
     ' Durchsuche das Array nach Übereinstimmungen mit den Vorgangsnummern in Spalte A des Zielarbeitsblatts
