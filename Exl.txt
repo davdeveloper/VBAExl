@@ -1,85 +1,43 @@
-Sub DatenImportierenUndVergleichen()
-    ' Deklaration der Variablen für die Arbeitsmappen (Excel-Dateien) und Arbeitsblätter
-    Dim sfWorkbook As Workbook ' SF.xlsx-Datei
-    Dim levelWorkbook As Workbook ' Level.xlsx-Datei
-    Dim zuweisungWorkbook As Workbook ' Die aktuelle Arbeitsmappe, in der das Makro ausgeführt wird
-    Dim sfWorksheet As Worksheet ' Arbeitsblatt in der SF.xlsx-Datei
-    Dim levelWorksheet As Worksheet ' Arbeitsblatt in der Level.xlsx-Datei
-    Dim zuweisungWorksheet As Worksheet ' Arbeitsblatt "Zuweisung_Level"
+Sub FilterUndKopiere()
+    Dim wb As Workbook
+    Dim wsSource As Worksheet
+    Dim wsDest As Worksheet
+    Dim filterValue As String
+    Dim lastRow As Long
     
-    ' Deklaration der Variablen für die Arrays
-    Dim sfData As Variant
-    Dim levelData As Variant
-    Dim zuweisungData As Variant
+    ' Öffne die SF-Datei im gleichen Ordner wie die aktuelle Arbeitsmappe
+    Set wb = Workbooks.Open(ThisWorkbook.Path & "\SF.xlsx")
     
-    ' Deklaration der Variablen für die letzten Zeilen in den Arbeitsblättern
-    Dim sfLastRow As Long ' Letzte Zeile in SF.xlsx
-    Dim levelLastRow As Long ' Letzte Zeile in Level.xlsx
-    Dim zuweisungLastRow As Long ' Letzte Zeile in "Zuweisung_Level"
+    ' Definiere die Quell- und Zielarbeitsblätter
+    Set wsSource = wb.Sheets(1) ' Annahme: Die Daten befinden sich im ersten Arbeitsblatt der geöffneten Datei
+    Set wsDest = ThisWorkbook.Sheets("Zuweisung_Level")
     
-    ' Öffne die SF.xlsx-Datei
-    Set sfWorkbook = Workbooks.Open("Pfad_zur_SF.xlsx_Datei")
-    Set sfWorksheet = sfWorkbook.Sheets(1) ' Annahme: Daten sind im ersten Arbeitsblatt
+    ' Setze den Filterwert
+    filterValue = "Lidl"
     
-    ' Öffne die Level.xlsx-Datei
-    Set levelWorkbook = Workbooks.Open(ThisWorkbook.Path & "\Level.xlsx")
-    Set levelWorksheet = levelWorkbook.Sheets(1) ' Annahme: Daten sind im ersten Arbeitsblatt
+    ' Filtere die Daten nach Spalte D
+    With wsSource
+        ' Finde die letzte Zeile in Spalte D
+        lastRow = .Cells(.Rows.Count, "D").End(xlUp).Row
+        
+        ' Filter anwenden
+        .Range("D1:D" & lastRow).AutoFilter Field:=1, Criteria1:=filterValue
+        
+        ' Überprüfe, ob gefilterte Daten vorhanden sind
+        If .AutoFilter.Range.Columns(1).SpecialCells(xlCellTypeVisible).Count > 1 Then
+            ' Kopiere Spalte A in das Zielarbeitsblatt
+            .AutoFilter.Range.Columns(1).Offset(, -3).SpecialCells(xlCellTypeVisible).Copy wsDest.Range("A1")
+        Else
+            MsgBox "Keine Daten gefunden für ""Lidl"" in Spalte D.", vbInformation
+        End If
+        
+        ' Filter entfernen
+        .AutoFilterMode = False
+    End With
     
-    ' Aktuelle Arbeitsmappe, in der das Makro ausgeführt wird
-    Set zuweisungWorkbook = ThisWorkbook
+    ' Schließe die SF-Datei ohne zu speichern
+    wb.Close False
     
-    ' Arbeitsblatt "Zuweisung_Level" in der aktuellen Arbeitsmappe
-    Set zuweisungWorksheet = zuweisungWorkbook.Sheets("Zuweisung_Level")
-    
-    ' Filtere nach "Lidl" in Spalte D in SF.xlsx
-    sfWorksheet.Range("D:D").AutoFilter Field:=4, Criteria1:="Lidl"
-    
-    ' Bestimme die letzte Zeile in SF.xlsx
-    sfLastRow = sfWorksheet.Cells(sfWorksheet.Rows.Count, "A").End(xlUp).Row
-    
-    ' Lese Daten aus SF.xlsx und speichere sie in einem Array
-    sfData = sfWorksheet.Range("A2:A" & sfLastRow).Value ' Annahme: Daten starten in der zweiten Zeile
-    
-    ' Entferne Autofilter in SF.xlsx
-    sfWorksheet.AutoFilterMode = False
-    
-    ' Filtere nach "Aktuelles Level" in Spalte C in Level.xlsx
-    levelWorksheet.Range("C:C").AutoFilter Field:=3, Criteria1:="Aktuelles Level"
-    
-    ' Bestimme die letzte Zeile in Level.xlsx
-    levelLastRow = levelWorksheet.Cells(levelWorksheet.Rows.Count, "A").End(xlUp).Row
-    
-    ' Lese Daten aus Level.xlsx und speichere sie in einem Array
-    levelData = levelWorksheet.Range("A2:F" & levelLastRow).Value ' Annahme: Daten starten in der zweiten Zeile und gehen bis Spalte F
-    
-    ' Entferne Autofilter in Level.xlsx
-    levelWorksheet.AutoFilterMode = False
-    
-    ' Bestimme die letzte Zeile in "Zuweisung_Level"
-    zuweisungLastRow = zuweisungWorksheet.Cells(zuweisungWorksheet.Rows.Count, "A").End(xlUp).Row
-    
-    ' Kopiere die Vorgangsnummern aus dem Array in "Zuweisung_Level"
-    zuweisungData = zuweisungWorksheet.Range("A2:A" & zuweisungLastRow).Value ' Annahme: Daten starten in der zweiten Zeile
-    
-    ' Durchlaufe alle Vorgangsnummern in "Zuweisung_Level" und vergleiche sie mit "Level"
-    Dim zuweisungIndex As Long
-    Dim levelIndex As Long
-    For zuweisungIndex = LBound(zuweisungData, 1) To UBound(zuweisungData, 1)
-        For levelIndex = LBound(levelData, 1) To UBound(levelData, 1)
-            If zuweisungData(zuweisungIndex, 1) = levelData(levelIndex, 1) Then
-                ' Wenn eine Übereinstimmung gefunden wird, übertrage die Werte aus "Level"
-                zuweisungWorksheet.Cells(zuweisungIndex + 1, 2).Value = levelData(levelIndex, 5) ' Spalte E von "Level"
-                zuweisungWorksheet.Cells(zuweisungIndex + 1, 3).Value = levelData(levelIndex, 6) ' Spalte F von "Level"
-                Exit For ' Beende die Schleife, wenn eine Übereinstimmung gefunden wurde
-            End If
-        Next levelIndex
-    Next zuweisungIndex
-    
-    ' Schließe die SF.xlsx-Datei ohne zu speichern
-    sfWorkbook.Close SaveChanges:=False
-    
-    ' Schließe die Level.xlsx-Datei ohne zu speichern
-    levelWorkbook.Close SaveChanges:=False
-    
-    ' Zeige eine Meldung, dass der Vorgang abgeschlossen ist
-    MsgBox "Daten wurden importiert, verg
+    ' Meldung über erfolgreiche Durchführung anzeigen
+    MsgBox "Die Daten wurden erfolgreich gefiltert und kopiert.", vbInformation
+End Sub
