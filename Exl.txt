@@ -13,7 +13,7 @@ Sub FilterUndKopiere()
     Set wbSF = Workbooks.Open(ThisWorkbook.Path & "\SF.xlsx")
     
     ' Öffne die Level-Datei im gleichen Ordner wie die aktuelle Arbeitsmappe
-    Set wsLevel = wbSF.Sheets("Level")
+    Set wsLevel = Workbooks.Open(ThisWorkbook.Path & "\Level.xlsx").Sheets(1)
     
     ' Definiere die Quell- und Zielarbeitsblätter
     Set wsSource = wbSF.Sheets(1) ' Annahme: Die Daten befinden sich im ersten Arbeitsblatt der SF-Datei
