@@ -1,0 +1,51 @@
+Sub UpdateSteuerungsreport()
+    Dim wsSF As Worksheet, wsLevel As Worksheet, wsReport As Worksheet
+    Dim dict As Object, lastRow As Long, i As Long
+    Dim dataSF As Variant, dataLevel As Variant, matchData() As Variant
+    Dim matchCount As Long
+
+    ' Arbeitsblätter initialisieren
+    Set wsSF = Workbooks("SF.xlsx").Sheets(1) ' Angepasst nach deinen Arbeitsblatt-Namen
+    Set wsLevel = Workbooks("Level.xlsx").Sheets(1)
+    Set wsReport = ThisWorkbook.Sheets("Steuerungsreport")
+    
+    ' Dictionary erstellen
+    Set dict = CreateObject("Scripting.Dictionary")
+
+    ' Daten aus "SF" laden und in Dictionary speichern
+    With wsSF
+        lastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+        dataSF = .Range(.Cells(1, 1), .Cells(lastRow, 4)).Value ' A bis D
+        For i = 1 To lastRow
+            If dataSF(i, 4) = "Lidl" Then ' Filter für "Lidl" in Spalte D
+                If Not dict.exists(dataSF(i, 1)) Then
+                    dict.Add dataSF(i, 1), Nothing
+                End If
+            End If
+        Next i
+    End With
+
+    ' Daten aus "Level" vergleichen
+    With wsLevel
+        lastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+        dataLevel = .Range(.Cells(1, 1), .Cells(lastRow, 6)).Value ' A bis F
+        ReDim matchData(1 To lastRow, 1 To 3) ' Anpassen, falls mehr Spalten benötigt werden
+        
+        matchCount = 0
+        For i = 1 To lastRow
+            If dict.exists(dataLevel(i, 1)) Then
+                matchCount = matchCount + 1
+                matchData(matchCount, 1) = dataLevel(i, 1) ' Vorgangsnummer
+                matchData(matchCount, 2) = dataLevel(i, 5) ' Spalte E
+                matchData(matchCount, 3) = dataLevel(i, 6) ' Spalte F
+            End If
+        Next i
+    End With
+
+    ' Ergebnisse in "Steuerungsreport" eintragen
+    If matchCount > 0 Then
+        wsReport.Range("A2").Resize(matchCount, 3).Value = matchData
+    End If
+
+    MsgBox "Update abgeschlossen. " & matchCount & " Einträge hinzugefügt."
+End Sub
