@@ -1,44 +1,45 @@
-Sub SucheUndSchreibeVorgangsnummern()
-    Dim wsZiel As Worksheet
-    Dim wbSF As Workbook, wbLevel As Workbook
-    Dim wsSF As Worksheet, wsLevel As Worksheet
-    Dim letzteZeileSF As Long, letzteZeileLevel As Long, i As Long, j As Long
-    Dim vorgangsNummern As Collection
-    Dim gefunden As Range
-    Dim pfadSF As String, pfadLevel As String
+Sub SucheSchnellUndSchreibeVorgangsnummern()
+    Dim wbLevel As Workbook
+    Dim wsZiel As Worksheet, wsLevel As Worksheet
+    Dim vorgangsNummernDict As Object
+    Dim i As Long, letzteZeileLevel As Long
+    Dim pfadLevel As String
+    Dim vorgangsnummer As Variant
+    Dim zielZeile As Long
     
     ' Pfad zu deinen Dateien anpassen
-    pfadSF = "C:\PfadZuDeinerDatei\SF.xlsx"
     pfadLevel = "C:\PfadZuDeinerDatei\level.xlsx"
     
-    Set vorgangsNummern = New Collection
     Set wsZiel = ThisWorkbook.ActiveSheet
+    Set vorgangsNummernDict = CreateObject("Scripting.Dictionary")
     
-    ' Öffne die SF-Datei und sammle Vorgangsnummern
-    Set wbSF = Workbooks.Open(pfadSF)
-    Set wsSF = wbSF.Sheets(1) ' Gehe davon aus, dass die Daten im ersten Blatt sind
-    letzteZeileSF = wsSF.Cells(wsSF.Rows.Count, "A").End(xlUp).Row
-    
-    For i = 1 To letzteZeileSF
-        vorgangsNummern.Add wsSF.Cells(i, 1).Value
-    Next i
-    
-    wbSF.Close False
+    ' Vorgangsnummern aus der aktuellen Arbeitsmappe sammeln
+    With wsZiel
+        For i = 1 To .Cells(.Rows.Count, "A").End(xlUp).Row
+            If Not vorgangsNummernDict.exists(.Cells(i, 1).Value) Then
+                vorgangsNummernDict.Add .Cells(i, 1).Value, Nothing
+            End If
+        Next i
+    End With
     
     ' Öffne die Level-Datei und suche nach Vorgangsnummern
     Set wbLevel = Workbooks.Open(pfadLevel)
     Set wsLevel = wbLevel.Sheets(1) ' Gehe davon aus, dass die Daten im ersten Blatt sind
     letzteZeileLevel = wsLevel.Cells(wsLevel.Rows.Count, "A").End(xlUp).Row
     
-    For i = 1 To vorgangsNummern.Count
-        For j = 1 To letzteZeileLevel
-            If wsLevel.Cells(j, 1).Value = vorgangsNummern(i) Then
-                ' Treffer gefunden, schreibe Vorgangsnummer, Spalte E und F in das Zielarbeitsblatt
-                wsZiel.Cells(wsZiel.Rows.Count, 1).End(xlUp).Offset(1, 0).Value = vorgangsNummern(i)
-                wsZiel.Cells(wsZiel.Rows.Count, 1).End(xlUp).Offset(0, 1).Value = wsLevel.Cells(j, 5).Value
-                wsZiel.Cells(wsZiel.Rows.Count, 1).End(xlUp).Offset(0, 2).Value = wsLevel.Cells(j, 6).Value
-            End If
-        Next j
+    zielZeile = wsZiel.Cells(wsZiel.Rows.Count, "A").End(xlUp).Row + 1
+    
+    For i = 1 To letzteZeileLevel
+        vorgangsnummer = wsLevel.Cells(i, 1).Value
+        If vorgangsNummernDict.exists(vorgangsnummer) Then
+            ' Treffer gefunden, schreibe Vorgangsnummer, Spalte E und F in das Zielarbeitsblatt
+            With wsZiel
+                .Cells(zielZeile, 1).Value = vorgangsnummer
+                .Cells(zielZeile, 2).Value = wsLevel.Cells(i, 5).Value
+                .Cells(zielZeile, 3).Value = wsLevel.Cells(i, 6).Value
+            End With
+            zielZeile = zielZeile + 1
+        End If
     Next i
     
     wbLevel.Close False
