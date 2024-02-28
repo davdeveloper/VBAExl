@@ -1,31 +1,28 @@
 Sub FilterUndKopiere()
     Dim wbSF As Workbook
-    Dim wbLevel As Workbook
     Dim wsSource As Worksheet
     Dim wsDest As Worksheet
     Dim wsLevel As Worksheet
     Dim filterValue As String
     Dim lastRowSF As Long
     Dim lastRowLevel As Long
+    Dim levelData As Variant
     Dim i As Long
-    Dim j As Long
     
     ' Öffne die SF-Datei im gleichen Ordner wie die aktuelle Arbeitsmappe
     Set wbSF = Workbooks.Open(ThisWorkbook.Path & "\SF.xlsx")
     
-    ' Definiere die Quell- und Zielarbeitsblätter für SF-Datei
-    Set wsSource = wbSF.Sheets(1) ' Annahme: Die Daten befinden sich im ersten Arbeitsblatt der geöffneten Datei
+    ' Öffne die Level-Datei im gleichen Ordner wie die aktuelle Arbeitsmappe
+    Set wsLevel = wbSF.Sheets("Level")
+    
+    ' Definiere die Quell- und Zielarbeitsblätter
+    Set wsSource = wbSF.Sheets(1) ' Annahme: Die Daten befinden sich im ersten Arbeitsblatt der SF-Datei
     Set wsDest = ThisWorkbook.Sheets("Zuweisung_Level")
     
-    ' Öffne die level-Datei im gleichen Ordner wie die aktuelle Arbeitsmappe
-    Set wbLevel = Workbooks.Open(ThisWorkbook.Path & "\level.xlsx")
-    ' Definiere das Arbeitsblatt in der level-Datei
-    Set wsLevel = wbLevel.Sheets(1) ' Annahme: Die Daten befinden sich im ersten Arbeitsblatt der geöffneten Datei
-    
-    ' Setze den Filterwert für SF-Datei
+    ' Setze den Filterwert
     filterValue = "Lidl"
     
-    ' Filtere die Daten nach Spalte D in SF-Datei
+    ' Filtere die Daten nach Spalte D in der Quelldatei
     With wsSource
         ' Finde die letzte Zeile in Spalte D
         lastRowSF = .Cells(.Rows.Count, "D").End(xlUp).Row
@@ -33,44 +30,45 @@ Sub FilterUndKopiere()
         ' Filter anwenden
         .Range("D1:D" & lastRowSF).AutoFilter Field:=1, Criteria1:=filterValue
         
-        ' Überprüfe, ob gefilterte Daten vorhanden sind
+        ' Kopiere Spalte A in das Zielarbeitsblatt
         If .AutoFilter.Range.Columns(1).SpecialCells(xlCellTypeVisible).Count > 1 Then
-            ' Kopiere Spalte A in das Zielarbeitsblatt
             .AutoFilter.Range.Columns(1).Offset(, -3).SpecialCells(xlCellTypeVisible).Copy wsDest.Range("A1")
         Else
             MsgBox "Keine Daten gefunden für ""Lidl"" in Spalte D.", vbInformation
-            Exit Sub ' Beende die Prozedur, wenn keine Daten gefunden wurden
+            Exit Sub
         End If
         
         ' Filter entfernen
         .AutoFilterMode = False
     End With
     
-    ' Durchlaufe die Vorgangsnummern im Zielarbeitsblatt
-    For i = 1 To wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row
-        ' Suche die Vorgangsnummer in Spalte A des level-Arbeitsblatts
-        For j = 1 To wsLevel.Cells(wsLevel.Rows.Count, "A").End(xlUp).Row
-            If wsLevel.Cells(j, 1).Value = wsDest.Cells(i, 1).Value Then
-                ' Wenn die Vorgangsnummer gefunden wird, kopiere die Werte in Spalte E und F in Spalte B und C des Zielarbeitsblatts
-                wsDest.Cells(i, 2).Value = wsLevel.Cells(j, 5).Value ' Wert aus Spalte E
-                wsDest.Cells(i, 3).Value = wsLevel.Cells(j, 6).Value ' Wert aus Spalte F
-                Exit For ' Beende die Suche nach der Vorgangsnummer im level-Arbeitsblatt
+    ' Schließe die SF-Datei ohne zu speichern
+    wbSF.Close False
+    
+    ' Lade Daten aus der Level-Datei in ein Array
+    With wsLevel
+        lastRowLevel = .Cells(.Rows.Count, "A").End(xlUp).Row
+        levelData = .Range("A1:F" & lastRowLevel).Value
+    End With
+    
+    ' Durchsuche das Array nach Übereinstimmungen mit den Vorgangsnummern in Spalte A des Zielarbeitsblatts
+    For i = 2 To wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row
+        ' Sucht nach Übereinstimmungen in Spalte A des Arrays
+        Dim j As Long
+        For j = 1 To UBound(levelData, 1)
+            If levelData(j, 1) = wsDest.Cells(i, 1).Value Then
+                ' Schreibe die entsprechenden Werte in Spalte B und C des Zielarbeitsblatts
+                wsDest.Cells(i, 2).Value = levelData(j, 5) ' Wert aus Spalte E in Spalte B schreiben
+                wsDest.Cells(i, 3).Value = levelData(j, 6) ' Wert aus Spalte F in Spalte C schreiben
+                Exit For
             End If
         Next j
     Next i
     
-    ' Filtere die Daten nach "Aktuelles Level" in Spalte C im Zielarbeitsblatt
+    ' Filtere die Daten in Spalte C nach "Aktuelles Level"
     With wsDest
-        ' Finde die letzte Zeile in Spalte A
-        lastRowLevel = .Cells(.Rows.Count, "A").End(xlUp).Row
-        
-        ' Filter anwenden
-        .Range("A1:C" & lastRowLevel).AutoFilter Field:=3, Criteria1:="Aktuelles Level"
+        .Range("C1:C" & .Cells(.Rows.Count, "C").End(xlUp).Row).AutoFilter Field:=1, Criteria1:="Aktuelles Level"
     End With
-    
-    ' Schließe die SF- und level-Dateien ohne zu speichern
-    wbSF.Close False
-    wbLevel.Close False
     
     ' Meldung über erfolgreiche Durchführung anzeigen
     MsgBox "Die Daten wurden erfolgreich gefiltert und kopiert.", vbInformation
