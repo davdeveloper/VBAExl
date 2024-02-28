@@ -2,7 +2,7 @@
     For i = 2 To wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row
         matchIndex = Application.Match(wsDest.Cells(i, 1).Value, Application.Index(levelData, 0, 1), 0)
         If Not IsError(matchIndex) Then
-            wsDest.Cells(i, 2).Value = levelData(matchIndex, 5) ' Wert aus Spalte E in Spalte B schreiben
-            wsDest.Cells(i, 3).Value = levelData(matchIndex, 6) ' Wert aus Spalte F in Spalte C schreiben
+            wsDest.Cells(i, 2).Value = levelData(matchIndex, 4) ' Wert aus Spalte E in Spalte B schreiben
+            wsDest.Cells(i, 3).Value = levelData(matchIndex, 5) ' Wert aus Spalte F in Spalte C schreiben
         End If
     Next i
