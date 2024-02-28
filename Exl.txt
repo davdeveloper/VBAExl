@@ -1,50 +1,54 @@
-Sub SucheUndSchreibeVorgangsnummernSchnell()
-    Dim wsZiel As Worksheet
-    Dim wbSF As Workbook, wbLevel As Workbook
-    Dim wsSF As Worksheet, wsLevel As Worksheet
-    Dim letzteZeileSF As Long, letzteZeileLevel As Long, i As Long
-    Dim dict As Object
-    Dim pfadSF As String, pfadLevel As String
-    Dim vorgangsNummer As Variant
+Sub FilterEinträge()
+    Dim SFWorkbook As Workbook
+    Dim LevelZuordnungSheet As Worksheet
+    Dim SFSheet As Worksheet
+    Dim SFData As Variant
+    Dim LevelZuordnungData As Variant
+    Dim SFLastRow As Long
+    Dim LevelZuordnungLastRow As Long
+    Dim i As Long, j As Long
+    Dim FilteredEntries() As String
+    Dim Entry As String
+    Dim MatchFound As Boolean
     
-    ' Anpassen der Pfade zu den Dateien
-    pfadSF = "C:\PfadZuDeinerDatei\SF.xlsx"
-    pfadLevel = "C:\PfadZuDeinerDatei\level.xlsx"
+    ' Festlegen der Arbeitsmappe "SF"
+    Set SFWorkbook = Workbooks("SF.xlsx")
+    ' Festlegen des Arbeitsblatts "Level_Zuordnung"
+    Set LevelZuordnungSheet = ThisWorkbook.Sheets("Level_Zuordnung")
+    ' Festlegen des Arbeitsblatts in der SF-Arbeitsmappe
+    Set SFSheet = SFWorkbook.Sheets("NameDesArbeitsblattsInSF")
     
-    Set wsZiel = ThisWorkbook.ActiveSheet
-    Set dict = CreateObject("Scripting.Dictionary")
+    ' Daten aus SF-Arbeitsblatt in Array laden
+    SFLastRow = SFSheet.Cells(SFSheet.Rows.Count, "A").End(xlUp).Row
+    SFData = SFSheet.Range("A1:D" & SFLastRow).Value
     
-    ' Öffnen der Level-Datei und Speichern der Vorgangsnummern mit zugehörigen Daten in einem Dictionary
-    Set wbLevel = Workbooks.Open(pfadLevel)
-    Set wsLevel = wbLevel.Sheets(1) ' Annahme, dass Daten im ersten Blatt sind
-    letzteZeileLevel = wsLevel.Cells(wsLevel.Rows.Count, "A").End(xlUp).Row
+    ' Daten aus Level_Zuordnung-Arbeitsblatt in Array laden
+    LevelZuordnungLastRow = LevelZuordnungSheet.Cells(LevelZuordnungSheet.Rows.Count, "A").End(xlUp).Row
+    LevelZuordnungData = LevelZuordnungSheet.Range("A1:A" & LevelZuordnungLastRow).Value
     
-    For i = 1 To letzteZeileLevel
-        If Not dict.Exists(wsLevel.Cells(i, 1).Value) Then
-            dict.Add wsLevel.Cells(i, 1).Value, wsLevel.Cells(i, 5).Value & "|" & wsLevel.Cells(i, 6).Value
+    ' Durchlaufen der Daten aus SF-Arbeitsblatt
+    For i = 1 To SFLastRow
+        ' Überprüfen, ob der Filter in Spalte D "Lidl" ist
+        If SFData(i, 4) = "Lidl" Then
+            Entry = SFData(i, 1) ' Eintrag aus Spalte A in SF
+            MatchFound = False
+            
+            ' Durchlaufen der Daten aus Level_Zuordnung-Arbeitsblatt
+            For j = 1 To LevelZuordnungLastRow
+                If Entry = LevelZuordnungData(j, 1) Then
+                    MatchFound = True
+                    Exit For
+                End If
+            Next j
+            
+            ' Wenn Übereinstimmung gefunden wurde, Eintrag zur Liste hinzufügen
+            If MatchFound Then
+                ReDim Preserve FilteredEntries(1 To UBound(FilteredEntries) + 1)
+                FilteredEntries(UBound(FilteredEntries)) = Entry
+            End If
         End If
     Next i
     
-    wbLevel.Close False
-    
-    ' Öffnen der SF-Datei und Durchsuchen nach Vorgangsnummern
-    Set wbSF = Workbooks.Open(pfadSF)
-    Set wsSF = wbSF.Sheets(1) ' Annahme, dass Daten im ersten Blatt sind
-    letzteZeileSF = wsSF.Cells(wsSF.Rows.Count, "A").End(xlUp).Row
-    
-    For i = 1 To letzteZeileSF
-        vorgangsNummer = wsSF.Cells(i, 1).Value
-        If dict.Exists(vorgangsNummer) Then
-            ' Treffer gefunden, Daten aus dem Dictionary extrahieren und ins Zielarbeitsblatt schreiben
-            With wsZiel
-                .Cells(.Rows.Count, 1).End(xlUp).Offset(1, 0).Value = vorgangsNummer
-                .Cells(.Rows.Count, 1).End(xlUp).Offset(0, 1).Value = Split(dict(vorgangsNummer), "|")(0)
-                .Cells(.Rows.Count, 1).End(xlUp).Offset(0, 2).Value = Split(dict(vorgangsNummer), "|")(1)
-            End With
-        End If
-    Next i
-    
-    wbSF.Close False
-    
-    MsgBox "Vorgangsnummern und Daten wurden erfolgreich übertragen.", vbInformation
+    ' Ergebnisse in Spalte A von "Level_Zuordnung" einfügen
+    LevelZuordnungSheet.Range("A1").Resize(UBound(FilteredEntries), 1).Value = WorksheetFunction.Transpose(FilteredEntries)
 End Sub
