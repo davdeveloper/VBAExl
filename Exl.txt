@@ -1,57 +1,43 @@
-Sub FilterEinträge()
-    Dim SFWorkbook As Workbook
-    Dim LevelZuordnungSheet As Worksheet
-    Dim SFSheet As Worksheet
-    Dim SFData As Variant
-    Dim LevelZuordnungData As Variant
-    Dim SFLastRow As Long
-    Dim LevelZuordnungLastRow As Long
+Sub FilterUndÜbertragen()
+    Dim sfSheet As Worksheet
+    Dim levelSheet As Worksheet
+    Dim sfLastRow As Long
+    Dim levelLastRow As Long
+    Dim sfRange As Range
+    Dim filterCriteria As String
+    Dim filteredData As Variant
     Dim i As Long, j As Long
-    Dim FilteredEntries() As String
-    Dim Entry As String
-    Dim MatchFound As Boolean
     
-    ' Festlegen der Arbeitsmappe "SF"
-    Set SFWorkbook = Workbooks.Open(ThisWorkbook.Path & "\SF.xlsx")
-    ' Festlegen des Arbeitsblatts "Level_Zuordnung"
-    Set LevelZuordnungSheet = ThisWorkbook.Sheets("Level_Zuordnung")
-    ' Festlegen des Arbeitsblatts in der SF-Arbeitsmappe
-    Set SFSheet = SFWorkbook.Sheets("NameDesArbeitsblattsInSF")
+    ' Definiere Arbeitsblätter
+    Set sfSheet = ThisWorkbook.Sheets("SF")
+    Set levelSheet = ThisWorkbook.Sheets("Level_Zuordnung")
     
-    ' Daten aus SF-Arbeitsblatt in Array laden
-    SFLastRow = SFSheet.Cells(SFSheet.Rows.Count, "A").End(xlUp).Row
-    SFData = SFSheet.Range("A1:D" & SFLastRow).Value
+    ' Finde die letzte Zeile in SF
+    sfLastRow = sfSheet.Cells(sfSheet.Rows.Count, "A").End(xlUp).Row
     
-    ' Daten aus Level_Zuordnung-Arbeitsblatt in Array laden
-    LevelZuordnungLastRow = LevelZuordnungSheet.Cells(LevelZuordnungSheet.Rows.Count, "A").End(xlUp).Row
-    LevelZuordnungData = LevelZuordnungSheet.Range("A1:A" & LevelZuordnungLastRow).Value
+    ' Setze Filterkriterium
+    filterCriteria = "Lidl"
     
-    ' Durchlaufen der Daten aus SF-Arbeitsblatt
-    For i = 1 To SFLastRow
-        ' Überprüfen, ob der Filter in Spalte D "Lidl" ist
-        If SFData(i, 4) = "Lidl" Then
-            Entry = SFData(i, 1) ' Eintrag aus Spalte A in SF
-            MatchFound = False
-            
-            ' Durchlaufen der Daten aus Level_Zuordnung-Arbeitsblatt
-            For j = 1 To LevelZuordnungLastRow
-                If Entry = LevelZuordnungData(j, 1) Then
-                    MatchFound = True
-                    Exit For
-                End If
-            Next j
-            
-            ' Wenn Übereinstimmung gefunden wurde, Eintrag zur Liste hinzufügen
-            If MatchFound Then
-                ReDim Preserve FilteredEntries(1 To UBound(FilteredEntries) + 1)
-                FilteredEntries(UBound(FilteredEntries)) = Entry
-            End If
-        End If
-    Next i
+    ' Wende den Filter an
+    With sfSheet
+        .AutoFilterMode = False
+        .Range("A1:D1").AutoFilter Field:=4, Criteria1:=filterCriteria
+    End With
     
-    ' Ergebnisse in Spalte A von "Level_Zuordnung" einfügen
-    LevelZuordnungSheet.Range("A1").Resize(UBound(FilteredEntries), 1).Value = WorksheetFunction.Transpose(FilteredEntries)
+    ' Definiere den relevanten Bereich nach dem Filter
+    Set sfRange = sfSheet.Range("A1:A" & sfLastRow).SpecialCells(xlCellTypeVisible)
     
-    ' Arbeitsmappe "SF" schließen
-    SFWorkbook.Close SaveChanges:=False
+    ' Übertrage die gefilterten Daten in das Arbeitsblatt "Level_Zuordnung"
+    levelSheet.Range("A:A").Clear  ' Lösche alle Daten in Spalte A von "Level_Zuordnung"
+    levelLastRow = sfRange.Rows.Count
+    If levelLastRow > 1 Then
+        filteredData = sfRange.Value
+        levelSheet.Range("A1:A" & levelLastRow).Value = filteredData
+    End If
+    
+    ' Deaktiviere den Filter
+    sfSheet.AutoFilterMode = False
+    
+    ' Hinweis für den Benutzer
+    MsgBox "Die Daten wurden erfolgreich übertragen.", vbInformation
 End Sub
