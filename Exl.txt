@@ -6,8 +6,8 @@ Sub FilterUndÜbertragen()
     Dim levelLastRow As Long
     Dim sfRange As Range
     Dim filterCriteria As String
-    Dim filteredData As Variant
-    Dim i As Long, j As Long
+    Dim filteredData() As Variant
+    Dim i As Long
     
     ' Öffne die SF-Datei
     Set sfWorkbook = Workbooks.Open("Pfad_zur_SF_Datei.xlsx") ' Passe den Pfad entsprechend an
@@ -18,35 +18,41 @@ Sub FilterUndÜbertragen()
     ' Definiere das Arbeitsblatt in dieser Datei
     Set levelSheet = ThisWorkbook.Sheets("Level_Zuordnung")
     
-    ' Finde die letzte Zeile in SF
+    ' Finde die letzte Zeile in Spalte A der SF-Datei
     sfLastRow = sfSheet.Cells(sfSheet.Rows.Count, "A").End(xlUp).Row
     
     ' Setze Filterkriterium
     filterCriteria = "Lidl"
     
-    ' Wende den Filter an
+    ' Wende den Filter auf Spalte D in der SF-Datei an
     With sfSheet
-        .AutoFilterMode = False
-        .Range("A1:D1").AutoFilter Field:=4, Criteria1:=filterCriteria
+        .AutoFilterMode = False ' Deaktiviere vorhandene Filter
+        .Range("A1:D1").AutoFilter Field:=4, Criteria1:=filterCriteria ' Wende Filter auf Spalte D an
     End With
     
-    ' Definiere den relevanten Bereich nach dem Filter
+    ' Definiere den relevanten Bereich nach dem Filter in Spalte A
     Set sfRange = sfSheet.Range("A2:A" & sfLastRow).SpecialCells(xlCellTypeVisible)
     
     ' Übertrage die gefilterten Daten in das Arbeitsblatt "Level_Zuordnung"
-    levelSheet.Range("A:A").Clear  ' Lösche alle Daten in Spalte A von "Level_Zuordnung"
+    levelSheet.Range("A:A").Clear ' Lösche alle Daten in Spalte A von "Level_Zuordnung"
     levelLastRow = sfRange.Rows.Count
     If levelLastRow > 1 Then
-        filteredData = sfRange.Value
-        levelSheet.Range("A1:A" & levelLastRow).Value = filteredData
+        ' Erstelle ein Array, um die gefilterten Daten zu speichern
+        ReDim filteredData(1 To levelLastRow, 1 To 1)
+        ' Durchlaufe die gefilterte Range und übertrage die Daten in das Array
+        For i = 1 To levelLastRow
+            filteredData(i, 1) = sfRange.Cells(i, 1).Value
+        Next i
+        ' Schreibe das Array in die erste Spalte von "Level_Zuordnung"
+        levelSheet.Range("A1").Resize(levelLastRow, 1).Value = filteredData
     End If
     
-    ' Deaktiviere den Filter
+    ' Deaktiviere den Filter in der SF-Datei
     sfSheet.AutoFilterMode = False
     
     ' Schließe die SF-Datei ohne Speichern
     sfWorkbook.Close False
     
-    ' Hinweis für den Benutzer
+    ' Zeige eine Benachrichtigung über die erfolgreiche Übertragung der Daten
     MsgBox "Die Daten wurden erfolgreich übertragen.", vbInformation
 End Sub
