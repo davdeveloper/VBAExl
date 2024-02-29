@@ -1,16 +1,1 @@
-' Finden von Übereinstimmungen und Schreiben der Werte in die Zielarbeitsblatt-Spalten B und C
-    Dim dict As Object
-    Set dict = CreateObject("Scripting.Dictionary")
-    
-    ' Fülle Dictionary mit den Vorgangsnummern aus der Level-Datei und ihren Werten in Spalte E und F
-    For i = 2 To UBound(levelData, 1)
-        dict(levelData(i, 1)) = Array(levelData(i, 5), levelData(i, 6))
-    Next i
-    
-    ' Schreibe die Werte in das Zielarbeitsblatt
-    For i = 2 To wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row
-        If dict.exists(wsDest.Cells(i, 1).Value) Then
-            wsDest.Cells(i, 2).Value = dict(wsDest.Cells(i, 1).Value)(0) ' Wert aus Array in Spalte B schreiben
-            wsDest.Cells(i, 3).Value = dict(wsDest.Cells(i, 1).Value)(1) ' Wert aus Array in Spalte C schreiben
-        End If
-    Next i
+=INDEX(Datenbank_Lvl!D:D; MATCH(1; (Datenbank_Lvl!C:C=A1) * (Datenbank_Lvl!D:D="Online Shop") * (Datenbank_Lvl!B:B="Web Form") * (Datenbank_Lvl!G:G="2nd Level"); 0))
