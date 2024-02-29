@@ -1,1 +1,1 @@
-=INDEX(Datenbank_Lvl!D:D; MATCH(1; (Datenbank_Lvl!C:C=A1) * (Datenbank_Lvl!D:D="Online Shop") * (Datenbank_Lvl!B:B="Web Form") * (Datenbank_Lvl!G:G="2nd Level"); 0))
+=SUMMEWENN(Datenbank_Lvl!C:C; A1; Datenbank_Lvl!D:D) * ZÄHLENWENNS(Datenbank_Lvl!D:D; "Online Shop"; Datenbank_Lvl!B:B; "Web Form"; Datenbank_Lvl!G:G; "2nd Level")
