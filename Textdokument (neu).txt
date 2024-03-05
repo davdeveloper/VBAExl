@@ -11,8 +11,9 @@ Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)
     Dim changedCells As Range
     Set changedCells = Nothing
 
+    Dim cell As Range
     For Each cell In ThisWorkbook.Sheets("DeinBlatt").UsedRange ' Hier den Namen deines Blatts eintragen
-        If Not cell.Value = cell.Value2 Then
+        If cell.Value <> cell.Value2 Then
             If changedCells Is Nothing Then
                 Set changedCells = cell
             Else
@@ -25,6 +26,7 @@ Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)
         lastRow = logSheet.Cells(logSheet.Rows.Count, "A").End(xlUp).Row + 1
         logSheet.Cells(lastRow, 1).Value = "Veränderte Zellen:"
 
+        Dim c As Range
         For Each c In changedCells
             lastRow = lastRow + 1
             logSheet.Cells(lastRow, 1).Value = "Zelle " & c.Address & " geändert von " & c.Value2 & " auf " & c.Value & " am " & Now() & " von Benutzer: " & Environ("USERNAME")
