@@ -1,1 +1,1 @@
-=WENN(UND(B4:B34="Test", L4:L34<0), "Bedingung erfüllt", "Bedingung nicht erfüllt")
+=WENN(L4<0; WENN(UND(ZÄHLENWENN(L$4:L$34; "<0")>1; B4=B$4); "Bedingung erfüllt"; "Weitere Zellen in L kleiner als 0 oder B nicht gleich B4"); "L4 ist größer oder gleich 0")
