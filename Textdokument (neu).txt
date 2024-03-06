@@ -1,1 +1,1 @@
-=FILTER(B4:B34; (ISTZAHL(FINDEN("-"; L4:L34))) * (L4:L34 = "-" & B4))
+=WENN(UND(B4:B34="Test", L4:L34<0), "Bedingung erfüllt", "Bedingung nicht erfüllt")
