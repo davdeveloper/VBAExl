@@ -1,1 +1,1 @@
-=WENN(ISTZAHL(FINDEN("-";INDEX(L:L;VERGLEICH(B4;B:B;0))))*ANZAHLWENN(B:B;B4)=2;"Wiederholung";"")
+=WENN(UND(LINKS(L4;1)="-"; ZÄHLENWENN($B$4:$B$34; B4) > 1); "-"; "")
