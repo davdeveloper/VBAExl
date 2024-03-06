@@ -1,1 +1,1 @@
-=WENN(UND(LINKS(L1,1)="-", ZÄHLENWENN(B:B,B1)=2), "Bedingung erfüllt", "Bedingung nicht erfüllt")
+=WENN(UND(LINKS(L1;1)="-"; ZÄHLENWENN(B:B;B1)=2); "Bedingung erfüllt"; "Bedingung nicht erfüllt")
