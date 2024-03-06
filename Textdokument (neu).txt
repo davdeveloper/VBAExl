@@ -1,1 +1,1 @@
-=WENN(UND(LINKS(L1;1)="-"; ZÄHLENWENN(B:B;B1)=2; ZÄHLENWENN(L:L;"-"&B1)=1); "Bedingung erfüllt"; "Bedingung nicht erfüllt")
+=FILTER(B4:B34; (ISTZAHL(FINDEN("-"; L4:L34))) * (L4:L34 = "-" & B4))
