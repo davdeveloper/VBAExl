@@ -1,1 +1,1 @@
-=WENNFEHLER(INDEX(A:A; VERGLEICH(WAHR; O:O < 0; 0)); "-")
+=WENN(UND(L1<0; ZÄHLENWENN(B:B; B1)>1; ZÄHLENWENN(L:L; "<0"; B:B; B1)>1); "Malus"; "")
