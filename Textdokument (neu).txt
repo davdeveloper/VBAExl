@@ -1,1 +1,1 @@
-=WENN(UND(LINKS(L4;1)="-"; ZÄHLENWENN($B$4:$B$34; B4) > 1); "-"; "")
+=WENN(UND(ZÄHLENWENN($B$4:$B$34;B4)=ZÄHLENWENN($B$4:$B$34;B4); LINKS(L4;1)="-"); "-"; "")
