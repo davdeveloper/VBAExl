@@ -1,1 +1,1 @@
-=FILTER(L:L; ODER(ISTZAHL(SUCHEN("-"; L:L; 1)); L:L < 0))
+=IF(L1<0, 1, 0)
