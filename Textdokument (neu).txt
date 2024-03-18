@@ -1,1 +1,1 @@
-=IF(L1<0, 1, 0)
+=WENN(UND(L1<0; ZÄHLENWENN(B:B; B1)>2); 1; "")
