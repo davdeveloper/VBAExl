@@ -1,1 +1,1 @@
-=ZÄHLENWENN(E35,"<80%")-ZÄHLENWENN(E35,"<65%")
+=ZÄHLENWENNS(D:D;"<"&C36;E:E;">=0,65";E:E;"<0,80")
