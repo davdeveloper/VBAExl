@@ -1,1 +1,1 @@
-=ZÄHLENWENN(Bereich;">=65")-ZÄHLENWENN(Bereich;">80")
+=ZÄHLENWENN((D4:D34/C4:C34)*100;"<80") - ZÄHLENWENN((D4:D34/C4:C34)*100;"<=65")
