@@ -1,1 +1,7 @@
-=ZÄHLENWENN((D4:D34/C4:C34)*100;"<80") - ZÄHLENWENN((D4:D34/C4:C34)*100;"<=65")
+=Gesamtwert(A1, B1, C1) = B1 / (C1 / 100)
+
+=Wert65(G1) = G1 * 0.65
+
+=Wert80(G1) = G1 * 0.80
+
+=AnzahlVorgänge(Wert65, Wert80) = Wert80 - Wert65
