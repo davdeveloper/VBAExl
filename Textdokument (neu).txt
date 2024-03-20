@@ -1,1 +1,1 @@
-=ZÄHLENWENN(C36:Cxx;">="&E35)*((E35<0,8)*(E35>0,65))
+=ZÄHLENWENN(E35,"<80%")-ZÄHLENWENN(E35,"<65%")
