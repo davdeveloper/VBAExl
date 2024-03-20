@@ -1,1 +1,1 @@
-=ZÄHLENWENNS(D:D;"<"&C36;E:E;">=0,65";E:E;"<0,80")
+=ZÄHLENWENN(Bereich;">=65")-ZÄHLENWENN(Bereich;">80")
