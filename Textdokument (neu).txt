@@ -1,7 +1,1 @@
-=Gesamtwert(A1, B1, C1) = B1 / (C1 / 100)
-
-=Wert65(G1) = G1 * 0.65
-
-=Wert80(G1) = G1 * 0.80
-
-=AnzahlVorgänge(Wert65, Wert80) = Wert80 - Wert65
+=WENN(UND(E35<0,8;E35>=0,65); C36*(0,8-E35); "")
