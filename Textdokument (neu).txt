@@ -1,1 +1,33 @@
-=WENN(UND(E35<0,8;E35>=0,65); C36*(0,8-E35); "")
+Sub VergleicheNummern()
+    Dim ws As Worksheet
+    Dim lastRowB As Long, lastRowF As Long
+    Dim rngB As Range, cell As Range
+    Dim found As Boolean
+    
+    ' Arbeitsblätter festlegen
+    Set ws = ThisWorkbook.Sheets("DeinBlattName") ' Hier "DeinBlattName" durch den Namen deines Arbeitsblatts ersetzen
+    
+    ' Letzte Zeile in Spalte B und F finden
+    lastRowB = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    lastRowF = ws.Cells(ws.Rows.Count, "F").End(xlUp).Row
+    
+    ' Bereich in Spalte B festlegen
+    Set rngB = ws.Range("B1:B" & lastRowB)
+    
+    ' Schleife durch jede Zelle in Spalte B
+    For Each cell In rngB
+        found = False ' Flag, um zu überprüfen, ob die Nummer gefunden wurde
+        ' Schleife durch jede Zelle in Spalte F
+        For i = 1 To lastRowF
+            ' Überprüfen, ob die Nummer in Spalte F vorhanden ist
+            If cell.Value = ws.Cells(i, "F").Value Then
+                found = True ' Wenn gefunden, setze das Flag auf True
+                Exit For ' Beende die Schleife, da die Nummer bereits gefunden wurde
+            End If
+        Next i
+        ' Wenn die Nummer nicht gefunden wurde, füge sie in Spalte H ein
+        If Not found Then
+            ws.Cells(ws.Cells(ws.Rows.Count, "H").End(xlUp).Row + 1, "H").Value = cell.Value
+        End If
+    Next cell
+End Sub
