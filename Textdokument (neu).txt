@@ -1,10 +1,10 @@
 Sub VergleicheNummern()
     Dim ws As Worksheet
     Dim lastRowB As Long, lastRowF As Long
-    Dim rngB As Range, rngF As Range, cell As Range
-    Dim missingNumbers As Range
+    Dim rngB As Range, rngF As Range
+    Dim cell As Range, findRange As Range
     
-    ' Arbeitsblätter festlegen
+    ' Arbeitsblatt festlegen
     Set ws = ThisWorkbook.Sheets("DeinBlattName") ' Hier "DeinBlattName" durch den Namen deines Arbeitsblatts ersetzen
     
     ' Letzte Zeile in Spalte B und F finden
@@ -15,13 +15,13 @@ Sub VergleicheNummern()
     Set rngB = ws.Range("B1:B" & lastRowB)
     Set rngF = ws.Range("F1:F" & lastRowF)
     
-    ' Alle fehlenden Nummern in einem Bereich sammeln
-    On Error Resume Next
-    Set missingNumbers = Application.WorksheetFunction.Match(rngB, rngF, 0)
-    On Error GoTo 0
-    
-    ' Alle fehlenden Nummern in Spalte H ausgeben
-    If Not missingNumbers Is Nothing Then
-        missingNumbers.EntireRow.Copy Destination:=ws.Cells(ws.Rows.Count, "H").End(xlUp).Offset(1, 0)
-    End If
+    ' Schleife durch jede Zelle in Spalte B
+    For Each cell In rngB
+        ' Überprüfen, ob die Nummer in Spalte F vorhanden ist
+        Set findRange = rngF.Find(What:=cell.Value, LookAt:=xlWhole)
+        ' Wenn nicht gefunden, füge die Nummer in Spalte H ein
+        If findRange Is Nothing Then
+            ws.Cells(ws.Cells(ws.Rows.Count, "H").End(xlUp).Row + 1, "H").Value = cell.Value
+        End If
+    Next cell
 End Sub
