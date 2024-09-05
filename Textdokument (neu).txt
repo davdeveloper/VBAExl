@@ -25,7 +25,7 @@ Sub MausBewegenUndKlicken()
     AusgangsX = P.x
     AusgangsY = P.y
     
-    Do
+    Do While MakroLaufen
         SetCursorPos AusgangsX + Schritt, AusgangsY
         Sleep 100
         Mausklick
