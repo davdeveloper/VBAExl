@@ -1,27 +1,42 @@
-Sub VergleicheNummern()
-    Dim ws As Worksheet
-    Dim lastRowB As Long, lastRowF As Long
-    Dim rngB As Range, rngF As Range
-    Dim cell As Range, findRange As Range
+Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+Declare PtrSafe Function SetCursorPos Lib "user32" (ByVal x As Long, ByVal y As Long) As Long
+Declare PtrSafe Function GetCursorPos Lib "user32" (lpPoint As POINTAPI) As Long
+Declare PtrSafe Sub mouse_event Lib "user32" (ByVal dwFlags As Long, ByVal dx As Long, ByVal dy As Long, ByVal cButtons As Long, ByVal dwExtraInfo As Long)
+
+Const MOUSEEVENTF_LEFTDOWN = &H2
+Const MOUSEEVENTF_LEFTUP = &H4
+
+Type POINTAPI
+    x As Long
+    y As Long
+End Type
+
+Sub MausBewegenUndKlicken()
+    Dim P As POINTAPI
+    Dim Pause As Long
+    Dim AusgangsX As Long
+    Dim AusgangsY As Long
+    Dim Schritt As Long
     
-    ' Arbeitsblatt festlegen
-    Set ws = ThisWorkbook.Sheets("DeinBlattName") ' Hier "DeinBlattName" durch den Namen deines Arbeitsblatts ersetzen
+    Pause = 5000
+    Schritt = 10
+
+    GetCursorPos P
+    AusgangsX = P.x
+    AusgangsY = P.y
     
-    ' Letzte Zeile in Spalte B und F finden
-    lastRowB = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
-    lastRowF = ws.Cells(ws.Rows.Count, "F").End(xlUp).Row
-    
-    ' Bereich in Spalte B und F festlegen
-    Set rngB = ws.Range("B1:B" & lastRowB)
-    Set rngF = ws.Range("F1:F" & lastRowF)
-    
-    ' Schleife durch jede Zelle in Spalte B
-    For Each cell In rngB
-        ' Überprüfen, ob die Nummer in Spalte F vorhanden ist
-        Set findRange = rngF.Find(What:=cell.Value, LookAt:=xlWhole)
-        ' Wenn nicht gefunden, füge die Nummer in Spalte H ein
-        If findRange Is Nothing Then
-            ws.Cells(ws.Cells(ws.Rows.Count, "H").End(xlUp).Row + 1, "H").Value = cell.Value
-        End If
-    Next cell
+    Do
+        SetCursorPos AusgangsX + Schritt, AusgangsY
+        Sleep 100
+        Mausklick
+        SetCursorPos AusgangsX, AusgangsY
+        Sleep Pause
+        DoEvents
+    Loop
+End Sub
+
+Sub Mausklick()
+    mouse_event MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0
+    Sleep 50
+    mouse_event MOUSEEVENTF_LEFTUP, 0, 0, 0, 0
 End Sub
