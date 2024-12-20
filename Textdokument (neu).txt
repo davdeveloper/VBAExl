@@ -112,19 +112,23 @@ Sub ImportiereRohdatenFinal()
                 ' Vorgangsnummer in Spalte A
                 wsZiel.Cells(lZielzeile, 1).Value = rawVorgang
                 
+                ' Datum aus Rohdaten Spalte D einlesen
+                Dim rawDate As Date
+                rawDate = wsData.Cells(i, 4).Value
+                
                 ' Spalte V (22) = Rohdaten Spalte D (4)
-                wsZiel.Cells(lZielzeile, 22).Value = wsData.Cells(i, 4).Value
+                wsZiel.Cells(lZielzeile, 22).Value = rawDate
                 
                 ' Spalte W (23) = Rohdaten Spalte E (5)
                 wsZiel.Cells(lZielzeile, 23).Value = wsData.Cells(i, 5).Value
                 
-                ' Spalte U (21): Datum ein Tag in der Vergangenheit
-                ' Wenn heute Montag -> letzter Freitag (Date - 3)
-                ' sonst einfach gestern (Date - 1)
-                If Weekday(Date) = vbMonday Then
-                    wsZiel.Cells(lZielzeile, 21).Value = Date - 3
+                ' Spalte U (21):
+                ' Ausgehend von rawDate:
+                ' Immer einen Tag zurück, außer wenn dieser Tag ein Sonntag ist, dann Freitag vorher
+                If Weekday(rawDate - 1) = vbSunday Then
+                    wsZiel.Cells(lZielzeile, 21).Value = rawDate - 3
                 Else
-                    wsZiel.Cells(lZielzeile, 21).Value = Date - 1
+                    wsZiel.Cells(lZielzeile, 21).Value = rawDate - 1
                 End If
                 
                 ' Nächste freie Zeile für neuen Vorgang
@@ -132,15 +136,6 @@ Sub ImportiereRohdatenFinal()
             Else
                 ' Vorgangsnummer existiert schon
                 lZielzeile = rngFound.Row
-                
-                ' Bereits existierender Vorgang -> ggf. Werte updaten?
-                ' Da die Anforderungen nicht sagen, dass wir Spalte V, W, U bei existierendem Vorgang überschreiben,
-                ' machen wir das hier optional. Falls gewünscht, auskommentieren/entfernen.
-                
-                ' wsZiel.Cells(lZielzeile, 22).Value = wsData.Cells(i, 4).Value ' V - Datum aus D
-                ' wsZiel.Cells(lZielzeile, 23).Value = wsData.Cells(i, 5).Value ' W - Wert aus E
-                ' Spalte U Datum nicht erneut setzen, da dies eher statisch gedacht ist.
-                
             End If
             
             ' Header abhängige Werte (aus Spalte L)
