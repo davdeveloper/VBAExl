@@ -182,12 +182,8 @@ Sub ImportiereRohdatenFinal()
                 ' Startzeile festlegen und speichern
                 dictStartZeilen(strZielblattName) = startZeile
             Else
-                ' Startzeile bereits festgelegt
-                startZeile = dictStartZeilen(strZielblattName)
-                If startZeile = 0 Then
-                    ' Startzeile wurde bereits auf 0 gesetzt, überspringen
-                    GoTo NächsterDatensatz
-                End If
+                ' Schlüssel nicht gefunden in Zuweisung, nächsten Datensatz
+                GoTo NächsterDatensatz
             End If
             
             ' *** Neuen Vorgang hinzufügen oder vorhandenen aktualisieren ***
@@ -263,20 +259,18 @@ Sub ImportiereRohdatenFinal()
                 Debug.Print "Header '" & upperHeader & "' nicht gefunden in Zielblatt '" & strZielblattName & "'"
             End If
             
-            ' Wenn eine neue Zeile hinzugefügt wurde, aktualisiere 'startZeile' für das Blatt
+            ' *** Aktualisierung der nächsten freien Zeile (nur wenn eine neue Zeile hinzugefügt wurde) ***
             If rngFound Is Nothing Or (Not rngFound Is Nothing And wsZiel.Cells(rngFound.Row, 22).Value <> rawDate) Then
                 dictStartZeilen(strZielblattName) = lZielzeile + 1
             End If
             
-        End If
-NächsterDatensatz:
-        Set wsZiel = Nothing
-    Next i
-
+    NächsterDatensatz:
+        Next i
+    
     wbData.Close False
     MsgBox "Import abgeschlossen!"
     Exit Sub
-
+    
 Fehlerbehandlung:
     MsgBox "Ein Fehler ist aufgetreten: " & Err.Description, vbCritical
     On Error Resume Next
