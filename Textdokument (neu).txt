@@ -71,9 +71,9 @@ Sub ImportiereRohdatenFinal()
     
     ' Datenimport starten
     For i = 2 To lLetzteZeileData
-        rawKey = Trim(CStr(wsData.Cells(i, 1).Value))      ' Rohdaten Spalte A - Schlüssel
-        rawVorgang = Trim(CStr(wsData.Cells(i, 2).Value))  ' Rohdaten Spalte B - Vorgangsnummer
-        rawHeader = Trim(CStr(wsData.Cells(i, 10).Value))  ' Rohdaten Spalte J - Headername
+        rawKey = Trim(CStr(wsData.Cells(i, 1).Value))        ' Rohdaten Spalte A - Schlüssel
+        rawVorgang = Trim(CStr(wsData.Cells(i, 2).Value))    ' Rohdaten Spalte B - Vorgangsnummer
+        rawHeader = Trim(CStr(wsData.Cells(i, 10).Value))    ' Rohdaten Spalte J - Headername
         
         ' Schlüssel in Zuweisung suchen
         Set rngFound = wsZuweisung.Columns(2).Find(What:=rawKey, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
@@ -103,79 +103,110 @@ Sub ImportiereRohdatenFinal()
                 Next j
             End If
             
-            ' Bestimmen der Startzeile basierend auf der aktuellen KW
-            rawDate = wsData.Cells(i, 4).Value ' Rohdaten Spalte D
-            If IsDate(rawDate) Then
-                rawDate = CDate(rawDate)
-            Else
-                rawDate = Date ' Fallback auf aktuelles Datum, falls ungültig
-                Debug.Print "Ungültiges Datum in Zeile " & i & ", Spalte D. Fallback auf aktuelles Datum: " & rawDate
-            End If
-            
-            ' Wenn das Datum ein Montag ist, nimm den vergangenen Freitag
-            If Weekday(rawDate, vbMonday) = vbMonday Then
-                adjustedDate = rawDate - 3
-            Else
-                adjustedDate = rawDate - 1
-            End If
-            
-            ' Kalenderwoche berechnen mit führender Null
-            currentKW = "KW " & Format(GetKalenderwoche(adjustedDate), "00")
-            
-            ' Debugging-Ausgabe
-            Debug.Print "Zeile " & i & ": rawDate = " & rawDate & ", adjustedDate = " & adjustedDate & ", currentKW = " & currentKW
-            
-            ' Nach "KW xx" in mehreren Spalten suchen mittels Hilfsfunktion
-            Set rngFound = FindKWInColumns(wsZiel, currentKW, Array("A", "B", "C", "D", "E")) ' Passen Sie die Spalten nach Bedarf an
-            
-            If rngFound Is Nothing Then
-                ' Falls nicht gefunden, Debugging-Ausgabe aller vorhandenen KW-Werte in den durchsuchten Spalten
-                Dim allKWs As String
-                allKWs = ""
-                Dim col As Variant
-                Dim lastRow As Long
-                For Each col In Array("A", "B", "C", "D", "E") ' Passen Sie die Spalten nach Bedarf an
-                    lastRow = wsZiel.Cells(wsZiel.Rows.Count, col).End(xlUp).Row
-                    For j = 1 To lastRow
-                        If Left(Trim(UCase(wsZiel.Cells(j, col).Value)), 2) = "KW" Then
-                            allKWs = allKWs & wsZiel.Cells(j, col).Value & ", "
+            ' Einmalig pro Blatt Startzeile bestimmen
+            Dim startZeile As Long
+            If Not dictStartZeilen.Exists(strZielblattName) Then
+                ' Bestimmen der Startzeile basierend auf der aktuellen KW
+                rawDate = wsData.Cells(i, 4).Value ' Rohdaten Spalte D
+                If IsDate(rawDate) Then
+                    rawDate = CDate(rawDate)
+                Else
+                    rawDate = Date ' Fallback auf aktuelles Datum, falls ungültig
+                    Debug.Print "Ungültiges Datum in Zeile " & i & ", Spalte D. Fallback auf aktuelles Datum: " & rawDate
+                End If
+                
+                ' Wenn das Datum ein Montag ist, nimm den vergangenen Freitag
+                If Weekday(rawDate, vbMonday) = vbMonday Then
+                    adjustedDate = rawDate - 3
+                Else
+                    adjustedDate = rawDate - 1
+                End If
+                
+                ' Kalenderwoche berechnen mit führender Null
+                currentKW = "KW " & Format(GetKalenderwoche(adjustedDate), "00")
+                
+                ' Debugging-Ausgabe
+                Debug.Print "Zeile " & i & ": rawDate = " & rawDate & ", adjustedDate = " & adjustedDate & ", currentKW = " & currentKW
+                
+                ' Nach "KW xx" in mehreren Spalten suchen mittels Hilfsfunktion
+                Set rngFound = FindKWInColumns(wsZiel, currentKW, Array("A", "B", "C", "D", "E")) ' Passen Sie die Spalten nach Bedarf an
+                
+                If rngFound Is Nothing Then
+                    ' Falls nicht gefunden, Debugging-Ausgabe aller vorhandenen KW-Werte in den durchsuchten Spalten
+                    Dim allKWs As String
+                    allKWs = ""
+                    Dim col As Variant
+                    Dim lastRow As Long
+                    For Each col In Array("A", "B", "C", "D", "E") ' Passen Sie die Spalten nach Bedarf an
+                        lastRow = wsZiel.Cells(wsZiel.Rows.Count, col).End(xlUp).Row
+                        For j = 1 To lastRow
+                            If Left(Trim(UCase(wsZiel.Cells(j, col).Value)), 2) = "KW" Then
+                                allKWs = allKWs & wsZiel.Cells(j, col).Value & ", "
+                            End If
+                        Next j
+                    Next col
+                    MsgBox currentKW & " nicht in den durchsuchten Spalten des Arbeitsblatts '" & wsZiel.Name & "' gefunden." & vbCrLf & _
+                           "Vorhandene Kalenderwochen in den durchsuchten Spalten: " & allKWs, vbExclamation
+                    dictStartZeilen(strZielblattName) = 0
+                    GoTo NächsterDatensatz
+                Else
+                    ' Zeile anzeigen, wo "KW xx" gefunden wurde
+                    MsgBox "Aktuelle Kalenderwoche '" & currentKW & "' gefunden in Zelle: " & rngFound.Address & " (Spalte " & rngFound.Column & ")", vbInformation
+                End If
+                
+                ' *** Änderung: Gehe 8 Zeilen nach unten von der KW-Zelle ***
+                startZeile = rngFound.Row + 8
+                
+                ' *** Prüfen, ob die Zelle leer ist. Wenn nicht, zur nächsten freien Zelle gehen ***
+                If wsZiel.Cells(startZeile, rngFound.Column).Value <> "" Then
+                    Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist nicht leer. Suche nach der nächsten freien Zelle."
+                    Do While wsZiel.Cells(startZeile, rngFound.Column).Value <> ""
+                        Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist nicht leer. Gehe eine Zeile weiter."
+                        startZeile = startZeile + 1
+                        ' Optional: Abbruchbedingung, um eine Endlosschleife zu vermeiden
+                        If startZeile > wsZiel.Rows.Count Then
+                            MsgBox "Keine freie Zelle nach KW " & currentKW & " gefunden.", vbCritical
+                            startZeile = 0
+                            Exit Do
                         End If
-                    Next j
-                Next col
-                MsgBox currentKW & " nicht in den durchsuchten Spalten des Arbeitsblatts '" & wsZiel.Name & "' gefunden." & vbCrLf & _
-                       "Vorhandene Kalenderwochen in den durchsuchten Spalten: " & allKWs, vbExclamation
+                    Loop
+                Else
+                    Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist leer. Verwende diese Zeile."
+                End If
+                
+                ' Debugging-Ausgabe der gefundenen Startzeile
+                If startZeile > 0 Then
+                    Debug.Print "Gefundene Startzeile für das Einfügen: " & startZeile
+                End If
+                
+                ' Startzeile festlegen und speichern
+                dictStartZeilen(strZielblattName) = startZeile
+            Else
+                ' Schlüssel nicht gefunden in Zuweisung, nächsten Datensatz
                 GoTo NächsterDatensatz
+            End If
+            
+            ' *** Neuen Vorgang hinzufügen oder vorhandenen aktualisieren ***
+            ' Suche nach der Vorgangsnummer in Spalte A des Zielblatts
+            Set rngFound = wsZiel.Columns(1).Find(What:=rawVorgang, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
+            If Not rngFound Is Nothing Then
+                ' Vorgangsnummer gefunden, prüfen ob Datum übereinstimmt
+                If wsZiel.Cells(rngFound.Row, 22).Value = rawDate Then
+                    ' Datum stimmt überein, Werte anpassen
+                    lZielzeile = rngFound.Row
+                    Debug.Print "Vorgangsnummer '" & rawVorgang & "' mit übereinstimmendem Datum gefunden in Zeile " & lZielzeile
+                Else
+                    ' Datum stimmt nicht überein, neue Zeile hinzufügen
+                    lZielzeile = dictStartZeilen(strZielblattName)
+                    Debug.Print "Vorgangsnummer '" & rawVorgang & "' gefunden, aber Datum stimmt nicht überein. Neue Zeile in " & lZielzeile
+                End If
             Else
-                ' Zeile anzeigen, wo "KW xx" gefunden wurde
-                MsgBox "Aktuelle Kalenderwoche '" & currentKW & "' gefunden in Zelle: " & rngFound.Address & " (Spalte " & rngFound.Column & ")", vbInformation
+                ' Vorgangsnummer nicht gefunden, neue Zeile hinzufügen
+                lZielzeile = dictStartZeilen(strZielblattName)
+                Debug.Print "Vorgangsnummer '" & rawVorgang & "' nicht gefunden. Neue Zeile in " & lZielzeile
             End If
             
-            ' *** Änderung: Gehe 8 Zeilen nach unten von der KW-Zelle ***
-            lZielzeile = rngFound.Row + 8
-            
-            ' *** Prüfen, ob die Zelle leer ist. Wenn nicht, zur nächsten freien Zelle gehen ***
-            If wsZiel.Cells(lZielzeile, rngFound.Column).Value <> "" Then
-                Debug.Print "Zelle " & wsZiel.Cells(lZielzeile, rngFound.Column).Address & " ist nicht leer. Suche nach der nächsten freien Zelle."
-                Do While wsZiel.Cells(lZielzeile, rngFound.Column).Value <> ""
-                    Debug.Print "Zelle " & wsZiel.Cells(lZielzeile, rngFound.Column).Address & " ist nicht leer. Gehe eine Zeile weiter."
-                    lZielzeile = lZielzeile + 1
-                    ' Optional: Abbruchbedingung, um eine Endlosschleife zu vermeiden
-                    If lZielzeile > wsZiel.Rows.Count Then
-                        MsgBox "Keine freie Zelle nach KW " & currentKW & " gefunden.", vbCritical
-                        lZielzeile = 0
-                        Exit Do
-                    End If
-                Loop
-            Else
-                Debug.Print "Zelle " & wsZiel.Cells(lZielzeile, rngFound.Column).Address & " ist leer. Verwende diese Zeile."
-            End If
-            
-            ' Debugging-Ausgabe der gefundenen Startzeile
-            If lZielzeile > 0 Then
-                Debug.Print "Gefundene Startzeile für das Einfügen: " & lZielzeile
-            End If
-            
-            ' Insert data into lZielzeile
+            ' Daten in die Zielzeile einfügen oder aktualisieren
             ' Übersetzung der Spalte C (Englisch -> Deutsch)
             englVal = Trim(CStr(wsData.Cells(i, 3).Value))
             If dictKategorien.Exists(englVal) Then
@@ -228,10 +259,13 @@ Sub ImportiereRohdatenFinal()
                 Debug.Print "Header '" & upperHeader & "' nicht gefunden in Zielblatt '" & strZielblattName & "'"
             End If
             
-            ' Nächster Eintrag wird automatisch in der nächsten Zeile beginnen
-        End If
-NächsterDatensatz:
-    Next i
+            ' Wenn eine neue Zeile hinzugefügt wurde, aktualisiere 'startZeile' für das Blatt
+            If rngFound Is Nothing Or (Not rngFound Is Nothing And wsZiel.Cells(rngFound.Row, 22).Value <> rawDate) Then
+                dictStartZeilen(strZielblattName) = lZielzeile + 1
+            End If
+            
+    NächsterDatensatz:
+        Next i
     
     wbData.Close False
     MsgBox "Import abgeschlossen!"
