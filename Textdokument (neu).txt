@@ -6,10 +6,12 @@ Sub ImportiereRohdatenFinal()
     Dim wsZuweisung As Worksheet
     Dim wsZiel As Worksheet
     Dim wsData As Worksheet
+    Dim wsKategorien As Worksheet
     Dim rngFound As Range
     
     Dim lLetzteZeileZuweisung As Long
     Dim lLetzteZeileData As Long
+    Dim lLetzteZeileKat As Long
     
     Dim i As Long, j As Long
     
@@ -22,11 +24,16 @@ Sub ImportiereRohdatenFinal()
     
     Dim dictHeaders As Object
     Dim dictStartZeilen As Object ' Merkt sich pro Blatt die Startzeile
+    Dim dictKategorien As Object   ' Für Englisch->Deutsch Übersetzung
+    
     Dim upperHeader As String
     Dim zielSpalte As Long
+    Dim englischerText As String
+    Dim deutscherText As String
     
     Set wbDash = ThisWorkbook
     Set wsZuweisung = wbDash.Worksheets("Zuweisung")
+    Set wsKategorien = wbDash.Worksheets("Kategorien")
     
     ' Rohdaten öffnen (Pfad anpassen!)
     Set wbData = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx")
@@ -35,9 +42,24 @@ Sub ImportiereRohdatenFinal()
     lLetzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 2).End(xlUp).Row
     lLetzteZeileData = wsData.Cells(wsData.Rows.Count, 1).End(xlUp).Row
     
+    ' Dictionaries anlegen
     Set dictHeaders = CreateObject("Scripting.Dictionary")
     Set dictStartZeilen = CreateObject("Scripting.Dictionary")
+    Set dictKategorien = CreateObject("Scripting.Dictionary")
     
+    ' Kategorien einlesen (Englisch->Deutsch)
+    ' Annahme: Überschriften in Zeile 1, Daten ab Zeile 2
+    Dim lLetzteZeileKatA As Long
+    lLetzteZeileKatA = wsKategorien.Cells(wsKategorien.Rows.Count, 1).End(xlUp).Row
+    For i = 2 To lLetzteZeileKatA
+        If Not IsEmpty(wsKategorien.Cells(i, 1)) Then
+            englischerText = CStr(wsKategorien.Cells(i, 1).Value)
+            deutscherText = CStr(wsKategorien.Cells(i, 2).Value)
+            dictKategorien(englischerText) = deutscherText
+        End If
+    Next i
+    
+    ' Datenimport
     For i = 2 To lLetzteZeileData
         rawKey = wsData.Cells(i, 1).Value      ' Rohdaten Spalte A
         rawVorgang = wsData.Cells(i, 2).Value  ' Rohdaten Spalte B
@@ -80,10 +102,21 @@ Sub ImportiereRohdatenFinal()
             If rngFound Is Nothing Then
                 ' Vorgang noch nicht vorhanden, also neuen Eintrag in der aktuellen startZeile
                 lZielzeile = startZeile
+                
+                ' Wert aus Rohdaten Spalte C (Englisch)
+                Dim englVal As Variant
+                englVal = wsData.Cells(i, 3).Value
+                
+                ' Übersetzen wenn möglich
+                If dictKategorien.Exists(CStr(englVal)) Then
+                    wsZiel.Cells(lZielzeile, 2).Value = dictKategorien(CStr(englVal)) ' Deutscher Text
+                Else
+                    wsZiel.Cells(lZielzeile, 2).Value = englVal ' Unverändert, falls kein Mapping
+                End If
+                
                 ' Vorgangsnummer in Spalte A
                 wsZiel.Cells(lZielzeile, 1).Value = rawVorgang
-                ' Wert aus Rohdaten Spalte C in Spalte B
-                wsZiel.Cells(lZielzeile, 2).Value = wsData.Cells(i, 3).Value
+                
                 ' Startzeile um 1 erhöhen für den nächsten neuen Vorgang
                 dictStartZeilen(strZielblattName) = startZeile + 1
             Else
@@ -92,25 +125,26 @@ Sub ImportiereRohdatenFinal()
             End If
             
             ' Header suchen
+            Dim rawValL As Variant
             upperHeader = UCase(rawHeader)
             If dictHeaders.Exists(upperHeader) Then
                 zielSpalte = dictHeaders(upperHeader)
                 ' Wert aus Rohdaten Spalte L
-                rawValue = wsData.Cells(i, 12).Value
+                rawValL = wsData.Cells(i, 12).Value
                 
                 ' Werte konvertieren
-                Select Case UCase(CStr(rawValue))
+                Select Case UCase(CStr(rawValL))
                     Case "JA"
-                        rawValue = "j"
+                        rawValL = "j"
                     Case "NEIN"
-                        rawValue = "n"
+                        rawValL = "n"
                     Case "N/A"
-                        rawValue = ""   ' Leer lassen
+                        rawValL = ""   ' Leer lassen
                     Case "TEILWEISE"
-                        rawValue = "t"
+                        rawValL = "t"
                 End Select
                 
-                wsZiel.Cells(lZielzeile, zielSpalte).Value = rawValue
+                wsZiel.Cells(lZielzeile, zielSpalte).Value = rawValL
             End If
             
         End If
