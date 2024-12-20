@@ -1,6 +1,6 @@
 Option Explicit
 
-Sub ImportiereRohdatenEinmalPruefen()
+Sub ImportiereRohdatenFinal()
     Dim wbDash As Workbook
     Dim wbData As Workbook
     Dim wsZuweisung As Worksheet
@@ -18,10 +18,10 @@ Sub ImportiereRohdatenEinmalPruefen()
     Dim rawHeader As String
     Dim rawValue As Variant
     Dim strZielblattName As String
+    Dim lZielzeile As Long
     
     Dim dictHeaders As Object
-    Dim startRow As Long
-    Dim currentRow As Long
+    Dim lastCol As Long
     
     Set wbDash = ThisWorkbook
     Set wsZuweisung = wbDash.Worksheets("Zuweisung")
@@ -33,111 +33,86 @@ Sub ImportiereRohdatenEinmalPruefen()
     lLetzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 2).End(xlUp).Row
     lLetzteZeileData = wsData.Cells(wsData.Rows.Count, 1).End(xlUp).Row
     
+    ' Dictionary für Headers wird dynamisch je Zielblatt gefüllt
     Set dictHeaders = CreateObject("Scripting.Dictionary")
     
-    ' Wir nehmen an, dass alle Daten ins gleiche Zielblatt kommen, 
-    ' oder wir nehmen das Zielblatt vom ersten gefundenen Datensatz.
-    ' Falls pro Datensatz ein anderes Blatt verwendet wird, 
-    ' kann der Code angepasst werden, aber hier nur Beispiel.
-    
-    ' Nehmen wir an, alle Rohdaten gehören zu demselben Schlüssel,
-    ' falls nicht, dann müssen wir pro Zeile den Schlüssel prüfen und Zielblatt ggf. ändern.
-    ' Hier bleiben wir jedoch beim Beispiel (falls mehrere Schlüssel/Zielblätter vorkommen,
-    ' dann müssten wir jedes Mal die Headers neu holen, ist aber laut neuer Beschreibung nicht erwähnt).
-    
-    ' Schritt 1: Ermitteln Sie anhand des ersten Datensatzes in den Rohdaten das Zielblatt.
-    ' Falls es mehrere Schlüssel gibt, dann evtl. die Schleife anpassen.
-    
-    ' Wir gehen erstmal davon aus, dass die Rohdaten alle in dasselbe Blatt sollen.
-    ' Wenn das nicht der Fall ist, muss man die Headers pro Zeile ggf. neu laden.
-    ' Da der User die vorherige komplexe Logik verworfen hat, wird hier vereinfacht.
-    
-    ' Erst mal die erste Zeile in den Rohdaten nehmen, um das Zielblatt zu bestimmen:
-    ' Wir suchen den Schlüssel der ersten Datenzeile (Zeile 2 in Rohdaten)
-    Dim firstKey As String
-    Dim firstBlatt As String
-    
-    firstKey = wsData.Cells(2, 1).Value
-    Set rngFound = wsZuweisung.Columns(2).Find(What:=firstKey, LookAt:=xlWhole)
-    If rngFound Is Nothing Then
-        MsgBox "Kein Zielblatt für den ersten Datensatz gefunden.", vbExclamation
-        wbData.Close False
-        Exit Sub
-    End If
-    
-    firstBlatt = rngFound.Offset(0, 1).Value
-    
-    On Error Resume Next
-    Set wsZiel = wbDash.Worksheets(firstBlatt)
-    On Error GoTo 0
-    
-    If wsZiel Is Nothing Then
-        MsgBox "Zielblatt '" & firstBlatt & "' nicht gefunden.", vbExclamation
-        wbData.Close False
-        Exit Sub
-    End If
-    
-    ' Schritt 2: Headers im Zielblatt einlesen (C12 bis Q12)
-    For j = 3 To 17 ' C=3, Q=17
-        If Not IsEmpty(wsZiel.Cells(12, j).Value) Then
-            dictHeaders(UCase(CStr(wsZiel.Cells(12, j).Value))) = j
-        End If
-    Next j
-    
-    ' Schritt 3: Freie Startzeile finden (nur einmalig am Anfang)
-    startRow = 16
-    Do While wsZiel.Cells(startRow, 1).Value <> ""
-        startRow = startRow + 30
-    Loop
-    
-    ' currentRow beginnt bei startRow
-    currentRow = startRow
-    
-    ' Schritt 4: Alle Rohdaten untereinander schreiben
     For i = 2 To lLetzteZeileData
         rawKey = wsData.Cells(i, 1).Value      ' Rohdaten Spalte A
         rawVorgang = wsData.Cells(i, 2).Value  ' Rohdaten Spalte B
         rawHeader = wsData.Cells(i, 10).Value  ' Rohdaten Spalte J (Headername)
         
-        ' Zielblatt basierend auf rawKey suchen
+        ' Schlüssel in Zuweisung suchen
         Set rngFound = wsZuweisung.Columns(2).Find(What:=rawKey, LookAt:=xlWhole)
-        If rngFound Is Nothing Then
-            ' Kein Zielblatt für diesen Datensatz, überspringen
-            GoTo NextData
+        If Not rngFound Is Nothing Then
+            strZielblattName = rngFound.Offset(0, 1).Value ' Zielblatt aus Spalte C in Zuweisung
+            
+            On Error Resume Next
+            Set wsZiel = wbDash.Worksheets(strZielblattName)
+            On Error GoTo 0
+            
+            If wsZiel Is Nothing Then
+                ' Zielblatt nicht gefunden
+                GoTo NächsterDatensatz
+            End If
+            
+            ' Headers des Zielblatts einlesen, falls noch nicht geschehen oder wenn sich das Blatt ändert
+            ' Wir nehmen hier an, dass jedesmal wenn sich das Zielblatt ändert, wir neu einlesen.
+            dictHeaders.RemoveAll
+            ' Spalten C bis Q = 3 bis 17
+            For j = 3 To 17
+                If Not IsEmpty(wsZiel.Cells(12, j).Value) Then
+                    ' Case-Insensitive speichern: Alles in Großbuchstaben
+                    dictHeaders(UCase(CStr(wsZiel.Cells(12, j).Value))) = j
+                End If
+            Next j
+            
+            ' Zielzeile für Vorgangsnummer finden oder erstellen
+            lZielzeile = FindOrCreateTargetRow(wsZiel, rawVorgang)
+            
+            ' Neuer Eintrag?
+            If wsZiel.Cells(lZielzeile, 1).Value = "" Then
+                ' Vorgangsnummer in Spalte A
+                wsZiel.Cells(lZielzeile, 1).Value = rawVorgang
+                ' Wert aus Rohdaten Spalte C in Spalte B
+                wsZiel.Cells(lZielzeile, 2).Value = wsData.Cells(i, 3).Value
+            End If
+            
+            ' Header suchen (Case-Insensitive)
+            Dim upperHeader As String
+            upperHeader = UCase(rawHeader)
+            
+            If dictHeaders.Exists(upperHeader) Then
+                Dim zielSpalte As Long
+                zielSpalte = dictHeaders(upperHeader)
+                ' Wert aus Rohdaten Spalte L (Spalte 12)
+                rawValue = wsData.Cells(i, 12).Value
+                wsZiel.Cells(lZielzeile, zielSpalte).Value = rawValue
+            Else
+                ' Kein passender Header gefunden, nichts eintragen
+            End If
+            
         End If
-        
-        strZielblattName = rngFound.Offset(0, 1).Value
-        If wsZiel.Name <> strZielblattName Then
-            ' Wenn Sie tatsächlich mehrere Blätter haben, müssten Sie hier 
-            ' ggf. ein zweites Dictionary für Headers anlegen oder erneut einlesen.
-            ' Für dieses Beispiel nehmen wir an, dass alle Daten ins gleiche Blatt gehen.
-            MsgBox "Mehrere unterschiedliche Zielblätter gefunden. Der Code muss erweitert werden."
-            wbData.Close False
-            Exit Sub
-        End If
-        
-        ' Vorgangsnummer in Spalte A
-        wsZiel.Cells(currentRow, 1).Value = rawVorgang
-        ' Wert aus Rohdaten Spalte C in Spalte B
-        wsZiel.Cells(currentRow, 2).Value = wsData.Cells(i, 3).Value
-        
-        ' Header suchen
-        Dim upperHeader As String
-        upperHeader = UCase(rawHeader)
-        
-        If dictHeaders.Exists(upperHeader) Then
-            Dim zielSpalte As Long
-            zielSpalte = dictHeaders(upperHeader)
-            ' Wert aus Rohdaten Spalte L (Spalte 12)
-            rawValue = wsData.Cells(i, 12).Value
-            wsZiel.Cells(currentRow, zielSpalte).Value = rawValue
-        End If
-        
-        ' Nächste Zeile
-        currentRow = currentRow + 1
-NextData:
+NächsterDatensatz:
+        Set wsZiel = Nothing
     Next i
     
     wbData.Close False
     MsgBox "Import abgeschlossen!"
 End Sub
+
+Function FindOrCreateTargetRow(ws As Worksheet, Vorgang As String) As Long
+    Dim rngFound As Range
+    Dim lCheckRow As Long
+    
+    Set rngFound = ws.Columns(1).Find(What:=Vorgang, LookAt:=xlWhole)
+    If Not rngFound Is Nothing Then
+        FindOrCreateTargetRow = rngFound.Row
+        Exit Function
+    End If
+    
+    lCheckRow = 16
+    Do While ws.Cells(lCheckRow, 1).Value <> ""
+        lCheckRow = lCheckRow + 30
+    Loop
+    FindOrCreateTargetRow = lCheckRow
+End Function
