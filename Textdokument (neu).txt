@@ -129,33 +129,38 @@ Sub ImportiereRohdatenFinal()
                 ' Debugging-Ausgabe
                 Debug.Print "Zeile " & i & ": rawDate = " & rawDate & ", adjustedDate = " & adjustedDate & ", currentKW = " & currentKW
                 
-                ' Nach "KW xx" in Spalte A suchen mittels Find
-                Set rngFound = wsZiel.Columns(1).Find(What:=currentKW, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
+                ' Nach "KW xx" in mehreren Spalten suchen mittels Hilfsfunktion
+                Set rngFound = FindKWInColumns(wsZiel, currentKW, Array("A", "B", "C", "D", "E")) ' Passen Sie die Spalten nach Bedarf an
                 
                 If rngFound Is Nothing Then
-                    ' Falls nicht gefunden, Debugging-Ausgabe aller vorhandenen KW-Werte
+                    ' Falls nicht gefunden, Debugging-Ausgabe aller vorhandenen KW-Werte in den durchsuchten Spalten
                     Dim allKWs As String
                     allKWs = ""
-                    For j = 1 To wsZiel.Cells(wsZiel.Rows.Count, 1).End(xlUp).Row
-                        If Left(Trim(UCase(wsZiel.Cells(j, 1).Value)), 2) = "KW" Then
-                            allKWs = allKWs & wsZiel.Cells(j, 1).Value & ", "
-                        End If
-                    Next j
-                    MsgBox currentKW & " nicht in Spalte A des Arbeitsblatts '" & wsZiel.Name & "' gefunden." & vbCrLf & _
-                           "Vorhandene Kalenderwochen: " & allKWs, vbExclamation
+                    Dim col As Variant
+                    Dim lastRow As Long
+                    For Each col In Array("A", "B", "C", "D", "E") ' Passen Sie die Spalten nach Bedarf an
+                        lastRow = wsZiel.Cells(wsZiel.Rows.Count, col).End(xlUp).Row
+                        For j = 1 To lastRow
+                            If Left(Trim(UCase(wsZiel.Cells(j, col).Value)), 2) = "KW" Then
+                                allKWs = allKWs & wsZiel.Cells(j, col).Value & ", "
+                            End If
+                        Next j
+                    Next col
+                    MsgBox currentKW & " nicht in den durchsuchten Spalten des Arbeitsblatts '" & wsZiel.Name & "' gefunden." & vbCrLf & _
+                           "Vorhandene Kalenderwochen in den durchsuchten Spalten: " & allKWs, vbExclamation
                     dictStartZeilen(strZielblattName) = 0
                     GoTo NächsterDatensatz
                 Else
                     ' Zeile anzeigen, wo "KW xx" gefunden wurde
-                    MsgBox "Aktuelle Kalenderwoche '" & currentKW & "' gefunden in Zelle: " & rngFound.Address, vbInformation
+                    MsgBox "Aktuelle Kalenderwoche '" & currentKW & "' gefunden in Zelle: " & rngFound.Address & " (Spalte " & rngFound.Column & ")", vbInformation
                 End If
                 
                 ' 3 Zeilen runter von der KW-Zelle
                 startZeile = rngFound.Row + 3
                 
                 ' Prüfen, ob die Zelle leer ist. Wenn nicht, +30 Zeilen weiterspringen
-                Do While wsZiel.Cells(startZeile, 1).Value <> ""
-                    Debug.Print "Zelle A" & startZeile & " ist nicht leer. Springe 30 Zeilen weiter."
+                Do While wsZiel.Cells(startZeile, rngFound.Column).Value <> ""
+                    Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist nicht leer. Springe 30 Zeilen weiter."
                     startZeile = startZeile + 30
                 Loop
                 
@@ -250,19 +255,25 @@ Fehlerbehandlung:
     wbData.Close False
 End Sub
 
-Function FindeFreieStartzeile(ws As Worksheet) As Long
-    Dim lCheckRow As Long
-    lCheckRow = 16
-    Do While ws.Cells(lCheckRow, 1).Value <> ""
-        lCheckRow = lCheckRow + 30
-    Loop
-    FindeFreieStartzeile = lCheckRow
+' Hilfsfunktion zur Suche der Kalenderwoche in mehreren Spalten
+Function FindKWInColumns(ws As Worksheet, currentKW As String, searchColumns As Variant) As Range
+    Dim col As Variant
+    Dim rngFound As Range
+    
+    For Each col In searchColumns
+        Set rngFound = ws.Columns(col).Find(What:=currentKW, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
+        If Not rngFound Is Nothing Then
+            Set FindKWInColumns = rngFound
+            Exit Function
+        End If
+    Next col
+    
+    Set FindKWInColumns = Nothing
 End Function
 
 Function GetKalenderwoche(datum As Date) As Long
     ' ISO 8601 Kalenderwoche
     ' Montag ist der erste Tag der Woche
     ' Die erste Woche des Jahres ist diejenige, die mindestens vier Tage enthält
-    
     GetKalenderwoche = DatePart("ww", datum, vbMonday, vbFirstFourDays)
 End Function
