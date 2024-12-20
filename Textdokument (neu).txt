@@ -258,14 +258,32 @@ End Sub
 ' Hilfsfunktion zur Suche der Kalenderwoche in mehreren Spalten
 Function FindKWInColumns(ws As Worksheet, currentKW As String, searchColumns As Variant) As Range
     Dim col As Variant
-    Dim rngFound As Range
+    Dim rngCell As Range
+    Dim cellValue As String
+    Dim searchKWNoSpace As String
+    Dim cellKWNoSpace As String
+    
+    ' Entferne Leerzeichen aus currentKW
+    searchKWNoSpace = Replace(currentKW, " ", "")
     
     For Each col In searchColumns
-        Set rngFound = ws.Columns(col).Find(What:=currentKW, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
-        If Not rngFound Is Nothing Then
-            Set FindKWInColumns = rngFound
-            Exit Function
-        End If
+        ' Bestimmen der letzten verwendeten Zeile in der aktuellen Spalte
+        Dim lastRow As Long
+        lastRow = ws.Cells(ws.Rows.Count, col).End(xlUp).Row
+        
+        For Each rngCell In ws.Range(col & "1:" & col & lastRow)
+            cellValue = Trim(UCase(rngCell.Value))
+            cellKWNoSpace = Replace(cellValue, " ", "")
+            
+            ' Debugging-Ausgabe für jede Zelle
+            Debug.Print "Suche in " & rngCell.Address & ": '" & cellValue & "', ohne Leerzeichen: '" & cellKWNoSpace & "'"
+            
+            If cellKWNoSpace = UCase(Replace(currentKW, " ", "")) Then
+                Debug.Print "Gefunden in " & rngCell.Address & ": '" & cellValue & "'"
+                Set FindKWInColumns = rngCell
+                Exit Function
+            End If
+        Next rngCell
     Next col
     
     Set FindKWInColumns = Nothing
@@ -275,5 +293,6 @@ Function GetKalenderwoche(datum As Date) As Long
     ' ISO 8601 Kalenderwoche
     ' Montag ist der erste Tag der Woche
     ' Die erste Woche des Jahres ist diejenige, die mindestens vier Tage enthält
+    
     GetKalenderwoche = DatePart("ww", datum, vbMonday, vbFirstFourDays)
 End Function
