@@ -21,7 +21,9 @@ Sub ImportiereRohdatenFinal()
     Dim lZielzeile As Long
     
     Dim dictHeaders As Object
-    Dim lastCol As Long
+    Dim dictStartZeilen As Object ' Merkt sich pro Blatt die Startzeile
+    Dim upperHeader As String
+    Dim zielSpalte As Long
     
     Set wbDash = ThisWorkbook
     Set wsZuweisung = wbDash.Worksheets("Zuweisung")
@@ -33,8 +35,8 @@ Sub ImportiereRohdatenFinal()
     lLetzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 2).End(xlUp).Row
     lLetzteZeileData = wsData.Cells(wsData.Rows.Count, 1).End(xlUp).Row
     
-    ' Dictionary für Headers wird dynamisch je Zielblatt gefüllt
     Set dictHeaders = CreateObject("Scripting.Dictionary")
+    Set dictStartZeilen = CreateObject("Scripting.Dictionary")
     
     For i = 2 To lLetzteZeileData
         rawKey = wsData.Cells(i, 1).Value      ' Rohdaten Spalte A
@@ -55,40 +57,51 @@ Sub ImportiereRohdatenFinal()
                 GoTo NächsterDatensatz
             End If
             
-            ' Headers des Zielblatts einlesen, falls noch nicht geschehen oder wenn sich das Blatt ändert
-            ' Wir nehmen hier an, dass jedesmal wenn sich das Zielblatt ändert, wir neu einlesen.
+            ' Headers des Zielblatts einlesen, falls noch nicht geschehen
+            ' Damit bei jedem neuen Zielblatt die Headers nur einmal eingelesen werden,
+            ' nutzen wir dictHeaders pro Zielblatt. Hier vereinfachen wir:
+            ' Wir nehmen an, dass die Rohdaten jeweils nur in ein Blatt gehen oder
+            ' wenn mehrere Blätter vorkommen, werden die Headers jedes Mal neu eingelesen.
             dictHeaders.RemoveAll
-            ' Spalten C bis Q = 3 bis 17
-            For j = 3 To 17
-                If Not IsEmpty(wsZiel.Cells(12, j).Value) Then
-                    ' Case-Insensitive speichern: Alles in Großbuchstaben
+            For j = 3 To 17 ' C bis Q
+                If Not IsEmpty(wsZiel.Cells(12, j)) Then
                     dictHeaders(UCase(CStr(wsZiel.Cells(12, j).Value))) = j
                 End If
             Next j
             
-            ' Zielzeile für Vorgangsnummer finden oder erstellen
-            lZielzeile = FindOrCreateTargetRow(wsZiel, rawVorgang)
+            ' Einmalig pro Blatt Startzeile bestimmen, falls nicht schon geschehen
+            Dim startZeile As Long
+            If Not dictStartZeilen.Exists(strZielblattName) Then
+                ' Startzeile einmalig ermitteln
+                startZeile = FindeFreieStartzeile(wsZiel)
+                dictStartZeilen(strZielblattName) = startZeile
+            Else
+                startZeile = dictStartZeilen(strZielblattName)
+            End If
             
-            ' Neuer Eintrag?
-            If wsZiel.Cells(lZielzeile, 1).Value = "" Then
+            ' Vorgangszeile suchen
+            Set rngFound = wsZiel.Columns(1).Find(What:=rawVorgang, LookAt:=xlWhole)
+            If rngFound Is Nothing Then
+                ' Vorgang noch nicht vorhanden, also neuen Eintrag in der aktuellen startZeile
+                lZielzeile = startZeile
                 ' Vorgangsnummer in Spalte A
                 wsZiel.Cells(lZielzeile, 1).Value = rawVorgang
                 ' Wert aus Rohdaten Spalte C in Spalte B
                 wsZiel.Cells(lZielzeile, 2).Value = wsData.Cells(i, 3).Value
+                ' Startzeile um 1 erhöhen für den nächsten neuen Vorgang
+                dictStartZeilen(strZielblattName) = startZeile + 1
+            Else
+                ' Vorgangsnummer existiert schon
+                lZielzeile = rngFound.Row
             End If
             
-            ' Header suchen (Case-Insensitive)
-            Dim upperHeader As String
+            ' Header suchen
             upperHeader = UCase(rawHeader)
-            
             If dictHeaders.Exists(upperHeader) Then
-                Dim zielSpalte As Long
                 zielSpalte = dictHeaders(upperHeader)
-                ' Wert aus Rohdaten Spalte L (Spalte 12)
+                ' Wert aus Rohdaten Spalte L
                 rawValue = wsData.Cells(i, 12).Value
                 wsZiel.Cells(lZielzeile, zielSpalte).Value = rawValue
-            Else
-                ' Kein passender Header gefunden, nichts eintragen
             End If
             
         End If
@@ -100,19 +113,13 @@ NächsterDatensatz:
     MsgBox "Import abgeschlossen!"
 End Sub
 
-Function FindOrCreateTargetRow(ws As Worksheet, Vorgang As String) As Long
-    Dim rngFound As Range
+Function FindeFreieStartzeile(ws As Worksheet) As Long
+    ' Prüft einmalig beim ersten Hinzufügen:
+    ' Start bei Zeile 16, wenn belegt -> +30, wieder belegt -> +30, bis frei
     Dim lCheckRow As Long
-    
-    Set rngFound = ws.Columns(1).Find(What:=Vorgang, LookAt:=xlWhole)
-    If Not rngFound Is Nothing Then
-        FindOrCreateTargetRow = rngFound.Row
-        Exit Function
-    End If
-    
     lCheckRow = 16
     Do While ws.Cells(lCheckRow, 1).Value <> ""
         lCheckRow = lCheckRow + 30
     Loop
-    FindOrCreateTargetRow = lCheckRow
+    FindeFreieStartzeile = lCheckRow
 End Function
