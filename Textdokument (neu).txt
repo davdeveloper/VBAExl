@@ -155,14 +155,22 @@ Sub ImportiereRohdatenFinal()
                     MsgBox "Aktuelle Kalenderwoche '" & currentKW & "' gefunden in Zelle: " & rngFound.Address & " (Spalte " & rngFound.Column & ")", vbInformation
                 End If
                 
-                ' 3 Zeilen runter von der KW-Zelle
-                startZeile = rngFound.Row + 3
+                ' *** Änderung: Dynamische Suche nach der nächsten freien Zelle in Spalte A ***
+                startZeile = rngFound.Row + 1 ' Beginne direkt unter der gefundenen KW
                 
-                ' Prüfen, ob die Zelle leer ist. Wenn nicht, +30 Zeilen weiterspringen
-                Do While wsZiel.Cells(startZeile, rngFound.Column).Value <> ""
-                    Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist nicht leer. Springe 30 Zeilen weiter."
-                    startZeile = startZeile + 30
+                ' Schleife, um die nächste freie Zelle in Spalte A zu finden
+                Do While wsZiel.Cells(startZeile, "A").Value <> ""
+                    Debug.Print "Zelle A" & startZeile & " ist nicht leer. Gehe eine Zeile weiter."
+                    startZeile = startZeile + 1
+                    ' Optional: Abbruchbedingung, um eine Endlosschleife zu vermeiden
+                    If startZeile > wsZiel.Rows.Count Then
+                        MsgBox "Keine freie Zelle in Spalte A gefunden.", vbCritical
+                        Exit Do
+                    End If
                 Loop
+                
+                ' Debugging-Ausgabe der gefundenen Startzeile
+                Debug.Print "Erste freie Zeile in Spalte A nach KW: " & startZeile
                 
                 ' Startzeile festlegen und speichern
                 dictStartZeilen(strZielblattName) = startZeile
@@ -293,6 +301,5 @@ Function GetKalenderwoche(datum As Date) As Long
     ' ISO 8601 Kalenderwoche
     ' Montag ist der erste Tag der Woche
     ' Die erste Woche des Jahres ist diejenige, die mindestens vier Tage enthält
-    
     GetKalenderwoche = DatePart("ww", datum, vbMonday, vbFirstFourDays)
 End Function
