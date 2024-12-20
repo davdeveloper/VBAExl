@@ -1,204 +1,125 @@
-Sub ImportMitMehrfachenVorgangsnummern_Debug()
+Option Explicit
 
-    Dim wbDashboard As Workbook
-    Dim wbRohdaten As Workbook
-    Dim wsSettings As Worksheet
+Sub ImportLeaptreeData_Debug()
+    Dim wbDash As Workbook
+    Dim wbQuelle As Workbook
     Dim wsZuweisung As Worksheet
-    Dim wsTarget As Worksheet
-    Dim wsSource As Worksheet
+    Dim wsQuelle As Worksheet
+    Dim wsZiel As Worksheet
     
-    Dim lastRowSettings As Long
-    Dim lastRowRohdaten As Long
-    Dim lastColSource As Long
-    Dim headerRow As Long
-    Dim dataStartRow As Long
+    Dim lastRowQuelle As Long
+    Dim i As Long
+    Dim Suchwert As String, ZielName As String
+    Dim rng As Range, c As Range
+    Dim vorgSpalte As Long
+    Dim nextRow As Long
     
-    Dim i As Long, j As Long, dataRow As Long
+    Dim DebugMode As Boolean
+    DebugMode = True ' Bei Bedarf auf False setzen, um Debug-Ausgaben zu deaktivieren
     
-    Dim vorgangsnummer As String
-    Dim satz As String
-    Dim zielSheetName As String
-    Dim zielSpalte As String
-    Dim sourceCol As Long
-    Dim zielZeile As Long
+    On Error GoTo Handler
     
-    Dim valueToCopy As Variant
+    If DebugMode Then Debug.Print "Starte ImportLeaptreeData_Debug..."
     
-    Debug.Print "Starte Import mit mehrfachen Vorgangsnummern..."
+    ' Setze Bezug auf das aktuelle Workbook (Dashboards)
+    Set wbDash = ThisWorkbook
+    If DebugMode Then Debug.Print "Aktives Workbook: " & wbDash.Name
     
-    ' Arbeitsmappen setzen - Mappen müssen geöffnet sein
+    ' Referenz auf das Zuweisungs-Blatt
+    Set wsZuweisung = wbDash.Worksheets("Zuweisung")
+    If DebugMode Then Debug.Print "Zuweisungsblatt gefunden: " & wsZuweisung.Name
+    
+    ' Öffnen der Rohdaten-Arbeitsmappe (falls noch nicht offen)
+    ' Pfad anpassen!
     On Error Resume Next
-    Set wbDashboard = Workbooks("Dashboard.xlsx")
-    On Error GoTo 0
-    If wbDashboard Is Nothing Then
-        Debug.Print "Fehler: 'Dashboard.xlsx' nicht offen."
-        Exit Sub
+    Set wbQuelle = Workbooks("Leaptree_Data.xlsx")
+    On Error GoTo Handler
+    
+    If wbQuelle Is Nothing Then
+        ' Falls die Quelldatei noch nicht geöffnet ist, Pfad anpassen:
+        If DebugMode Then Debug.Print "Öffne Leaptree_Data.xlsx..."
+        Set wbQuelle = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx")
+    Else
+        If DebugMode Then Debug.Print "Leaptree_Data.xlsx ist bereits geöffnet."
     End If
     
-    On Error Resume Next
-    Set wbRohdaten = Workbooks("Rohdaten.xlsx")
-    On Error GoTo 0
-    If wbRohdaten Is Nothing Then
-        Debug.Print "Fehler: 'Rohdaten.xlsx' nicht offen."
-        Exit Sub
-    End If
+    ' Arbeitsblatt mit den Rohdaten in der Quelldatei
+    ' Name anpassen, falls nicht "Daten"
+    Set wsQuelle = wbQuelle.Worksheets("Daten")
+    If DebugMode Then Debug.Print "Quelldaten-Blatt: " & wsQuelle.Name
     
-    ' Worksheets setzen
-    On Error Resume Next
-    Set wsSettings = wbDashboard.Worksheets("Settings")
-    Set wsZuweisung = wbDashboard.Worksheets("Zuweisung")
-    Set wsSource = wbRohdaten.Worksheets("Rohdatenblatt")
-    On Error GoTo 0
+    ' Letzte befüllte Zeile in den Rohdaten ermitteln (Spalte A)
+    lastRowQuelle = wsQuelle.Cells(wsQuelle.Rows.Count, "A").End(xlUp).Row
+    If DebugMode Then Debug.Print "Letzte befüllte Zeile in den Rohdaten: " & lastRowQuelle
     
-    If wsSettings Is Nothing Or wsZuweisung Is Nothing Or wsSource Is Nothing Then
-        Debug.Print "Fehler: Eines der benötigten Blätter (Settings, Zuweisung oder Rohdatenblatt) nicht gefunden."
-        Exit Sub
-    End If
-    
-    Debug.Print "Settings:", wsSettings.Name
-    Debug.Print "Zuweisung:", wsZuweisung.Name
-    Debug.Print "Rohdatenblatt:", wsSource.Name
-    
-    ' Annahme: Spaltenüberschriften in Rohdaten sind in Zeile 12
-    headerRow = 12
-    ' Daten beginnen unterhalb der Überschriften
-    dataStartRow = headerRow + 1
-    
-    lastColSource = wsSource.Cells(headerRow, wsSource.Columns.Count).End(xlToLeft).Column
-    lastRowRohdaten = wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row
-    
-    Debug.Print "Letzte Spalte in Rohdaten:", lastColSource
-    Debug.Print "Letzte Datenzeile in Rohdaten:", lastRowRohdaten
-    
-    ' Settings letzte Zeile
-    lastRowSettings = wsSettings.Cells(wsSettings.Rows.Count, "A").End(xlUp).Row
-    Debug.Print "Letzte Zeile in Settings:", lastRowSettings
-    
-    ' Schleife durch alle Rohdaten-Zeilen
-    For dataRow = dataStartRow To lastRowRohdaten
-        vorgangsnummer = wsSource.Cells(dataRow, "A").Value
-        satz = wsSource.Cells(dataRow, "J").Value ' Satz steht in Spalte J (Annahme)
+    ' Schleife über alle Rohdatenzeilen (angenommen ab Zeile 2, da Zeile 1 Überschriften enthält)
+    For i = 2 To lastRowQuelle
+        Suchwert = wsQuelle.Cells(i, "A").Value
         
-        If vorgangsnummer = "" Or satz = "" Then
-            Debug.Print "Zeile " & dataRow & ": Vorgangsnummer oder Satz leer, überspringe..."
-            GoTo NextDataRow
-        End If
+        If DebugMode Then Debug.Print "Zeile " & i & ": Suchwert=" & Suchwert
         
-        Debug.Print "----------------------------------------"
-        Debug.Print "Verarbeite Zeile:", dataRow, "Vorgangsnummer:", vorgangsnummer, "Satz:", satz
+        ' Suche diesen Suchwert im Zuweisungs-Blatt in Spalte A
+        Set rng = wsZuweisung.Columns("A").Find(What:=Suchwert, LookIn:=xlValues, LookAt:=xlWhole)
         
-        ' Zielarbeitsblattname über Settings ermitteln
-        zielSheetName = GetZielSheetFromSettings(wsSettings, vorgangsnummer)
-        If zielSheetName = "" Then
-            Debug.Print "Keine Zuordnung in Settings für Vorgangsnummer '" & vorgangsnummer & "', überspringe..."
-            GoTo NextDataRow
-        End If
-        
-        ' Zielblatt referenzieren
-        On Error Resume Next
-        Set wsTarget = wbDashboard.Worksheets(zielSheetName)
-        On Error GoTo 0
-        If wsTarget Is Nothing Then
-            Debug.Print "Zielblatt '" & zielSheetName & "' nicht gefunden, überspringe..."
-            GoTo NextDataRow
-        End If
-        
-        Debug.Print "Zielblatt ermittelt:", wsTarget.Name
-        
-        ' Prüfen ob Vorgangsnummer bereits vorhanden ist in Zielblatt Spalte A
-        zielZeile = FindRowForVorgangsnummer(wsTarget, vorgangsnummer)
-        If zielZeile = 0 Then
-            ' Vorgangsnummer nicht gefunden, neue Zeile anhängen
-            zielZeile = wsTarget.Cells(wsTarget.Rows.Count, "A").End(xlUp).Row
-            If zielZeile < 12 Then zielZeile = 11
-            zielZeile = zielZeile + 1
-            ' Vorgangsnummer eintragen
-            wsTarget.Cells(zielZeile, "A").Value = vorgangsnummer
-            Debug.Print "Neue Zeile für Vorgangsnummer angelegt:", zielZeile
+        If Not rng Is Nothing Then
+            ZielName = rng.Offset(0, 1).Value
+            If DebugMode Then Debug.Print "  Zielname für '" & Suchwert & "' gefunden: " & ZielName
+            
+            ' Versuche, dieses Zielblatt in der Hauptdatei zu referenzieren
+            On Error Resume Next
+            Set wsZiel = wbDash.Worksheets(ZielName)
+            On Error GoTo Handler
+            
+            If Not wsZiel Is Nothing Then
+                If DebugMode Then Debug.Print "  Zielblatt vorhanden: " & wsZiel.Name
+                
+                ' Suche den Header in Zeile 12
+                Set c = wsZiel.Rows(12).Find(What:="Vorgangsnummer", LookIn:=xlValues, LookAt:=xlWhole)
+                
+                If Not c Is Nothing Then
+                    vorgSpalte = c.Column
+                    If DebugMode Then Debug.Print "  'Vorgangsnummer' gefunden in Spalte: " & vorgSpalte
+                    
+                    ' Finde die nächste freie Zeile in dieser Spalte
+                    nextRow = wsZiel.Cells(wsZiel.Rows.Count, vorgSpalte).End(xlUp).Row + 1
+                    If DebugMode Then Debug.Print "  Nächste freie Zeile in Spalte " & vorgSpalte & ": " & nextRow
+                    
+                    ' Schreibe die Vorgangsnummer (angenommen in Spalte B der Quelldatei)
+                    wsZiel.Cells(nextRow, vorgSpalte).Value = wsQuelle.Cells(i, "B").Value
+                    If DebugMode Then Debug.Print "  Vorgangsnummer '" & wsQuelle.Cells(i, "B").Value & "' eingefügt in " & wsZiel.Name & "!"
+                    
+                Else
+                    If DebugMode Then Debug.Print "  Spalte 'Vorgangsnummer' nicht gefunden in Zeile 12 von " & wsZiel.Name
+                    ' Ggf. Meldung an den Benutzer
+                    'MsgBox "Spalte 'Vorgangsnummer' wurde in Zeile 12 von " & wsZiel.Name & " nicht gefunden!"
+                End If
+                
+            Else
+                If DebugMode Then Debug.Print "  Zielblatt '" & ZielName & "' nicht gefunden!"
+                'MsgBox "Zielblatt '" & ZielName & "' existiert nicht in der Hauptdatei!"
+            End If
         Else
-            Debug.Print "Vorgangsnummer gefunden in Zeile:", zielZeile
+            If DebugMode Then Debug.Print "  Suchwert '" & Suchwert & "' wurde in der Zuweisung nicht gefunden!"
+            'MsgBox "Suchwert '" & Suchwert & "' wurde nicht in der Zuweisung gefunden!"
         End If
-        
-        ' Nun Zuweisung für den Satz ermitteln (welche Spalte im Zielblatt)
-        zielSpalte = GetZielSpalteFromZuweisung(wsZuweisung, satz)
-        If zielSpalte = "" Then
-            Debug.Print "Keine Zuordnung in Zuweisung für Satz '" & satz & "', überspringe..."
-            GoTo NextDataRow
-        End If
-        
-        Debug.Print "Zielspalte für Satz '" & satz & "':", zielSpalte
-        
-        ' Quelle-Spalte in Rohdaten anhand Satz in Zeile 12 suchen
-        sourceCol = FindColumnByHeader(wsSource, satz, headerRow)
-        If sourceCol = 0 Then
-            Debug.Print "Spalte für Satz '" & satz & "' in Rohdaten nicht gefunden, überspringe..."
-            GoTo NextDataRow
-        End If
-        
-        ' Wert aus Rohdaten holen
-        valueToCopy = wsSource.Cells(dataRow, sourceCol).Value
-        Debug.Print "Wert aus Rohdaten:", valueToCopy, "wird eingefügt in", zielSheetName, "Zeile:", zielZeile, "Spalte:", zielSpalte
-        
-        ' Wert ins Zielblatt schreiben
-        wsTarget.Cells(zielZeile, Columns(zielSpalte).Column).Value = valueToCopy
-        
-NextDataRow:
-    Next dataRow
+    Next i
     
-    Debug.Print "Datenimport abgeschlossen."
-    MsgBox "Datenimport abgeschlossen!", vbInformation
+    If DebugMode Then Debug.Print "Import fertig!"
+    
+    ' Wenn gewünscht, die Quelldatei schließen:
+    'wbQuelle.Close SaveChanges:=False
+    
+    Exit Sub
 
+Handler:
+    ' Fehlerbehandlung
+    Dim ErrMsg As String
+    ErrMsg = "Fehler Nr. " & Err.Number & vbCrLf & _
+             "Beschreibung: " & Err.Description & vbCrLf & _
+             "Modul: " & VBA.Environ("Username") & vbCrLf & _
+             "Routine: ImportLeaptreeData_Debug" & vbCrLf & _
+             "Zeile: " & Erl
+    If DebugMode Then Debug.Print ErrMsg
+    MsgBox ErrMsg, vbExclamation, "Fehler aufgetreten"
+    
 End Sub
-
-' Hilfsfunktion: Liefert Ziel-Arbeitsblatt anhand der Vorgangsnummer über Settings
-Function GetZielSheetFromSettings(ws As Worksheet, vorgang As String) As String
-    Dim lastRow As Long, i As Long
-    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
-    
-    For i = 2 To lastRow
-        If Trim(UCase(ws.Cells(i, "A").Value)) = Trim(UCase(vorgang)) Then
-            GetZielSheetFromSettings = ws.Cells(i, "B").Value
-            Exit For
-        End If
-    Next i
-End Function
-
-' Hilfsfunktion: Findet die Zeile einer Vorgangsnummer im Zielblatt, oder 0 wenn nicht vorhanden
-Function FindRowForVorgangsnummer(ws As Worksheet, vorgang As String) As Long
-    Dim lastRow As Long, i As Long
-    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
-    If lastRow < 12 Then lastRow = 12 ' Mindeststartzeile
-    
-    For i = 12 To lastRow
-        If Trim(UCase(ws.Cells(i, "A").Value)) = Trim(UCase(vorgang)) Then
-            FindRowForVorgangsnummer = i
-            Exit For
-        End If
-    Next i
-End Function
-
-' Hilfsfunktion: Liefert die Zielspalte für einen Satz aus der Zuweisung
-Function GetZielSpalteFromZuweisung(ws As Worksheet, satz As String) As String
-    Dim lastRow As Long, i As Long
-    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
-    
-    For i = 2 To lastRow
-        If Trim(UCase(ws.Cells(i, "A").Value)) = Trim(UCase(satz)) Then
-            GetZielSpalteFromZuweisung = ws.Cells(i, "B").Value
-            Exit For
-        End If
-    Next i
-End Function
-
-' Hilfsfunktion: Findet die Spalte in ws anhand des Headers in Zeile headerRow
-Function FindColumnByHeader(ws As Worksheet, headerName As String, headerRow As Long) As Long
-    Dim lastCol As Long, c As Long
-    lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
-    
-    For c = 1 To lastCol
-        If Trim(UCase(ws.Cells(headerRow, c).Value)) = Trim(UCase(headerName)) Then
-            FindColumnByHeader = c
-            Exit For
-        End If
-    Next c
-End Function
