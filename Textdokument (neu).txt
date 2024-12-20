@@ -57,11 +57,7 @@ Sub ImportiereRohdatenFinal()
                 GoTo NächsterDatensatz
             End If
             
-            ' Headers des Zielblatts einlesen, falls noch nicht geschehen
-            ' Damit bei jedem neuen Zielblatt die Headers nur einmal eingelesen werden,
-            ' nutzen wir dictHeaders pro Zielblatt. Hier vereinfachen wir:
-            ' Wir nehmen an, dass die Rohdaten jeweils nur in ein Blatt gehen oder
-            ' wenn mehrere Blätter vorkommen, werden die Headers jedes Mal neu eingelesen.
+            ' Headers des Zielblatts einlesen
             dictHeaders.RemoveAll
             For j = 3 To 17 ' C bis Q
                 If Not IsEmpty(wsZiel.Cells(12, j)) Then
@@ -69,7 +65,7 @@ Sub ImportiereRohdatenFinal()
                 End If
             Next j
             
-            ' Einmalig pro Blatt Startzeile bestimmen, falls nicht schon geschehen
+            ' Einmalig pro Blatt Startzeile bestimmen
             Dim startZeile As Long
             If Not dictStartZeilen.Exists(strZielblattName) Then
                 ' Startzeile einmalig ermitteln
@@ -101,6 +97,19 @@ Sub ImportiereRohdatenFinal()
                 zielSpalte = dictHeaders(upperHeader)
                 ' Wert aus Rohdaten Spalte L
                 rawValue = wsData.Cells(i, 12).Value
+                
+                ' Werte konvertieren
+                Select Case UCase(CStr(rawValue))
+                    Case "JA"
+                        rawValue = "j"
+                    Case "NEIN"
+                        rawValue = "n"
+                    Case "N/A"
+                        rawValue = ""   ' Leer lassen
+                    Case "TEILWEISE"
+                        rawValue = "t"
+                End Select
+                
                 wsZiel.Cells(lZielzeile, zielSpalte).Value = rawValue
             End If
             
