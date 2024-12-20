@@ -44,7 +44,7 @@ Sub ImportiereRohdatenFinal()
     
     ' Rohdaten öffnen (Pfad anpassen!)
     On Error GoTo Fehlerbehandlung
-    Set wbData = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx")
+    Set wbData = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx") ' Passen Sie den Pfad an
     On Error GoTo 0
     Set wsData = wbData.Worksheets(1)
     
@@ -68,6 +68,9 @@ Sub ImportiereRohdatenFinal()
             End If
         End If
     Next i
+    
+    ' Aktuelle Kalenderwoche berechnen
+    currentKW = "KW " & GetKalenderwoche(Date)
     
     ' Datenimport starten
     For i = 2 To lLetzteZeileData
@@ -107,7 +110,7 @@ Sub ImportiereRohdatenFinal()
             Dim startZeile As Long
             If Not dictStartZeilen.Exists(strZielblattName) Then
                 ' Neue Logik zur Bestimmung der Startzeile basierend auf aktueller KW
-                startZeile = FindeStartzeileBasierendAufKW(wsZiel, wsData, i)
+                startZeile = FindeStartzeileBasierendAufKW(wsZiel, currentKW)
                 If startZeile = 0 Then
                     ' Falls keine passende Startzeile gefunden wurde, überspringen
                     GoTo NächsterDatensatz
@@ -204,37 +207,16 @@ Fehlerbehandlung:
     wbData.Close False
 End Sub
 
-Function FindeFreieStartzeileBasierendAufKW(ws As Worksheet, wsData As Worksheet, zeile As Long) As Long
-    Dim rawDate As Date
-    Dim adjustedDate As Date
-    Dim currentKW As String
+Function FindeStartzeileBasierendAufKW(ws As Worksheet, currentKW As String) As Long
     Dim rngKW As Range
     Dim startCheckCell As Range
     Dim lCheckRow As Long
-    
-    ' Datum aus Rohdaten Spalte D einlesen
-    rawDate = wsData.Cells(zeile, 4).Value
-    If Not IsDate(rawDate) Then
-        FindeFreieStartzeileBasierendAufKW = 0
-        Exit Function
-    End If
-    rawDate = CDate(rawDate)
-    
-    ' Wenn das Datum ein Montag ist, nimm den vergangenen Freitag
-    If Weekday(rawDate, vbMonday) = vbMonday Then
-        adjustedDate = rawDate - 3
-    Else
-        adjustedDate = rawDate - 1
-    End If
-    
-    ' Kalenderwoche berechnen
-    currentKW = "KW " & GetKalenderwoche(adjustedDate)
     
     ' Nach "KW xx" in Spalte A suchen
     Set rngKW = ws.Columns(1).Find(What:=currentKW, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
     If rngKW Is Nothing Then
         MsgBox currentKW & " nicht in Spalte A des Arbeitsblatts '" & ws.Name & "' gefunden.", vbExclamation
-        FindeFreieStartzeileBasierendAufKW = 0
+        FindeStartzeileBasierendAufKW = 0
         Exit Function
     End If
     
@@ -251,7 +233,7 @@ Function FindeFreieStartzeileBasierendAufKW(ws As Worksheet, wsData As Worksheet
     Loop
     
     ' Startzeile zurückgeben
-    FindeFreieStartzeileBasierendAufKW = lCheckRow
+    FindeStartzeileBasierendAufKW = lCheckRow
 End Function
 
 Function GetKalenderwoche(datum As Date) As Long
