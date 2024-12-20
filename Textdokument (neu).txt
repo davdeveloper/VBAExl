@@ -35,8 +35,6 @@ Sub ImportiereRohdatenFinal()
     Dim rawValL As Variant
     Dim rawDate As Variant ' Verwenden Sie Variant für Flexibilität
     
-    Dim currentKW As String
-    
     ' Setzen der Arbeitsmappen und Arbeitsblätter
     Set wbDash = ThisWorkbook
     Set wsZuweisung = wbDash.Worksheets("Zuweisung")
@@ -68,9 +66,6 @@ Sub ImportiereRohdatenFinal()
             End If
         End If
     Next i
-    
-    ' Aktuelle Kalenderwoche berechnen
-    currentKW = "KW " & GetKalenderwoche(Date)
     
     ' Datenimport starten
     For i = 2 To lLetzteZeileData
@@ -109,8 +104,16 @@ Sub ImportiereRohdatenFinal()
             ' Einmalig pro Blatt Startzeile bestimmen
             Dim startZeile As Long
             If Not dictStartZeilen.Exists(strZielblattName) Then
-                ' Neue Logik zur Bestimmung der Startzeile basierend auf aktueller KW
-                startZeile = FindeStartzeileBasierendAufKW(wsZiel, currentKW)
+                ' Neue Logik zur Bestimmung der Startzeile basierend auf rawDate
+                rawDate = wsData.Cells(i, 4).Value ' Rohdaten Spalte D
+                
+                If IsDate(rawDate) Then
+                    rawDate = CDate(rawDate)
+                Else
+                    rawDate = Date ' Fallback auf aktuelles Datum, falls ungültig
+                End If
+                
+                startZeile = FindeStartzeileBasierendAufKW(wsZiel, rawDate)
                 If startZeile = 0 Then
                     ' Falls keine passende Startzeile gefunden wurde, überspringen
                     GoTo NächsterDatensatz
@@ -136,14 +139,6 @@ Sub ImportiereRohdatenFinal()
                 
                 ' Vorgangsnummer in Spalte A
                 wsZiel.Cells(lZielzeile, 1).Value = rawVorgang
-                
-                ' Datum aus Rohdaten Spalte D einlesen
-                rawDate = wsData.Cells(i, 4).Value
-                If IsDate(rawDate) Then
-                    rawDate = CDate(rawDate)
-                Else
-                    rawDate = Date ' Fallback auf aktuelles Datum, falls ungültig
-                End If
                 
                 ' Spalte V (22) = Rohdaten Spalte D (4)
                 wsZiel.Cells(lZielzeile, 22).Value = rawDate
@@ -207,10 +202,22 @@ Fehlerbehandlung:
     wbData.Close False
 End Sub
 
-Function FindeStartzeileBasierendAufKW(ws As Worksheet, currentKW As String) As Long
+Function FindeStartzeileBasierendAufKW(ws As Worksheet, rawDate As Date) As Long
+    Dim adjustedDate As Date
+    Dim currentKW As String
     Dim rngKW As Range
     Dim startCheckCell As Range
     Dim lCheckRow As Long
+    
+    ' Wenn das Datum ein Montag ist, nimm den vergangenen Freitag
+    If Weekday(rawDate, vbMonday) = vbMonday Then
+        adjustedDate = rawDate - 3
+    Else
+        adjustedDate = rawDate - 1
+    End If
+    
+    ' Kalenderwoche berechnen mit führender Null
+    currentKW = "KW " & Format(GetKalenderwoche(adjustedDate), "00")
     
     ' Nach "KW xx" in Spalte A suchen
     Set rngKW = ws.Columns(1).Find(What:=currentKW, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
