@@ -21,6 +21,7 @@ Sub ImportiereRohdatenFinal()
     Dim lZielzeile As Long
     
     Dim dictHeaders As Object
+    Dim lastCol As Long
     
     Set wbDash = ThisWorkbook
     Set wsZuweisung = wbDash.Worksheets("Zuweisung")
@@ -29,60 +30,65 @@ Sub ImportiereRohdatenFinal()
     Set wbData = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx")
     Set wsData = wbData.Worksheets(1)
     
-    lLetzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 2).End(xlUp).Row ' Letzte Zeile in Zuweisung Spalte B
-    lLetzteZeileData = wsData.Cells(wsData.Rows.Count, 1).End(xlUp).Row ' Letzte Zeile Rohdaten Spalte A
+    lLetzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 2).End(xlUp).Row
+    lLetzteZeileData = wsData.Cells(wsData.Rows.Count, 1).End(xlUp).Row
     
-    ' Dictionary für Headers wird beim ersten Setzen des Zielblattes gefüllt
+    ' Dictionary für Headers wird dynamisch je Zielblatt gefüllt
     Set dictHeaders = CreateObject("Scripting.Dictionary")
     
     For i = 2 To lLetzteZeileData
-        rawKey = wsData.Cells(i, 1).Value      ' Rohdaten Spalte A - Schlüssel
-        rawVorgang = wsData.Cells(i, 2).Value  ' Rohdaten Spalte B - Vorgangsnummer
-        rawHeader = wsData.Cells(i, 10).Value  ' Rohdaten Spalte J - Headerbezeichnung
+        rawKey = wsData.Cells(i, 1).Value      ' Rohdaten Spalte A
+        rawVorgang = wsData.Cells(i, 2).Value  ' Rohdaten Spalte B
+        rawHeader = wsData.Cells(i, 10).Value  ' Rohdaten Spalte J (Headername)
         
         ' Schlüssel in Zuweisung suchen
         Set rngFound = wsZuweisung.Columns(2).Find(What:=rawKey, LookAt:=xlWhole)
         If Not rngFound Is Nothing Then
-            strZielblattName = rngFound.Offset(0, 1).Value ' Spalte C in Zuweisung -> Zielblattname
+            strZielblattName = rngFound.Offset(0, 1).Value ' Zielblatt aus Spalte C in Zuweisung
             
             On Error Resume Next
             Set wsZiel = wbDash.Worksheets(strZielblattName)
             On Error GoTo 0
             
             If wsZiel Is Nothing Then
-                ' Zielblatt nicht vorhanden
+                ' Zielblatt nicht gefunden
                 GoTo NächsterDatensatz
             End If
             
-            ' Headers des Zielblatts einlesen, falls noch nicht geschehen
-            If dictHeaders.Count = 0 Then
-                Dim lastCol As Long
-                lastCol = wsZiel.Cells(12, wsZiel.Columns.Count).End(xlToLeft).Column
-                For j = 1 To lastCol
-                    If Not dictHeaders.Exists(CStr(wsZiel.Cells(12, j).Value)) Then
-                        dictHeaders(CStr(wsZiel.Cells(12, j).Value)) = j
-                    End If
-                Next j
-            End If
+            ' Headers des Zielblatts einlesen, falls noch nicht geschehen oder wenn sich das Blatt ändert
+            ' Wir nehmen hier an, dass jedesmal wenn sich das Zielblatt ändert, wir neu einlesen.
+            dictHeaders.RemoveAll
+            ' Spalten C bis Q = 3 bis 17
+            For j = 3 To 17
+                If Not IsEmpty(wsZiel.Cells(12, j).Value) Then
+                    ' Case-Insensitive speichern: Alles in Großbuchstaben
+                    dictHeaders(UCase(CStr(wsZiel.Cells(12, j).Value))) = j
+                End If
+            Next j
             
             ' Zielzeile für Vorgangsnummer finden oder erstellen
             lZielzeile = FindOrCreateTargetRow(wsZiel, rawVorgang)
             
             ' Neuer Eintrag?
             If wsZiel.Cells(lZielzeile, 1).Value = "" Then
-                ' Vorgangsnummer
+                ' Vorgangsnummer in Spalte A
                 wsZiel.Cells(lZielzeile, 1).Value = rawVorgang
-                ' Wert aus Rohdaten Spalte C in Spalte B des Zielblatts
+                ' Wert aus Rohdaten Spalte C in Spalte B
                 wsZiel.Cells(lZielzeile, 2).Value = wsData.Cells(i, 3).Value
             End If
             
-            ' Weitere Spalten basierend auf Header in J füllen
-            If dictHeaders.Exists(rawHeader) Then
+            ' Header suchen (Case-Insensitive)
+            Dim upperHeader As String
+            upperHeader = UCase(rawHeader)
+            
+            If dictHeaders.Exists(upperHeader) Then
                 Dim zielSpalte As Long
-                zielSpalte = dictHeaders(rawHeader)
-                ' Wert bestimmen, hier aus Spalte K der Rohdaten (Annahme)
-                rawValue = BestimmeRohwert(wsData, i, rawHeader)
+                zielSpalte = dictHeaders(upperHeader)
+                ' Wert aus Rohdaten Spalte L (Spalte 12)
+                rawValue = wsData.Cells(i, 12).Value
                 wsZiel.Cells(lZielzeile, zielSpalte).Value = rawValue
+            Else
+                ' Kein passender Header gefunden, nichts eintragen
             End If
             
         End If
@@ -95,10 +101,6 @@ NächsterDatensatz:
 End Sub
 
 Function FindOrCreateTargetRow(ws As Worksheet, Vorgang As String) As Long
-    ' Sucht Vorgangsnummer in Spalte A
-    ' Falls vorhanden, gibt Zeile zurück
-    ' Falls nicht, neuen Platz: Start bei Zeile 16, wenn belegt -> +30
-    
     Dim rngFound As Range
     Dim lCheckRow As Long
     
@@ -113,11 +115,4 @@ Function FindOrCreateTargetRow(ws As Worksheet, Vorgang As String) As Long
         lCheckRow = lCheckRow + 30
     Loop
     FindOrCreateTargetRow = lCheckRow
-End Function
-
-Function BestimmeRohwert(ws As Worksheet, ByVal zeile As Long, ByVal hdr As String) As Variant
-    ' Hier legen Sie fest, aus welcher Spalte der Rohdaten der Wert stammt.
-    ' Aktuell: Wert aus Spalte K (Spalte 11), da RohHeader in J (Spalte 10) steht.
-    ' Passen Sie diesen Bereich an Ihre tatsächliche Datenstruktur an.
-    BestimmeRohwert = ws.Cells(zeile, 11).Value
 End Function
