@@ -69,9 +69,6 @@ Sub ImportiereRohdatenFinal()
         End If
     Next i
     
-    ' Aktuelle Kalenderwoche berechnen
-    currentKW = "KW " & GetKalenderwoche(Date)
-    
     ' Datenimport starten
     For i = 2 To lLetzteZeileData
         rawKey = Trim(CStr(wsData.Cells(i, 1).Value))      ' Rohdaten Spalte A - Schlüssel
@@ -79,7 +76,7 @@ Sub ImportiereRohdatenFinal()
         rawHeader = Trim(CStr(wsData.Cells(i, 10).Value))  ' Rohdaten Spalte J - Headername
         
         ' Schlüssel in Zuweisung suchen
-        Set rngFound = wsZuweisung.Columns(2).Find(What:=rawKey, LookAt:=xlWhole, LookIn:=xlValues)
+        Set rngFound = wsZuweisung.Columns(2).Find(What:=rawKey, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
         If Not rngFound Is Nothing Then
             strZielblattName = Trim(CStr(rngFound.Offset(0, 1).Value)) ' Zielblatt aus Spalte C in Zuweisung
             
@@ -110,7 +107,7 @@ Sub ImportiereRohdatenFinal()
             Dim startZeile As Long
             If Not dictStartZeilen.Exists(strZielblattName) Then
                 ' Neue Logik zur Bestimmung der Startzeile basierend auf aktueller KW
-                startZeile = FindeStartzeileBasierendAufKW(wsZiel, currentKW)
+                startZeile = FindeStartzeileBasierendAufKW(wsZiel, wsData, i)
                 If startZeile = 0 Then
                     ' Falls keine passende Startzeile gefunden wurde, überspringen
                     GoTo NächsterDatensatz
@@ -121,7 +118,7 @@ Sub ImportiereRohdatenFinal()
             End If
             
             ' Vorgangszeile suchen
-            Set rngFound = wsZiel.Columns(1).Find(What:=rawVorgang, LookAt:=xlWhole, LookIn:=xlValues)
+            Set rngFound = wsZiel.Columns(1).Find(What:=rawVorgang, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
             If rngFound Is Nothing Then
                 ' Vorgang noch nicht vorhanden, neuen Eintrag an startZeile
                 lZielzeile = startZeile
@@ -207,16 +204,37 @@ Fehlerbehandlung:
     wbData.Close False
 End Sub
 
-Function FindeStartzeileBasierendAufKW(ws As Worksheet, currentKW As String) As Long
+Function FindeFreieStartzeileBasierendAufKW(ws As Worksheet, wsData As Worksheet, zeile As Long) As Long
+    Dim rawDate As Date
+    Dim adjustedDate As Date
+    Dim currentKW As String
     Dim rngKW As Range
     Dim startCheckCell As Range
     Dim lCheckRow As Long
     
+    ' Datum aus Rohdaten Spalte D einlesen
+    rawDate = wsData.Cells(zeile, 4).Value
+    If Not IsDate(rawDate) Then
+        FindeFreieStartzeileBasierendAufKW = 0
+        Exit Function
+    End If
+    rawDate = CDate(rawDate)
+    
+    ' Wenn das Datum ein Montag ist, nimm den vergangenen Freitag
+    If Weekday(rawDate, vbMonday) = vbMonday Then
+        adjustedDate = rawDate - 3
+    Else
+        adjustedDate = rawDate - 1
+    End If
+    
+    ' Kalenderwoche berechnen
+    currentKW = "KW " & GetKalenderwoche(adjustedDate)
+    
     ' Nach "KW xx" in Spalte A suchen
-    Set rngKW = ws.Columns(1).Find(What:=currentKW, LookAt:=xlWhole, LookIn:=xlValues)
+    Set rngKW = ws.Columns(1).Find(What:=currentKW, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
     If rngKW Is Nothing Then
         MsgBox currentKW & " nicht in Spalte A des Arbeitsblatts '" & ws.Name & "' gefunden.", vbExclamation
-        FindeStartzeileBasierendAufKW = 0
+        FindeFreieStartzeileBasierendAufKW = 0
         Exit Function
     End If
     
@@ -233,7 +251,7 @@ Function FindeStartzeileBasierendAufKW(ws As Worksheet, currentKW As String) As 
     Loop
     
     ' Startzeile zurückgeben
-    FindeStartzeileBasierendAufKW = lCheckRow
+    FindeFreieStartzeileBasierendAufKW = lCheckRow
 End Function
 
 Function GetKalenderwoche(datum As Date) As Long
