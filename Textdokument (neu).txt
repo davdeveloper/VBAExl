@@ -25,7 +25,6 @@ Sub ImportiereRohdatenFinal()
     Dim dictHeaders As Object
     Dim dictStartZeilen As Object
     Dim dictKategorien As Object
-    Dim dictSkipCounts As Object ' Neues Dictionary für Sprungwerte
     
     Dim upperHeader As String
     Dim zielSpalte As Long
@@ -38,8 +37,6 @@ Sub ImportiereRohdatenFinal()
     Dim rawDate As Variant ' Verwenden Sie Variant für Flexibilität
     Dim adjustedDate As Date
     Dim currentKW As String
-    Dim skipCount As Long
-    Dim strSheetName As String
     
     ' Setzen der Arbeitsmappen und Arbeitsblätter
     Set wbDash = ThisWorkbook
@@ -60,7 +57,6 @@ Sub ImportiereRohdatenFinal()
     Set dictHeaders = CreateObject("Scripting.Dictionary")       ' Dictionary für Headers pro Zielblatt
     Set dictStartZeilen = CreateObject("Scripting.Dictionary")  ' Dictionary für Startzeilen pro Zielblatt
     Set dictKategorien = CreateObject("Scripting.Dictionary")    ' Dictionary für Kategorienübersetzung
-    Set dictSkipCounts = CreateObject("Scripting.Dictionary")    ' Dictionary für Sprungwerte pro Zielblatt
     
     ' Kategorien einlesen (Englisch -> Deutsch)
     lLetzteZeileKatA = wsKategorien.Cells(wsKategorien.Rows.Count, 1).End(xlUp).Row
@@ -70,21 +66,6 @@ Sub ImportiereRohdatenFinal()
             deutscherText = Trim(CStr(wsKategorien.Cells(i, 2).Value))
             If Not dictKategorien.Exists(englischerText) Then
                 dictKategorien(englischerText) = deutscherText
-            End If
-        End If
-    Next i
-    
-    ' Sprungwerte aus der Zuweisungstabelle einlesen (Spalte C: Sheet Name, Spalte D: Skip Count)
-    For i = 2 To lLetzteZeileZuweisung
-        If Not IsEmpty(wsZuweisung.Cells(i, "C").Value) Then
-            strSheetName = Trim(CStr(wsZuweisung.Cells(i, "C").Value))
-            If IsNumeric(wsZuweisung.Cells(i, "D").Value) Then
-                skipCount = CLng(wsZuweisung.Cells(i, "D").Value)
-                dictSkipCounts(strSheetName) = skipCount
-            Else
-                ' Umgang mit nicht numerischen Sprungwerten: Standardwert verwenden
-                dictSkipCounts(strSheetName) = 30 ' Standardwert
-                Debug.Print "Ungültiger Skip-Wert in Zuweisung für Blatt '" & strSheetName & "'. Standardwert 30 verwendet."
             End If
         End If
     Next i
@@ -177,25 +158,22 @@ Sub ImportiereRohdatenFinal()
                 ' *** Änderung: Gehe 8 Zeilen nach unten von der KW-Zelle ***
                 startZeile = rngFound.Row + 8
                 
-                ' *** Dynamische Prüfung und Sprung basierend auf Zuweisungstabelle ***
-                If dictSkipCounts.Exists(strZielblattName) Then
-                    skipCount = dictSkipCounts(strZielblattName)
+                ' Prüfen, ob die Zelle leer ist. Wenn nicht, zur nächsten freien Zelle gehen
+                If wsZiel.Cells(startZeile, rngFound.Column).Value <> "" Then
+                    Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist nicht leer. Suche nach der nächsten freien Zelle."
+                    Do While wsZiel.Cells(startZeile, rngFound.Column).Value <> ""
+                        Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist nicht leer. Gehe eine Zeile weiter."
+                        startZeile = startZeile + 1
+                        ' Optional: Abbruchbedingung, um eine Endlosschleife zu vermeiden
+                        If startZeile > wsZiel.Rows.Count Then
+                            MsgBox "Keine freie Zelle nach KW " & currentKW & " gefunden.", vbCritical
+                            startZeile = 0
+                            Exit Do
+                        End If
+                    Loop
                 Else
-                    skipCount = 30 ' Standardwert
-                    Debug.Print "Kein Skip-Wert in Zuweisung für Blatt '" & strZielblattName & "'. Standardwert 30 verwendet."
+                    Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist leer. Verwende diese Zeile."
                 End If
-                
-                ' Prüfen, ob die Zelle leer ist. Wenn nicht, + skipCount Zeilen weiterspringen
-                Do While wsZiel.Cells(startZeile, rngFound.Column).Value <> ""
-                    Debug.Print "Zelle " & wsZiel.Cells(startZeile, rngFound.Column).Address & " ist nicht leer. Springe " & skipCount & " Zeilen weiter."
-                    startZeile = startZeile + skipCount
-                    ' Optional: Abbruchbedingung, um eine Endlosschleife zu vermeiden
-                    If startZeile > wsZiel.Rows.Count Then
-                        MsgBox "Keine freie Zelle nach KW " & currentKW & " gefunden.", vbCritical
-                        startZeile = 0
-                        Exit Do
-                    End If
-                Loop
                 
                 ' Debugging-Ausgabe der gefundenen Startzeile
                 If startZeile > 0 Then
@@ -205,6 +183,7 @@ Sub ImportiereRohdatenFinal()
                 ' Startzeile festlegen und speichern
                 dictStartZeilen(strZielblattName) = startZeile
             Else
+                ' Startzeile bereits festgelegt
                 startZeile = dictStartZeilen(strZielblattName)
                 If startZeile = 0 Then
                     ' Startzeile wurde bereits auf 0 gesetzt, überspringen
