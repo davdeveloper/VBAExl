@@ -119,6 +119,22 @@ Sub ImportiereRohdatenFinal()
                 Next j
             End If
 
+            ' Kalenderwoche suchen und 8 Zeilen überspringen
+            Dim startZeile As Long
+            Set rngFound = wsZiel.Columns(1).Find(What:="KW " & Format(rawDate, "ww"), LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
+            If Not rngFound Is Nothing Then
+                startZeile = rngFound.Row + 8
+                If wsZiel.Cells(startZeile, 1).Value <> "" Then
+                    Do While wsZiel.Cells(startZeile, 1).Value <> ""
+                        startZeile = startZeile + 1
+                        If startZeile > wsZiel.Rows.Count Then Exit Do
+                    Loop
+                End If
+            Else
+                Debug.Print "Keine Kalenderwoche gefunden."
+                GoTo NächsterDatensatz
+            End If
+
             ' Übersetzung der Werte in Spalte L (z. B. Ja/Nein/N/A)
             rawValL = Trim(CStr(wsData.Cells(i, 12).Value)) ' Rohdaten Spalte L
 
@@ -137,7 +153,7 @@ Sub ImportiereRohdatenFinal()
             upperHeader = UCase(Trim(CStr(rawHeader)))
             If dictHeaders(strZielblattName).Exists(upperHeader) Then
                 zielSpalte = dictHeaders(strZielblattName)(upperHeader)
-                wsZiel.Cells(wsZiel.Rows.Count, zielSpalte).End(xlUp).Offset(1, 0).Value = rawValL
+                wsZiel.Cells(startZeile, zielSpalte).Value = rawValL
                 Debug.Print "Wert " & rawValL & " in Spalte " & zielSpalte & " eingefügt."
             Else
                 Debug.Print "Header " & upperHeader & " nicht gefunden."
