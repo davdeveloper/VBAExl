@@ -182,8 +182,12 @@ Sub ImportiereRohdatenFinal()
                 ' Startzeile festlegen und speichern
                 dictStartZeilen(strZielblattName) = startZeile
             Else
-                ' Schlüssel nicht gefunden in Zuweisung, nächsten Datensatz
-                GoTo NächsterDatensatz
+                ' Startzeile bereits festgelegt
+                startZeile = dictStartZeilen(strZielblattName)
+                If startZeile = 0 Then
+                    ' Startzeile wurde bereits auf 0 gesetzt, überspringen
+                    GoTo NächsterDatensatz
+                End If
             End If
             
             ' *** Neuen Vorgang hinzufügen oder vorhandenen aktualisieren ***
@@ -264,13 +268,15 @@ Sub ImportiereRohdatenFinal()
                 dictStartZeilen(strZielblattName) = lZielzeile + 1
             End If
             
-    NächsterDatensatz:
-        Next i
-    
+        End If
+NächsterDatensatz:
+        Set wsZiel = Nothing
+    Next i
+
     wbData.Close False
     MsgBox "Import abgeschlossen!"
     Exit Sub
-    
+
 Fehlerbehandlung:
     MsgBox "Ein Fehler ist aufgetreten: " & Err.Description, vbCritical
     On Error Resume Next
