@@ -33,112 +33,88 @@ Sub ImportiereRohdatenFinal()
     
     Dim englVal As Variant
     Dim rawValL As Variant
-    Dim rawDate As Variant ' Verwenden Sie Variant für Flexibilität
     
-    ' Setzen der Arbeitsmappen und Arbeitsblätter
     Set wbDash = ThisWorkbook
     Set wsZuweisung = wbDash.Worksheets("Zuweisung")
     Set wsKategorien = wbDash.Worksheets("Kategorien")
     
     ' Rohdaten öffnen (Pfad anpassen!)
-    On Error GoTo Fehlerbehandlung
-    Set wbData = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx") ' Passen Sie den Pfad an
-    On Error GoTo 0
+    Set wbData = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx")
     Set wsData = wbData.Worksheets(1)
     
-    ' Letzte Zeilen ermitteln
     lLetzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 2).End(xlUp).Row
     lLetzteZeileData = wsData.Cells(wsData.Rows.Count, 1).End(xlUp).Row
     
-    ' Dictionaries initialisieren
+    ' Dictionaries
     Set dictHeaders = CreateObject("Scripting.Dictionary")
     Set dictStartZeilen = CreateObject("Scripting.Dictionary")
     Set dictKategorien = CreateObject("Scripting.Dictionary")
     
-    ' Kategorien einlesen (Englisch -> Deutsch)
+    ' Kategorien einlesen (Englisch->Deutsch)
     lLetzteZeileKatA = wsKategorien.Cells(wsKategorien.Rows.Count, 1).End(xlUp).Row
     For i = 2 To lLetzteZeileKatA
         If Not IsEmpty(wsKategorien.Cells(i, 1)) Then
-            englischerText = Trim(CStr(wsKategorien.Cells(i, 1).Value))
-            deutscherText = Trim(CStr(wsKategorien.Cells(i, 2).Value))
-            If Not dictKategorien.Exists(englischerText) Then
-                dictKategorien(englischerText) = deutscherText
-            End If
+            englischerText = CStr(wsKategorien.Cells(i, 1).Value)
+            deutscherText = CStr(wsKategorien.Cells(i, 2).Value)
+            dictKategorien(englischerText) = deutscherText
         End If
     Next i
     
-    ' Datenimport starten
     For i = 2 To lLetzteZeileData
-        rawKey = Trim(CStr(wsData.Cells(i, 1).Value))      ' Rohdaten Spalte A - Schlüssel
-        rawVorgang = Trim(CStr(wsData.Cells(i, 2).Value))  ' Rohdaten Spalte B - Vorgangsnummer
-        rawHeader = Trim(CStr(wsData.Cells(i, 10).Value))  ' Rohdaten Spalte J - Headername
+        rawKey = wsData.Cells(i, 1).Value      ' Rohdaten Spalte A
+        rawVorgang = wsData.Cells(i, 2).Value  ' Rohdaten Spalte B
+        rawHeader = wsData.Cells(i, 10).Value  ' Rohdaten Spalte J (Headername)
         
         ' Schlüssel in Zuweisung suchen
-        Set rngFound = wsZuweisung.Columns(2).Find(What:=rawKey, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
+        Set rngFound = wsZuweisung.Columns(2).Find(What:=rawKey, LookAt:=xlWhole)
         If Not rngFound Is Nothing Then
-            strZielblattName = Trim(CStr(rngFound.Offset(0, 1).Value)) ' Zielblatt aus Spalte C in Zuweisung
+            strZielblattName = rngFound.Offset(0, 1).Value
             
-            ' Zielblatt referenzieren
             On Error Resume Next
             Set wsZiel = wbDash.Worksheets(strZielblattName)
             On Error GoTo 0
             
             If wsZiel Is Nothing Then
-                ' Zielblatt nicht gefunden, nächsten Datensatz
                 GoTo NächsterDatensatz
             End If
             
-            ' Headers des Zielblatts einlesen, falls noch nicht geschehen
-            If Not dictHeaders.Exists(strZielblattName) Then
-                Set dictHeaders(strZielblattName) = CreateObject("Scripting.Dictionary")
-                For j = 3 To 17 ' Spalten C bis Q
-                    If Not IsEmpty(wsZiel.Cells(12, j).Value) Then
-                        upperHeader = UCase(Trim(CStr(wsZiel.Cells(12, j).Value)))
-                        If Not dictHeaders(strZielblattName).Exists(upperHeader) Then
-                            dictHeaders(strZielblattName)(upperHeader) = j
-                        End If
-                    End If
-                Next j
-            End If
+            ' Headers einlesen
+            dictHeaders.RemoveAll
+            For j = 3 To 17 ' C bis Q
+                If Not IsEmpty(wsZiel.Cells(12, j)) Then
+                    dictHeaders(UCase(CStr(wsZiel.Cells(12, j).Value))) = j
+                End If
+            Next j
             
             ' Einmalig pro Blatt Startzeile bestimmen
             Dim startZeile As Long
             If Not dictStartZeilen.Exists(strZielblattName) Then
-                ' Neue Logik zur Bestimmung der Startzeile basierend auf rawDate
-                rawDate = wsData.Cells(i, 4).Value ' Rohdaten Spalte D
-                
-                If IsDate(rawDate) Then
-                    rawDate = CDate(rawDate)
-                Else
-                    rawDate = Date ' Fallback auf aktuelles Datum, falls ungültig
-                End If
-                
-                startZeile = FindeStartzeileBasierendAufKW(wsZiel, rawDate)
-                If startZeile = 0 Then
-                    ' Falls keine passende Startzeile gefunden wurde, überspringen
-                    GoTo NächsterDatensatz
-                End If
+                startZeile = FindeFreieStartzeile(wsZiel)
                 dictStartZeilen(strZielblattName) = startZeile
             Else
                 startZeile = dictStartZeilen(strZielblattName)
             End If
             
             ' Vorgangszeile suchen
-            Set rngFound = wsZiel.Columns(1).Find(What:=rawVorgang, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
+            Set rngFound = wsZiel.Columns(1).Find(What:=rawVorgang, LookAt:=xlWhole)
             If rngFound Is Nothing Then
-                ' Vorgang noch nicht vorhanden, neuen Eintrag an startZeile
+                ' Vorgang noch nicht vorhanden
                 lZielzeile = startZeile
                 
                 ' Übersetzung der Spalte C (Englisch -> Deutsch)
-                englVal = Trim(CStr(wsData.Cells(i, 3).Value))
-                If dictKategorien.Exists(englVal) Then
-                    wsZiel.Cells(lZielzeile, 2).Value = dictKategorien(englVal) ' Deutscher Text
+                englVal = wsData.Cells(i, 3).Value
+                If dictKategorien.Exists(CStr(englVal)) Then
+                    wsZiel.Cells(lZielzeile, 2).Value = dictKategorien(CStr(englVal))
                 Else
-                    wsZiel.Cells(lZielzeile, 2).Value = englVal ' Unverändert, falls kein Mapping
+                    wsZiel.Cells(lZielzeile, 2).Value = englVal
                 End If
                 
                 ' Vorgangsnummer in Spalte A
                 wsZiel.Cells(lZielzeile, 1).Value = rawVorgang
+                
+                ' Datum aus Rohdaten Spalte D einlesen
+                Dim rawDate As Date
+                rawDate = wsData.Cells(i, 4).Value
                 
                 ' Spalte V (22) = Rohdaten Spalte D (4)
                 wsZiel.Cells(lZielzeile, 22).Value = rawDate
@@ -149,27 +125,27 @@ Sub ImportiereRohdatenFinal()
                 ' Spalte U (21):
                 ' Ausgehend von rawDate:
                 ' Immer einen Tag zurück, außer wenn dieser Tag ein Sonntag ist, dann Freitag vorher
-                If Weekday(rawDate - 1, vbMonday) = vbSunday Then
+                If Weekday(rawDate - 1) = vbSunday Then
                     wsZiel.Cells(lZielzeile, 21).Value = rawDate - 3
                 Else
                     wsZiel.Cells(lZielzeile, 21).Value = rawDate - 1
                 End If
                 
-                ' Startzeile für nächsten neuen Vorgang erhöhen
+                ' Nächste freie Zeile für neuen Vorgang
                 dictStartZeilen(strZielblattName) = startZeile + 1
             Else
-                ' Vorgangsnummer existiert schon, Zeile festlegen
+                ' Vorgangsnummer existiert schon
                 lZielzeile = rngFound.Row
             End If
             
             ' Header abhängige Werte (aus Spalte L)
-            upperHeader = UCase(Trim(CStr(rawHeader)))
-            If dictHeaders(strZielblattName).Exists(upperHeader) Then
-                zielSpalte = dictHeaders(strZielblattName)(upperHeader)
-                rawValL = Trim(CStr(wsData.Cells(i, 12).Value))
+            upperHeader = UCase(rawHeader)
+            If dictHeaders.Exists(upperHeader) Then
+                zielSpalte = dictHeaders(upperHeader)
+                rawValL = wsData.Cells(i, 12).Value
                 
                 ' Werte konvertieren
-                Select Case UCase(rawValL)
+                Select Case UCase(CStr(rawValL))
                     Case "JA"
                         rawValL = "j"
                     Case "NEIN"
@@ -178,11 +154,8 @@ Sub ImportiereRohdatenFinal()
                         rawValL = ""   ' Leer lassen
                     Case "TEILWEISE"
                         rawValL = "t"
-                    Case Else
-                        rawValL = rawValL ' Unverändert lassen, falls andere Werte vorhanden sind
                 End Select
                 
-                ' Wert in die Zielspalte einfügen
                 wsZiel.Cells(lZielzeile, zielSpalte).Value = rawValL
             End If
             
@@ -191,62 +164,15 @@ NächsterDatensatz:
         Set wsZiel = Nothing
     Next i
     
-    ' Rohdaten-Workbook schließen, ohne zu speichern
     wbData.Close False
     MsgBox "Import abgeschlossen!"
-    Exit Sub
-    
-Fehlerbehandlung:
-    MsgBox "Ein Fehler ist aufgetreten: " & Err.Description, vbCritical
-    On Error Resume Next
-    wbData.Close False
 End Sub
 
-Function FindeStartzeileBasierendAufKW(ws As Worksheet, rawDate As Date) As Long
-    Dim adjustedDate As Date
-    Dim currentKW As String
-    Dim rngKW As Range
-    Dim startCheckCell As Range
+Function FindeFreieStartzeile(ws As Worksheet) As Long
     Dim lCheckRow As Long
-    
-    ' Wenn das Datum ein Montag ist, nimm den vergangenen Freitag
-    If Weekday(rawDate, vbMonday) = vbMonday Then
-        adjustedDate = rawDate - 3
-    Else
-        adjustedDate = rawDate - 1
-    End If
-    
-    ' Kalenderwoche berechnen mit führender Null
-    currentKW = "KW " & Format(GetKalenderwoche(adjustedDate), "00")
-    
-    ' Nach "KW xx" in Spalte A suchen
-    Set rngKW = ws.Columns(1).Find(What:=currentKW, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
-    If rngKW Is Nothing Then
-        MsgBox currentKW & " nicht in Spalte A des Arbeitsblatts '" & ws.Name & "' gefunden.", vbExclamation
-        FindeStartzeileBasierendAufKW = 0
-        Exit Function
-    End If
-    
-    ' Zeile anzeigen, wo "KW xx" gefunden wurde
-    MsgBox "Aktuelle Kalenderwoche '" & currentKW & "' gefunden in Zelle: " & rngKW.Address, vbInformation
-    
-    ' 3 Zeilen runter von der KW-Zelle
-    Set startCheckCell = rngKW.Offset(3, 0)
-    lCheckRow = startCheckCell.Row
-    
-    ' Prüfen, ob die Zelle leer ist. Wenn nicht, +30 Zeilen weiterspringen
+    lCheckRow = 16
     Do While ws.Cells(lCheckRow, 1).Value <> ""
         lCheckRow = lCheckRow + 30
     Loop
-    
-    ' Startzeile zurückgeben
-    FindeStartzeileBasierendAufKW = lCheckRow
-End Function
-
-Function GetKalenderwoche(datum As Date) As Long
-    ' ISO 8601 Kalenderwoche
-    ' Montag ist der erste Tag der Woche
-    ' Die erste Woche des Jahres ist diejenige, die mindestens vier Tage enthält
-    
-    GetKalenderwoche = DatePart("ww", datum, vbMonday, vbFirstFourDays)
+    FindeFreieStartzeile = lCheckRow
 End Function
