@@ -1,125 +1,129 @@
 Option Explicit
 
-Sub ImportLeaptreeData_Debug()
+Sub ImportiereRohdatenFinal()
     Dim wbDash As Workbook
-    Dim wbQuelle As Workbook
+    Dim wbData As Workbook
     Dim wsZuweisung As Worksheet
-    Dim wsQuelle As Worksheet
     Dim wsZiel As Worksheet
+    Dim wsData As Worksheet
+    Dim rngFound As Range
     
-    Dim lastRowQuelle As Long
-    Dim i As Long
-    Dim Suchwert As String, ZielName As String
-    Dim rng As Range, c As Range
-    Dim vorgSpalte As Long
-    Dim nextRow As Long
+    Dim lLetzteZeileZuweisung As Long
+    Dim lLetzteZeileData As Long
     
-    Dim DebugMode As Boolean
-    DebugMode = True ' Bei Bedarf auf False setzen, um Debug-Ausgaben zu deaktivieren
+    Dim i As Long, j As Long
     
-    On Error GoTo Handler
+    Dim rawKey As String
+    Dim rawVorgang As String
+    Dim rawHeader As String
+    Dim rawValue As Variant
+    Dim strZielblattName As String
+    Dim lZielzeile As Long
     
-    If DebugMode Then Debug.Print "Starte ImportLeaptreeData_Debug..."
+    Dim dictHeaders As Object
     
-    ' Setze Bezug auf das aktuelle Workbook (Dashboards)
     Set wbDash = ThisWorkbook
-    If DebugMode Then Debug.Print "Aktives Workbook: " & wbDash.Name
-    
-    ' Referenz auf das Zuweisungs-Blatt
     Set wsZuweisung = wbDash.Worksheets("Zuweisung")
-    If DebugMode Then Debug.Print "Zuweisungsblatt gefunden: " & wsZuweisung.Name
     
-    ' Öffnen der Rohdaten-Arbeitsmappe (falls noch nicht offen)
-    ' Pfad anpassen!
-    On Error Resume Next
-    Set wbQuelle = Workbooks("Leaptree_Data.xlsx")
-    On Error GoTo Handler
+    ' Rohdaten öffnen (Pfad anpassen)
+    Set wbData = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx")
+    Set wsData = wbData.Worksheets(1)
     
-    If wbQuelle Is Nothing Then
-        ' Falls die Quelldatei noch nicht geöffnet ist, Pfad anpassen:
-        If DebugMode Then Debug.Print "Öffne Leaptree_Data.xlsx..."
-        Set wbQuelle = Workbooks.Open("C:\Pfad\zu\Leaptree_Data.xlsx")
-    Else
-        If DebugMode Then Debug.Print "Leaptree_Data.xlsx ist bereits geöffnet."
-    End If
+    lLetzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 2).End(xlUp).Row ' letzte Zeile in Zuweisung Spalte B
+    lLetzteZeileData = wsData.Cells(wsData.Rows.Count, 1).End(xlUp).Row ' letzte Zeile Rohdaten Spalte A
     
-    ' Arbeitsblatt mit den Rohdaten in der Quelldatei
-    ' Name anpassen, falls nicht "Daten"
-    Set wsQuelle = wbQuelle.Worksheets("Daten")
-    If DebugMode Then Debug.Print "Quelldaten-Blatt: " & wsQuelle.Name
+    ' Dictionary für Headers erst erstellen, wenn wir wissen, welches Zielblatt wir beschreiben
+    Set dictHeaders = CreateObject("Scripting.Dictionary")
     
-    ' Letzte befüllte Zeile in den Rohdaten ermitteln (Spalte A)
-    lastRowQuelle = wsQuelle.Cells(wsQuelle.Rows.Count, "A").End(xlUp).Row
-    If DebugMode Then Debug.Print "Letzte befüllte Zeile in den Rohdaten: " & lastRowQuelle
-    
-    ' Schleife über alle Rohdatenzeilen (angenommen ab Zeile 2, da Zeile 1 Überschriften enthält)
-    For i = 2 To lastRowQuelle
-        Suchwert = wsQuelle.Cells(i, "A").Value
+    ' Durch alle Rohdaten
+    For i = 2 To lLetzteZeileData
+        rawKey = wsData.Cells(i, 1).Value      ' Rohdaten Spalte A - Schlüssel
+        rawVorgang = wsData.Cells(i, 2).Value  ' Rohdaten Spalte B - Vorgangsnummer
+        rawHeader = wsData.Cells(i, 10).Value  ' Rohdaten Spalte J - Headerbezeichnung
         
-        If DebugMode Then Debug.Print "Zeile " & i & ": Suchwert=" & Suchwert
-        
-        ' Suche diesen Suchwert im Zuweisungs-Blatt in Spalte A
-        Set rng = wsZuweisung.Columns("A").Find(What:=Suchwert, LookIn:=xlValues, LookAt:=xlWhole)
-        
-        If Not rng Is Nothing Then
-            ZielName = rng.Offset(0, 1).Value
-            If DebugMode Then Debug.Print "  Zielname für '" & Suchwert & "' gefunden: " & ZielName
+        ' Schlüssel in Zuweisung suchen
+        Set rngFound = wsZuweisung.Columns(2).Find(What:=rawKey, LookAt:=xlWhole)
+        If Not rngFound Is Nothing Then
+            strZielblattName = rngFound.Offset(0, 1).Value ' Spalte C in Zuweisung gibt Zielblattname
             
-            ' Versuche, dieses Zielblatt in der Hauptdatei zu referenzieren
             On Error Resume Next
-            Set wsZiel = wbDash.Worksheets(ZielName)
-            On Error GoTo Handler
+            Set wsZiel = wbDash.Worksheets(strZielblattName)
+            On Error GoTo 0
             
-            If Not wsZiel Is Nothing Then
-                If DebugMode Then Debug.Print "  Zielblatt vorhanden: " & wsZiel.Name
-                
-                ' Suche den Header in Zeile 12
-                Set c = wsZiel.Rows(12).Find(What:="Vorgangsnummer", LookIn:=xlValues, LookAt:=xlWhole)
-                
-                If Not c Is Nothing Then
-                    vorgSpalte = c.Column
-                    If DebugMode Then Debug.Print "  'Vorgangsnummer' gefunden in Spalte: " & vorgSpalte
-                    
-                    ' Finde die nächste freie Zeile in dieser Spalte
-                    nextRow = wsZiel.Cells(wsZiel.Rows.Count, vorgSpalte).End(xlUp).Row + 1
-                    If DebugMode Then Debug.Print "  Nächste freie Zeile in Spalte " & vorgSpalte & ": " & nextRow
-                    
-                    ' Schreibe die Vorgangsnummer (angenommen in Spalte B der Quelldatei)
-                    wsZiel.Cells(nextRow, vorgSpalte).Value = wsQuelle.Cells(i, "B").Value
-                    If DebugMode Then Debug.Print "  Vorgangsnummer '" & wsQuelle.Cells(i, "B").Value & "' eingefügt in " & wsZiel.Name & "!"
-                    
-                Else
-                    If DebugMode Then Debug.Print "  Spalte 'Vorgangsnummer' nicht gefunden in Zeile 12 von " & wsZiel.Name
-                    ' Ggf. Meldung an den Benutzer
-                    'MsgBox "Spalte 'Vorgangsnummer' wurde in Zeile 12 von " & wsZiel.Name & " nicht gefunden!"
-                End If
-                
-            Else
-                If DebugMode Then Debug.Print "  Zielblatt '" & ZielName & "' nicht gefunden!"
-                'MsgBox "Zielblatt '" & ZielName & "' existiert nicht in der Hauptdatei!"
+            If wsZiel Is Nothing Then
+                ' Zielblatt nicht vorhanden, nächsten Datensatz bearbeiten
+                GoTo NächsterDatensatz
             End If
-        Else
-            If DebugMode Then Debug.Print "  Suchwert '" & Suchwert & "' wurde in der Zuweisung nicht gefunden!"
-            'MsgBox "Suchwert '" & Suchwert & "' wurde nicht in der Zuweisung gefunden!"
+            
+            ' Headers einlesen, falls noch nicht geschehen
+            If dictHeaders.Count = 0 Then
+                Dim lastCol As Long
+                lastCol = wsZiel.Cells(12, wsZiel.Columns.Count).End(xlToLeft).Column
+                For j = 1 To lastCol
+                    If Not dictHeaders.Exists(CStr(wsZiel.Cells(12, j).Value)) Then
+                        dictHeaders(CStr(wsZiel.Cells(12, j).Value)) = j
+                    End If
+                Next j
+            End If
+            
+            ' Zielzeile für Vorgangsnummer finden oder erstellen
+            lZielzeile = FindOrCreateTargetRow(wsZiel, rawVorgang)
+            
+            ' Wenn neu angelegt, dann Vorgangsnummer und Basiswert eintragen
+            If wsZiel.Cells(lZielzeile, 1).Value = "" Then
+                ' Neuer Eintrag
+                wsZiel.Cells(lZielzeile, 1).Value = rawVorgang
+                wsZiel.Cells(lZielzeile, 2).Value = wsData.Cells(i, 3).Value ' Wert aus Rohdaten Spalte C
+            End If
+            
+            ' Nun den Wert für den angegebenen Header aus den Rohdaten holen
+            ' Wir nehmen an, dass der eigentliche Datenwert ebenfalls aus Spalte C kommt,
+            ' oder nutzen eine Hilfsfunktion, wenn nötig.
+            rawValue = BestimmeRohwert(wsData, i, rawHeader)
+            
+            ' Header im Ziel suchen
+            If dictHeaders.Exists(rawHeader) Then
+                Dim zielSpalte As Long
+                zielSpalte = dictHeaders(rawHeader)
+                wsZiel.Cells(lZielzeile, zielSpalte).Value = rawValue
+            Else
+                ' Falls kein Header gefunden wurde, ggf. ignorieren oder melden
+            End If
+            
         End If
+NächsterDatensatz:
+        Set wsZiel = Nothing
     Next i
     
-    If DebugMode Then Debug.Print "Import fertig!"
-    
-    ' Wenn gewünscht, die Quelldatei schließen:
-    'wbQuelle.Close SaveChanges:=False
-    
-    Exit Sub
-
-Handler:
-    ' Fehlerbehandlung
-    Dim ErrMsg As String
-    ErrMsg = "Fehler Nr. " & Err.Number & vbCrLf & _
-             "Beschreibung: " & Err.Description & vbCrLf & _
-             "Modul: " & VBA.Environ("Username") & vbCrLf & _
-             "Routine: ImportLeaptreeData_Debug" & vbCrLf & _
-             "Zeile: " & Erl
-    If DebugMode Then Debug.Print ErrMsg
-    MsgBox ErrMsg, vbExclamation, "Fehler aufgetreten"
-    
+    wbData.Close False
+    MsgBox "Import abgeschlossen!"
 End Sub
+
+Function FindOrCreateTargetRow(ws As Worksheet, Vorgang As String) As Long
+    ' Sucht Vorgangsnummer in Spalte A
+    ' Falls vorhanden, gibt Zeile zurück
+    ' Falls nicht, sucht freien Platz: Start bei 16, wenn belegt -> +30 (46), wenn belegt -> +30 usw.
+    
+    Dim rngFound As Range
+    Dim lCheckRow As Long
+    
+    Set rngFound = ws.Columns(1).Find(What:=Vorgang, LookAt:=xlWhole)
+    If Not rngFound Is Nothing Then
+        FindOrCreateTargetRow = rngFound.Row
+        Exit Function
+    End If
+    
+    ' Nicht gefunden, neuen Platz suchen
+    lCheckRow = 16
+    Do While ws.Cells(lCheckRow, 1).Value <> ""
+        lCheckRow = lCheckRow + 30
+    Loop
+    FindOrCreateTargetRow = lCheckRow
+End Function
+
+Function BestimmeRohwert(ws As Worksheet, ByVal zeile As Long, ByVal hdr As String) As Variant
+    ' Hier können Sie je nach Header entscheiden, aus welcher Spalte der Rohdaten der Wert stammt.
+    ' Als Standardbeispiel nehmen wir einfach immer Spalte C aus den Rohdaten.
+    ' Passen Sie diese Funktion nach Bedarf an.
+    BestimmeRohwert = ws.Cells(zeile, 3).Value
+End Function
