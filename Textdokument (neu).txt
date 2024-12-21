@@ -52,8 +52,10 @@ Sub ImportUndTransformierenRohdaten()
             dict(vorgangsnummer) = Array(Application.Index(dataArray, i, 0), CreateObject("Scripting.Dictionary"))
         End If
 
-        ' Frage und Antwort hinzufügen, auch wenn leer
-        dict(vorgangsnummer)(1)(frage) = antwort
+        ' Frage und Antwort hinzufügen, wenn leer, dann mit Platzhalter
+        If Not IsEmpty(frage) Then
+            dict(vorgangsnummer)(1)(frage) = IIf(IsEmpty(antwort), "", antwort)
+        End If
     Next i
 
     ' Daten im Arbeitsblatt Rohdaten transformieren
@@ -83,23 +85,29 @@ Sub ImportUndTransformierenRohdaten()
         Dim rowData As Variant
         Dim extraData As Object
         rowData = dict(vorgangsnummer)(0)
-        extraData = dict(vorgangsnummer)(1)
 
-        ' Füge Basisdaten ein
-        For i = LBound(rowData, 1) To UBound(rowData, 1)
-            outputArray(j, i) = rowData(i)
-        Next i
+        ' Sicherstellen, dass extraData existiert
+        On Error Resume Next
+        Set extraData = dict(vorgangsnummer)(1)
+        On Error GoTo 0
 
-        ' Füge Fragen und Antworten ein
-        For Each frage In extraData.keys
-            If Not headerIndex.exists("Frage: " & frage) Then
-                letzteSpalte = letzteSpalte + 1
-                headerIndex("Frage: " & frage) = letzteSpalte
-                ReDim Preserve outputArray(1 To UBound(outputArray, 1), 1 To letzteSpalte)
-                outputArray(1, letzteSpalte) = "Frage: " & frage
-            End If
-            outputArray(j, headerIndex("Frage: " & frage)) = extraData(frage)
-        Next frage
+        If Not extraData Is Nothing Then
+            ' Füge Basisdaten ein
+            For i = LBound(rowData, 1) To UBound(rowData, 1)
+                outputArray(j, i) = rowData(i)
+            Next i
+
+            ' Füge Fragen und Antworten ein
+            For Each frage In extraData.keys
+                If Not headerIndex.exists("Frage: " & frage) Then
+                    letzteSpalte = letzteSpalte + 1
+                    headerIndex("Frage: " & frage) = letzteSpalte
+                    ReDim Preserve outputArray(1 To UBound(outputArray, 1), 1 To letzteSpalte)
+                    outputArray(1, letzteSpalte) = "Frage: " & frage
+                End If
+                outputArray(j, headerIndex("Frage: " & frage)) = extraData(frage)
+            Next frage
+        End If
 
         j = j + 1
     Next vorgangsnummer
@@ -108,5 +116,4 @@ Sub ImportUndTransformierenRohdaten()
     wsRohdaten.Cells(1, 1).Resize(UBound(outputArray, 1), UBound(outputArray, 2)).Value = outputArray
 
     MsgBox "Die Rohdaten wurden erfolgreich importiert und transformiert!", vbInformation
-
 End Sub
