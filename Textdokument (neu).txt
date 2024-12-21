@@ -1,68 +1,81 @@
-Sub ImportiereUndTransformiereRohdaten()
+Sub ImportUndTransformierenRohdaten()
     Dim wsRohdaten As Worksheet
-    Dim wsZiel As Worksheet
-    Dim letzteZeileRoh As Long, letzteZeileZiel As Long
+    Dim letzteZeile As Long, letzteSpalte As Long
     Dim dict As Object
-    Dim i As Long, colOffset As Long
-    Dim vorgangsnummer As String
+    Dim schluessel As Variant, vorgangsnummer As Variant
+    Dim i As Long, j As Long, neueSpalte As Long
     Dim frage As String, antwort As String
-    Dim dateiPfad As String
-    Dim wbRohdaten As Workbook
+    Dim datenDatei As Variant
+    Dim wbQuelle As Workbook
 
-    ' Datei auswählen und öffnen
-    dateiPfad = Application.GetOpenFilename("Excel-Dateien (*.xls; *.xlsx), *.xls; *.xlsx", , "Rohdaten-Datei auswählen")
-    If dateiPfad = "False" Then Exit Sub ' Abbrechen, wenn keine Datei ausgewählt wurde
+    ' Datei-Auswahldialog
+    datenDatei = Application.GetOpenFilename("Excel Dateien (*.xls; *.xlsx), *.xls; *.xlsx", , "Wählen Sie die Rohdaten-Datei aus")
 
-    Set wbRohdaten = Workbooks.Open(dateiPfad)
-    Set wsRohdaten = wbRohdaten.Sheets(1) ' Annahme: Die Rohdaten sind im ersten Blatt
+    If datenDatei = False Then
+        MsgBox "Es wurde keine Datei ausgewählt.", vbExclamation
+        Exit Sub
+    End If
 
-    ' Zielarbeitsblatt festlegen
-    Set wsZiel = ThisWorkbook.Sheets("Rohdaten") ' Zielarbeitsblatt
+    ' Rohdaten-Datei öffnen
+    Set wbQuelle = Workbooks.Open(datenDatei)
 
-    ' Löschen des Zielblatts, um es neu zu befüllen
-    wsZiel.Cells.Clear
+    ' Setze das Arbeitsblatt für Rohdaten
+    Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
 
-    ' Erstellen eines Dictionarys für die Transformation
+    ' Lösche alle existierenden Daten im Arbeitsblatt Rohdaten
+    wsRohdaten.Cells.Clear
+
+    ' Letzte Zeile und Spalte in der Quelldatei finden
+    With wbQuelle.Sheets(1)
+        letzteZeile = .Cells(.Rows.Count, 1).End(xlUp).Row
+        letzteSpalte = .Cells(1, .Columns.Count).End(xlToLeft).Column
+    End With
+
+    ' Daten in das Arbeitsblatt Rohdaten kopieren
+    wbQuelle.Sheets(1).Cells(1, 1).Resize(letzteZeile, letzteSpalte).Copy wsRohdaten.Cells(1, 1)
+
+    ' Quelldatei schließen
+    wbQuelle.Close SaveChanges:=False
+
+    ' Dictionary zur Zusammenführung der Daten
     Set dict = CreateObject("Scripting.Dictionary")
 
-    ' Letzte Zeile in den Rohdaten ermitteln
-    letzteZeileRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, 2).End(xlUp).Row
-
-    ' Überschriften im Zielblatt festlegen
-    wsZiel.Cells(1, 1).Value = "Vorgangsnummer"
-
-    ' Durch die Rohdaten iterieren
-    For i = 2 To letzteZeileRoh
+    ' Rohdaten verarbeiten und in das Dictionary schreiben
+    For i = 2 To letzteZeile ' Überspringe Kopfzeile
         vorgangsnummer = wsRohdaten.Cells(i, 2).Value
         frage = wsRohdaten.Cells(i, 10).Value
-        antwort = wsRohdaten.Cells(i, 11).Value
+        antwort = wsRohdaten.Cells(i, 12).Value
 
-        ' Wenn die Vorgangsnummer noch nicht existiert, dann hinzufügen
+        ' Wenn die Vorgangsnummer noch nicht im Dictionary ist, hinzufügen
         If Not dict.exists(vorgangsnummer) Then
-            letzteZeileZiel = wsZiel.Cells(wsZiel.Rows.Count, 1).End(xlUp).Row + 1
-            dict(vorgangsnummer) = letzteZeileZiel
-            wsZiel.Cells(letzteZeileZiel, 1).Value = vorgangsnummer
+            dict(vorgangsnummer) = Array(wsRohdaten.Rows(i).Value, CreateObject("Scripting.Dictionary"))
         End If
 
-        ' Frage und Antwort in die nächste freie Spalte einfügen
-        letzteZeileZiel = dict(vorgangsnummer)
-        colOffset = wsZiel.Cells(1, wsZiel.Columns.Count).End(xlToLeft).Column + 1
-
-        If wsZiel.Cells(1, colOffset).Value = "" Then
-            wsZiel.Cells(1, colOffset).Value = "Frage " & colOffset - 1
-            wsZiel.Cells(1, colOffset + 1).Value = "Antwort " & colOffset - 1
-        End If
-
-        wsZiel.Cells(letzteZeileZiel, colOffset).Value = frage
-        wsZiel.Cells(letzteZeileZiel, colOffset + 1).Value = antwort
+        ' Frage und Antwort zur Vorgangsnummer hinzufügen
+        dict(vorgangsnummer)(1)(frage) = antwort
     Next i
 
-    ' Autofit der Spalten im Zielblatt
-    wsZiel.Columns.AutoFit
+    ' Daten im Arbeitsblatt Rohdaten transformieren
+    neueSpalte = letzteSpalte + 1
+    j = 2 ' Startzeile für Daten
 
-    ' Rohdaten-Arbeitsmappe schließen
-    wbRohdaten.Close SaveChanges:=False
+    For Each vorgangsnummer In dict.Keys
+        ' Rohdaten zur Vorgangsnummer
+        wsRohdaten.Cells(j, 1).Resize(1, letzteSpalte).Value = dict(vorgangsnummer)(0)
 
-    ' Abschlussmeldung
-    MsgBox "Daten wurden erfolgreich importiert und transformiert!", vbInformation
+        ' Fragen und Antworten hinzufügen
+        For Each frage In dict(vorgangsnummer)(1).keys
+            If wsRohdaten.Cells(1, neueSpalte).Value = "" Then
+                wsRohdaten.Cells(1, neueSpalte).Value = "Frage: " & frage
+            End If
+            wsRohdaten.Cells(j, neueSpalte).Value = dict(vorgangsnummer)(1)(frage)
+            neueSpalte = neueSpalte + 1
+        Next frage
+
+        neueSpalte = letzteSpalte + 1 ' Zurücksetzen für nächste Vorgangsnummer
+        j = j + 1
+    Next vorgangsnummer
+
+    MsgBox "Die Rohdaten wurden erfolgreich importiert und transformiert!", vbInformation
+
 End Sub
