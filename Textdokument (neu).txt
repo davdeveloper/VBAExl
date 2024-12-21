@@ -51,8 +51,10 @@ Sub ImportUndTransformierenRohdaten()
             dict(vorgangsnummer) = Array(wsRohdaten.Rows(i).Value, CreateObject("Scripting.Dictionary"))
         End If
 
-        ' Frage und Antwort zur Vorgangsnummer hinzufügen
-        dict(vorgangsnummer)(1)(frage) = antwort
+        ' Frage und Antwort nur hinzufügen, wenn vorhanden
+        If Not IsEmpty(frage) And Not IsEmpty(antwort) Then
+            dict(vorgangsnummer)(1)(frage) = antwort
+        End If
     Next i
 
     ' Daten im Arbeitsblatt Rohdaten transformieren
@@ -63,14 +65,16 @@ Sub ImportUndTransformierenRohdaten()
         ' Rohdaten zur Vorgangsnummer
         wsRohdaten.Cells(j, 1).Resize(1, letzteSpalte).Value = dict(vorgangsnummer)(0)
 
-        ' Fragen und Antworten hinzufügen
-        For Each frage In dict(vorgangsnummer)(1).keys
-            If wsRohdaten.Cells(1, neueSpalte).Value = "" Then
-                wsRohdaten.Cells(1, neueSpalte).Value = "Frage: " & frage
-            End If
-            wsRohdaten.Cells(j, neueSpalte).Value = dict(vorgangsnummer)(1)(frage)
-            neueSpalte = neueSpalte + 1
-        Next frage
+        ' Fragen und Antworten hinzufügen, wenn vorhanden
+        If dict(vorgangsnummer)(1).Count > 0 Then
+            For Each frage In dict(vorgangsnummer)(1).keys
+                If wsRohdaten.Cells(1, neueSpalte).Value = "" Then
+                    wsRohdaten.Cells(1, neueSpalte).Value = "Frage: " & frage
+                End If
+                wsRohdaten.Cells(j, neueSpalte).Value = dict(vorgangsnummer)(1)(frage)
+                neueSpalte = neueSpalte + 1
+            Next frage
+        End If
 
         neueSpalte = letzteSpalte + 1 ' Zurücksetzen für nächste Vorgangsnummer
         j = j + 1
