@@ -61,7 +61,6 @@ Sub ImportAndTransformData()
 
     For Each key In keysArray
         Dim rowData As Variant
-        Dim questionDict As Object
         Dim colIndex As Long
         Dim questionKey As Variant
 
