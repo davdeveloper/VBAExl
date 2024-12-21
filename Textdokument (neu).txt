@@ -1,67 +1,84 @@
-Sub TransformiereRohdaten()
-    Dim wsRohdaten As Worksheet
+Sub ImportAndTransformData()
     Dim wsDashboard As Worksheet
+    Dim wsRohdaten As Worksheet
+    Dim wbImport As Workbook
+    Dim filePath As String
+    Dim lastRow As Long, i As Long
     Dim dict As Object
-    Dim lastRow As Long, i As Long, j As Long
-    Dim vorgangsNummer As String
-    Dim newRow As Long
+    Dim key As String
+    Dim questionCol As Long, answerCol As Long
+    Dim newLastRow As Long
 
-    ' Setze die Arbeitsblätter
-    Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
+    ' Set the dashboard worksheet
     Set wsDashboard = ThisWorkbook.Sheets("Dashboard")
+    Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
 
-    ' Dictionary für die Zusammenführung
+    ' Ask user to select the file to import
+    With Application.FileDialog(msoFileDialogFilePicker)
+        .Title = "Wählen Sie die Datei Leaptree_Data aus"
+        .Filters.Clear
+        .Filters.Add "Excel Dateien", "*.xls; *.xlsx; *.xlsm"
+        If .Show <> -1 Then Exit Sub ' Abbrechen, wenn keine Datei ausgewählt wurde
+        filePath = .SelectedItems(1)
+    End With
+
+    ' Open the selected workbook
+    Set wbImport = Workbooks.Open(filePath)
+
+    ' Get the last row of data in the imported workbook (assuming data is in the first sheet)
+    With wbImport.Sheets(1)
+        lastRow = .Cells(.Rows.Count, 2).End(xlUp).Row
+    End With
+
+    ' Initialize dictionary for storing transformed data
     Set dict = CreateObject("Scripting.Dictionary")
 
-    ' Finde die letzte Zeile in Rohdaten
-    lastRow = wsRohdaten.Cells(wsRohdaten.Rows.Count, 1).End(xlUp).Row
+    ' Read and transform the data
+    With wbImport.Sheets(1)
+        For i = 2 To lastRow
+            key = .Cells(i, 2).Value ' Vorgangsnummer in Spalte B
+            If Not dict.exists(key) Then
+                dict(key) = Array(.Cells(i, 1).Resize(1, 12).Value, "") ' Alle Spalten von A bis M
+            End If
+            ' Add question and answer to dynamic columns
+            dict(key)(1) = dict(key)(1) & "|" & .Cells(i, 10).Value & ":" & .Cells(i, 11).Value
+        Next i
+    End With
 
-    ' Rohdaten ab Zeile 2 durchlaufen
-    For i = 2 To lastRow
-        vorgangsNummer = wsRohdaten.Cells(i, 2).Value
+    ' Close the imported workbook
+    wbImport.Close SaveChanges:=False
 
-        ' Wenn Vorgangsnummer nicht im Dictionary, dann hinzufügen
-        If Not dict.exists(vorgangsNummer) Then
-            dict.Add vorgangsNummer, dict.Count + 1
-            newRow = dict(vorgangsNummer)
+    ' Clear existing data in Rohdaten sheet (except header)
+    wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).Clear
 
-            ' Basisdaten in neues Arbeitsblatt kopieren
-            wsDashboard.Cells(newRow + 1, 1).Value = wsRohdaten.Cells(i, 1).Value ' Schlüssel
-            wsDashboard.Cells(newRow + 1, 2).Value = vorgangsNummer ' Vorgangsnummer
-            wsDashboard.Cells(newRow + 1, 3).Value = wsRohdaten.Cells(i, 3).Value ' Kategorie
-            wsDashboard.Cells(newRow + 1, 4).Value = wsRohdaten.Cells(i, 4).Value ' Datum
-            wsDashboard.Cells(newRow + 1, 5).Value = wsRohdaten.Cells(i, 5).Value ' Kommentar
-            For j = 6 To 9
-                wsDashboard.Cells(newRow + 1, j).Value = wsRohdaten.Cells(i, j).Value ' Punkte
-            Next j
+    ' Write transformed data to the Rohdaten sheet
+    newLastRow = 2
+    For Each key In dict.keys
+        Dim rowData As Variant
+        Dim extraData As String
+        Dim extraParts As Variant
+        Dim colIndex As Long
+
+        rowData = dict(key)(0)
+        extraData = dict(key)(1)
+        wsRohdaten.Cells(newLastRow, 1).Resize(1, UBound(rowData, 2)).Value = rowData
+
+        ' Add dynamic columns for questions and answers
+        If Len(extraData) > 0 Then
+            extraParts = Split(Mid(extraData, 2), "|") ' Remove leading | and split
+            colIndex = 14 ' Start after column M
+            For Each part In extraParts
+                Dim qaPair As Variant
+                qaPair = Split(part, ":")
+                If UBound(qaPair) = 1 Then
+                    wsRohdaten.Cells(1, colIndex).Value = "Frage " & qaPair(0) ' Header for question
+                    wsRohdaten.Cells(newLastRow, colIndex).Value = qaPair(1) ' Answer
+                    colIndex = colIndex + 1
+                End If
+            Next part
         End If
+        newLastRow = newLastRow + 1
+    Next key
 
-        ' Frage und Antwort hinzufügen
-        newRow = dict(vorgangsNummer)
-        Dim colOffset As Integer
-        colOffset = 10 + (dict.Item(vorgangsNummer) - 1) * 2
-        wsDashboard.Cells(newRow + 1, colOffset).Value = wsRohdaten.Cells(i, 10).Value ' Frage
-        wsDashboard.Cells(newRow + 1, colOffset + 1).Value = wsRohdaten.Cells(i, 11).Value ' Antwort
-    Next i
-
-    ' Spaltenüberschriften hinzufügen
-    wsDashboard.Cells(1, 1).Value = "Schlüssel"
-    wsDashboard.Cells(1, 2).Value = "Vorgangsnummer"
-    wsDashboard.Cells(1, 3).Value = "Kategorie"
-    wsDashboard.Cells(1, 4).Value = "Datum"
-    wsDashboard.Cells(1, 5).Value = "Kommentar"
-    wsDashboard.Cells(1, 6).Value = "Punkte 1"
-    wsDashboard.Cells(1, 7).Value = "Punkte 2"
-    wsDashboard.Cells(1, 8).Value = "Punkte 3"
-    wsDashboard.Cells(1, 9).Value = "Punkte 4"
-
-    Dim col As Integer
-    col = 10
-    Do While wsDashboard.Cells(1, col).Value = ""
-        wsDashboard.Cells(1, col).Value = "Frage " & ((col - 10) \ 2 + 1)
-        wsDashboard.Cells(1, col + 1).Value = "Antwort " & ((col - 10) \ 2 + 1)
-        col = col + 2
-    Loop
-
-    MsgBox "Rohdaten wurden erfolgreich transformiert!"
+    MsgBox "Daten wurden erfolgreich importiert und transformiert!", vbInformation
 End Sub
