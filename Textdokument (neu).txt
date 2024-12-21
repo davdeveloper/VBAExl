@@ -1,110 +1,71 @@
-Sub ImportDataFromLeaptree()
-    Dim wsRohdaten As Worksheet, wsDashboard As Worksheet, wsZuweisung As Worksheet
-    Dim wbRohdaten As Workbook
-    Dim lastRowRohdaten As Long, lastRowZuweisung As Long, lastRowDashboard As Long
-    Dim dataSheetName As String, key As String, vorgangsnummer As String
-    Dim i As Long, j As Long, dashboardRow As Long
-    Dim questionColumn As Range, cell As Range
-    Dim currentVorgangsnummer As String
-    Dim foundRow As Long
-    Dim filePath As String
+Sub ImportUndTransformiereDaten()
+    Dim wsZiel As Worksheet
+    Dim wsQuell As Worksheet
+    Dim wbQuell As Workbook
+    Dim quellDatei As String
+    Dim letzteZeileQuelle As Long, letzteZeileZiel As Long
+    Dim dict As Object
+    Dim i As Long
 
-    ' Datei mit Rohdaten öffnen, wenn nicht bereits geöffnet
-    filePath = ThisWorkbook.Path & "\Leaptree_Data.xlsx"
-    On Error Resume Next
-    Set wbRohdaten = Workbooks("Leaptree_Data.xlsx")
-    On Error GoTo 0
+    ' Zielarbeitsblatt definieren
+    Set wsZiel = ThisWorkbook.Worksheets("Rohdaten")
 
-    If wbRohdaten Is Nothing Then
-        If Dir(filePath) = "" Then
-            MsgBox "Die Datei 'Leaptree_Data.xlsx' wurde nicht im gleichen Verzeichnis gefunden.", vbExclamation
-            Exit Sub
-        End If
-        Set wbRohdaten = Workbooks.Open(filePath)
-    End If
+    ' Alte Daten in "Rohdaten" löschen ab Zeile 2
+    wsZiel.Rows("2:" & wsZiel.Rows.Count).ClearContents
 
-    Set wsRohdaten = wbRohdaten.Worksheets(1)
-    Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
+    ' Quelle Datei wählen
+    quellDatei = Application.GetOpenFilename("Excel-Dateien (*.xls*), *.xls*", , "Wähle die Leaptree_Data Datei")
+    If quellDatei = "False" Then Exit Sub ' Abbruch, wenn keine Datei gewählt wurde
 
-    ' Letzte Zeile in den Rohdaten finden
-    lastRowRohdaten = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
-    Debug.Print "Letzte Zeile in den Rohdaten: " & lastRowRohdaten
+    ' Quelle Datei öffnen
+    Set wbQuell = Workbooks.Open(quellDatei)
+    Set wsQuell = wbQuell.Worksheets(1) ' Angenommen, die Daten sind im ersten Arbeitsblatt
 
-    ' Letzte Zeile in Zuweisung finden
-    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
-    Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
+    ' Letzte Zeile in der Quelle ermitteln
+    letzteZeileQuelle = wsQuell.Cells(wsQuell.Rows.Count, 2).End(xlUp).Row
 
-    ' Dashboard-Daten importieren
-    For i = 2 To lastRowRohdaten
-        key = Trim(wsRohdaten.Cells(i, "A").Value)
-        vorgangsnummer = wsRohdaten.Cells(i, "B").Value
-        Debug.Print "Verarbeite Schlüssel: " & key & ", Vorgangsnummer: " & vorgangsnummer
+    ' Dictionary initialisieren (zum Gruppieren von Daten)
+    Set dict = CreateObject("Scripting.Dictionary")
 
-        ' Nur Schlüssel verarbeiten, die in der Zuweisung existieren
-        dataSheetName = ""
-        For j = 2 To lastRowZuweisung
-            If UCase(Trim(wsZuweisung.Cells(j, "B").Value)) = UCase(key) Then
-                dataSheetName = Trim(wsZuweisung.Cells(j, "C").Value)
-                Debug.Print "Gefundenes Arbeitsblatt: " & dataSheetName
-                Exit For
-            End If
-        Next j
+    ' Daten aus der Quelle durchlaufen
+    For i = 2 To letzteZeileQuelle
+        Dim vorgangsnummer As String
+        Dim frage As String
+        Dim antwort As String
 
-        If dataSheetName = "" Then
-            Debug.Print "Kein Arbeitsblatt gefunden für Schlüssel: " & key
-            GoTo ContinueLoop
+        vorgangsnummer = wsQuell.Cells(i, 2).Value ' Spalte B
+        frage = wsQuell.Cells(i, 10).Value ' Spalte J
+        antwort = wsQuell.Cells(i, 11).Value ' Spalte K
+
+        If Not dict.exists(vorgangsnummer) Then
+            dict.Add vorgangsnummer, CreateObject("Scripting.Dictionary")
         End If
 
-        ' Arbeitsblatt öffnen
-        On Error Resume Next
-        Set wsDashboard = ThisWorkbook.Worksheets(dataSheetName)
-        On Error GoTo 0
-
-        If wsDashboard Is Nothing Then
-            Debug.Print "Arbeitsblatt " & dataSheetName & " nicht gefunden!"
-            GoTo ContinueLoop
-        End If
-
-        ' Letzte verwendete Zeile im Dashboard
-        lastRowDashboard = wsDashboard.Cells(wsDashboard.Rows.Count, "A").End(xlUp).Row
-        If lastRowDashboard < 16 Then lastRowDashboard = 16
-        Debug.Print "Letzte Zeile im Dashboard (" & dataSheetName & "): " & lastRowDashboard
-
-        ' Prüfen, ob Vorgangsnummer bereits existiert
-        foundRow = 0
-        For dashboardRow = 16 To lastRowDashboard
-            If wsDashboard.Cells(dashboardRow, "A").Value = vorgangsnummer Then
-                foundRow = dashboardRow
-                Debug.Print "Gefundene Zeile für Vorgangsnummer: " & foundRow
-                Exit For
-            End If
-        Next dashboardRow
-
-        ' Neue Zeile für Vorgangsnummer, wenn nicht vorhanden
-        If foundRow = 0 Then
-            foundRow = lastRowDashboard + 1
-            Debug.Print "Neue Zeile für Vorgangsnummer: " & foundRow
-            wsDashboard.Cells(foundRow, "A").Value = vorgangsnummer
-            wsDashboard.Cells(foundRow, "B").Value = wsRohdaten.Cells(i, "C").Value
-            wsDashboard.Cells(foundRow, "V").Value = wsRohdaten.Cells(i, "D").Value
-        End If
-
-        ' Fragen und Antworten zuordnen
-        Set questionColumn = wsDashboard.Range("C12:Q12")
-        For Each cell In questionColumn
-            If cell.Value = wsRohdaten.Cells(i, "J").Value Then
-                wsDashboard.Cells(foundRow, cell.Column).Value = wsRohdaten.Cells(i, "L").Value
-                Debug.Print "Frage gefunden: " & cell.Value & ", Antwort zugeordnet in Zeile " & foundRow
-                Exit For
-            End If
-        Next cell
-
-ContinueLoop:
+        With dict(vorgangsnummer)
+            .Add "Frage" & (.Count + 1), frage
+            .Add "Antwort" & (.Count + 1), antwort
+        End With
     Next i
 
-    Debug.Print "Datenimport abgeschlossen!"
-    MsgBox "Daten erfolgreich importiert!"
+    ' Daten ins Zielblatt schreiben
+    Dim key As Variant
+    Dim colIndex As Long
+    letzteZeileZiel = 1
 
-    ' Rohdaten-Arbeitsmappe schließen
-    wbRohdaten.Close SaveChanges:=False
+    For Each key In dict.keys
+        letzteZeileZiel = letzteZeileZiel + 1
+        wsZiel.Cells(letzteZeileZiel, 1).Value = key ' Vorgangsnummer in Spalte A
+
+        colIndex = 2
+        Dim innerKey As Variant
+        For Each innerKey In dict(key).keys
+            wsZiel.Cells(letzteZeileZiel, colIndex).Value = dict(key)(innerKey)
+            colIndex = colIndex + 1
+        Next innerKey
+    Next key
+
+    ' Quellarbeitsmappe schließen
+    wbQuell.Close SaveChanges:=False
+
+    MsgBox "Import und Transformation abgeschlossen!", vbInformation
 End Sub
