@@ -1,15 +1,29 @@
 Sub ImportDataFromLeaptree()
     Dim wsRohdaten As Worksheet, wsDashboard As Worksheet, wsZuweisung As Worksheet
+    Dim wbRohdaten As Workbook
     Dim lastRowRohdaten As Long, lastRowZuweisung As Long, lastRowDashboard As Long
     Dim dataSheetName As String, key As String, vorgangsnummer As String
     Dim i As Long, j As Long, dashboardRow As Long
     Dim questionColumn As Range, cell As Range
     Dim currentVorgangsnummer As String
     Dim foundRow As Long
+    Dim filePath As String
 
-    ' Arbeitsblätter definieren
-    Debug.Print "Definiere Arbeitsblätter..."
-    Set wsRohdaten = Workbooks("Leaptree_Data.xlsx").Worksheets(1)
+    ' Datei mit Rohdaten öffnen, wenn nicht bereits geöffnet
+    filePath = ThisWorkbook.Path & "\Leaptree_Data.xlsx"
+    On Error Resume Next
+    Set wbRohdaten = Workbooks("Leaptree_Data.xlsx")
+    On Error GoTo 0
+
+    If wbRohdaten Is Nothing Then
+        If Dir(filePath) = "" Then
+            MsgBox "Die Datei 'Leaptree_Data.xlsx' wurde nicht im gleichen Verzeichnis gefunden.", vbExclamation
+            Exit Sub
+        End If
+        Set wbRohdaten = Workbooks.Open(filePath)
+    End If
+
+    Set wsRohdaten = wbRohdaten.Worksheets(1)
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
 
     ' Letzte Zeile in den Rohdaten finden
@@ -91,4 +105,7 @@ NextIteration:
 
     Debug.Print "Datenimport abgeschlossen!"
     MsgBox "Daten erfolgreich importiert!"
+
+    ' Rohdaten-Arbeitsmappe schließen
+    wbRohdaten.Close SaveChanges:=False
 End Sub
