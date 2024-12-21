@@ -62,13 +62,19 @@ Sub ImportUndTransformierenRohdaten()
     Dim headerIndex As Object
 
     Set headerIndex = CreateObject("Scripting.Dictionary")
-    headerArray = dataArray(1, 1).Resize(1, letzteSpalte)
+
+    ' Kopfzeile initialisieren
+    ReDim headerArray(1 To letzteSpalte)
+    For i = 1 To letzteSpalte
+        headerArray(i) = dataArray(1, i)
+    Next i
+
     ReDim outputArray(1 To dict.Count + 1, 1 To letzteSpalte)
 
     ' Kopfzeile kopieren
-    For i = LBound(headerArray, 2) To UBound(headerArray, 2)
-        outputArray(1, i) = headerArray(1, i)
-        headerIndex(headerArray(1, i)) = i
+    For i = LBound(headerArray) To UBound(headerArray)
+        outputArray(1, i) = headerArray(i)
+        headerIndex(headerArray(i)) = i
     Next i
 
     ' Daten zusammenführen
