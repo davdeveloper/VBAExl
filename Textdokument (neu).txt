@@ -29,7 +29,7 @@ Sub ImportDataFromLeaptree()
         ' Nur Schlüssel verarbeiten, die in der Zuweisung existieren
         dataSheetName = ""
         For j = 2 To lastRowZuweisung
-            If wsZuweisung.Cells(j, "A").Value = key Then
+            If wsZuweisung.Cells(j, "B").Value = key Then
                 dataSheetName = wsZuweisung.Cells(j, "C").Value
                 Debug.Print "Gefundenes Arbeitsblatt: " & dataSheetName
                 Exit For
