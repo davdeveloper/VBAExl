@@ -51,10 +51,8 @@ Sub ImportUndTransformierenRohdaten()
             dict(vorgangsnummer) = Array(wsRohdaten.Rows(i).Value, CreateObject("Scripting.Dictionary"))
         End If
 
-        ' Frage und Antwort nur hinzufügen, wenn vorhanden
-        If Not IsEmpty(frage) And Not IsEmpty(antwort) Then
-            dict(vorgangsnummer)(1)(frage) = antwort
-        End If
+        ' Frage und Antwort hinzufügen, auch wenn leer
+        dict(vorgangsnummer)(1)(frage) = antwort
     Next i
 
     ' Daten im Arbeitsblatt Rohdaten transformieren
@@ -68,17 +66,37 @@ Sub ImportUndTransformierenRohdaten()
         ' Fragen und Antworten hinzufügen, wenn vorhanden
         If dict(vorgangsnummer)(1).Count > 0 Then
             For Each frage In dict(vorgangsnummer)(1).keys
-                If wsRohdaten.Cells(1, neueSpalte).Value = "" Then
-                    wsRohdaten.Cells(1, neueSpalte).Value = "Frage: " & frage
+                If Not IsEmpty(frage) Then
+                    If wsRohdaten.Cells(1, neueSpalte).Value = "" Then
+                        wsRohdaten.Cells(1, neueSpalte).Value = "Frage: " & frage
+                    End If
+                    wsRohdaten.Cells(j, neueSpalte).Value = dict(vorgangsnummer)(1)(frage)
+                    neueSpalte = neueSpalte + 1
                 End If
-                wsRohdaten.Cells(j, neueSpalte).Value = dict(vorgangsnummer)(1)(frage)
-                neueSpalte = neueSpalte + 1
             Next frage
         End If
 
         neueSpalte = letzteSpalte + 1 ' Zurücksetzen für nächste Vorgangsnummer
         j = j + 1
     Next vorgangsnummer
+
+    ' Entferne doppelte Vorgangsnummern durch Sortierung und eindeutige Einträge
+    Dim letzteZeileNach As Long
+    letzteZeileNach = wsRohdaten.Cells(wsRohdaten.Rows.Count, 2).End(xlUp).Row
+
+    Dim uniqueDict As Object
+    Set uniqueDict = CreateObject("Scripting.Dictionary")
+
+    For i = 2 To letzteZeileNach
+        vorgangsnummer = wsRohdaten.Cells(i, 2).Value
+        If Not uniqueDict.exists(vorgangsnummer) Then
+            uniqueDict(vorgangsnummer) = i
+        Else
+            wsRohdaten.Rows(i).Delete
+            i = i - 1
+            letzteZeileNach = letzteZeileNach - 1
+        End If
+    Next i
 
     MsgBox "Die Rohdaten wurden erfolgreich importiert und transformiert!", vbInformation
 
