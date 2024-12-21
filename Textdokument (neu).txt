@@ -71,17 +71,17 @@ Sub ImportUndTransformierenRohdaten()
 
         ' Wenn der Schlüssel noch nicht im Dictionary ist, hinzufügen
         If Not dict.exists(key) Then
-            dict(key) = Array(Application.Index(dataArray, i, 0), CreateObject("Scripting.Dictionary"))
-        End If
-
-        ' Frage und Antwort hinzufügen, auch wenn leer
-        If Not IsEmpty(frage) Then
-            dict(key)(1)(frage) = IIf(IsEmpty(antwort), "", antwort)
+            dict(key) = Array(dataArray(i, 1), dataArray(i, 2), dataArray(i, 3), dataArray(i, 4), CreateObject("Scripting.Dictionary"))
         End If
 
         ' Übersetze Kategorie in Spalte C
         If Not IsEmpty(dataArray(i, 3)) And kategorieDict.exists(dataArray(i, 3)) Then
-            dict(key)(0)(3) = kategorieDict(dataArray(i, 3)) ' Ersetze Kategorie
+            dict(key)(2) = kategorieDict(dataArray(i, 3)) ' Übersetze Kategorie
+        End If
+
+        ' Frage und Antwort hinzufügen, auch wenn leer
+        If Not IsEmpty(frage) Then
+            dict(key)(4)(frage) = IIf(IsEmpty(antwort), "", antwort)
         End If
     Next i
 
@@ -128,17 +128,17 @@ Sub ImportUndTransformierenRohdaten()
     For Each key In dict.keys
         Dim rowData As Variant
         Dim extraData As Object
-        rowData = dict(key)(0)
+        rowData = dict(key)
 
         ' Sicherstellen, dass extraData ein gültiges Dictionary ist
         On Error Resume Next
-        Set extraData = dict(key)(1)
+        Set extraData = dict(key)(4)
         On Error GoTo 0
 
         If Not extraData Is Nothing Then
             ' Füge Basisdaten ein
-            For i = LBound(rowData, 1) To UBound(rowData, 1)
-                wsRohdaten.Cells(j, i).Value = rowData(i)
+            For i = 1 To 4 ' Spalten 1-4: Basisdaten
+                wsRohdaten.Cells(j, i).Value = rowData(i - 1)
             Next i
 
             ' Füge Fragen und Antworten ein
