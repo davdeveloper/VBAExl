@@ -2,7 +2,8 @@ Sub ImportUndTransformierenRohdaten()
     Dim wsRohdaten As Worksheet
     Dim letzteZeile As Long, letzteSpalte As Long
     Dim dict As Object
-    Dim vorgangsnummer As Variant
+    Dim key As String
+    Dim vorgangsnummer As Variant, datum As Variant
     Dim i As Long, j As Long, neueSpalte As Long
     Dim frage As Variant, antwort As String
     Dim datenDatei As Variant
@@ -44,17 +45,21 @@ Sub ImportUndTransformierenRohdaten()
     ' Rohdaten verarbeiten und in das Dictionary schreiben
     For i = 2 To UBound(dataArray, 1) ' Überspringe Kopfzeile
         vorgangsnummer = dataArray(i, 2)
+        datum = dataArray(i, 4)
         frage = dataArray(i, 10)
         antwort = dataArray(i, 12)
 
-        ' Wenn die Vorgangsnummer noch nicht im Dictionary ist, hinzufügen
-        If Not dict.exists(vorgangsnummer) Then
-            dict(vorgangsnummer) = Array(Application.Index(dataArray, i, 0), CreateObject("Scripting.Dictionary"))
+        ' Schlüssel erstellen aus Vorgangsnummer und Datum
+        key = vorgangsnummer & "|" & datum
+
+        ' Wenn der Schlüssel noch nicht im Dictionary ist, hinzufügen
+        If Not dict.exists(key) Then
+            dict(key) = Array(Application.Index(dataArray, i, 0), CreateObject("Scripting.Dictionary"))
         End If
 
-        ' Frage und Antwort hinzufügen, wenn leer, dann mit Platzhalter
+        ' Frage und Antwort hinzufügen, auch wenn leer
         If Not IsEmpty(frage) Then
-            dict(vorgangsnummer)(1)(frage) = IIf(IsEmpty(antwort), "", antwort)
+            dict(key)(1)(frage) = IIf(IsEmpty(antwort), "", antwort)
         End If
     Next i
 
@@ -81,39 +86,34 @@ Sub ImportUndTransformierenRohdaten()
 
     ' Daten zusammenführen
     j = 2
-    For Each vorgangsnummer In dict.keys
+    For Each key In dict.keys
         Dim rowData As Variant
         Dim extraData As Object
-        rowData = dict(vorgangsnummer)(0)
+        rowData = dict(key)(0)
+        extraData = dict(key)(1)
 
-        ' Sicherstellen, dass extraData existiert
-        On Error Resume Next
-        Set extraData = dict(vorgangsnummer)(1)
-        On Error GoTo 0
+        ' Füge Basisdaten ein
+        For i = LBound(rowData, 1) To UBound(rowData, 1)
+            outputArray(j, i) = rowData(i)
+        Next i
 
-        If Not extraData Is Nothing Then
-            ' Füge Basisdaten ein
-            For i = LBound(rowData, 1) To UBound(rowData, 1)
-                outputArray(j, i) = rowData(i)
-            Next i
-
-            ' Füge Fragen und Antworten ein
-            For Each frage In extraData.keys
-                If Not headerIndex.exists("Frage: " & frage) Then
-                    letzteSpalte = letzteSpalte + 1
-                    headerIndex("Frage: " & frage) = letzteSpalte
-                    ReDim Preserve outputArray(1 To UBound(outputArray, 1), 1 To letzteSpalte)
-                    outputArray(1, letzteSpalte) = "Frage: " & frage
-                End If
-                outputArray(j, headerIndex("Frage: " & frage)) = extraData(frage)
-            Next frage
-        End If
+        ' Füge Fragen und Antworten ein
+        For Each frage In extraData.keys
+            If Not headerIndex.exists("Frage: " & frage) Then
+                letzteSpalte = letzteSpalte + 1
+                headerIndex("Frage: " & frage) = letzteSpalte
+                ReDim Preserve outputArray(1 To UBound(outputArray, 1), 1 To letzteSpalte)
+                outputArray(1, letzteSpalte) = "Frage: " & frage
+            End If
+            outputArray(j, headerIndex("Frage: " & frage)) = extraData(frage)
+        Next frage
 
         j = j + 1
-    Next vorgangsnummer
+    Next key
 
     ' Schreibe die Daten zurück in das Arbeitsblatt
     wsRohdaten.Cells(1, 1).Resize(UBound(outputArray, 1), UBound(outputArray, 2)).Value = outputArray
 
     MsgBox "Die Rohdaten wurden erfolgreich importiert und transformiert!", vbInformation
+
 End Sub
