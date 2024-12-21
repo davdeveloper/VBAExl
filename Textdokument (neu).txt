@@ -1,5 +1,6 @@
 Sub ImportUndTransformierenRohdaten()
     Dim wsRohdaten As Worksheet
+    Dim wsKategorien As Worksheet
     Dim letzteZeile As Long, letzteSpalte As Long
     Dim startZeile As Long
     Dim dict As Object
@@ -10,6 +11,7 @@ Sub ImportUndTransformierenRohdaten()
     Dim datenDatei As Variant
     Dim wbQuelle As Workbook
     Dim dataArray As Variant
+    Dim kategorieDict As Object
 
     ' Datei-Auswahldialog
     datenDatei = Application.GetOpenFilename("Excel Dateien (*.xls; *.xlsx), *.xls; *.xlsx", , "Wählen Sie die Rohdaten-Datei aus")
@@ -24,6 +26,7 @@ Sub ImportUndTransformierenRohdaten()
 
     ' Setze das Arbeitsblatt für Rohdaten
     Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
+    Set wsKategorien = ThisWorkbook.Sheets("Kategorien")
 
     ' Finde die nächste freie Zeile für den Import
     startZeile = wsRohdaten.Cells(wsRohdaten.Rows.Count, 1).End(xlUp).Row + 1
@@ -39,6 +42,19 @@ Sub ImportUndTransformierenRohdaten()
 
     ' Quelldatei schließen
     wbQuelle.Close SaveChanges:=False
+
+    ' Kategorien in ein Dictionary laden
+    Set kategorieDict = CreateObject("Scripting.Dictionary")
+    Dim kategorieZeile As Long
+    kategorieZeile = wsKategorien.Cells(wsKategorien.Rows.Count, 1).End(xlUp).Row
+    Dim kategorieArray As Variant
+    kategorieArray = wsKategorien.Range("A1:B" & kategorieZeile).Value
+
+    For i = 1 To UBound(kategorieArray, 1)
+        If Not kategorieDict.exists(kategorieArray(i, 1)) Then
+            kategorieDict(kategorieArray(i, 1)) = kategorieArray(i, 2)
+        End If
+    Next i
 
     ' Dictionary zur Zusammenführung der Daten
     Set dict = CreateObject("Scripting.Dictionary")
@@ -61,6 +77,11 @@ Sub ImportUndTransformierenRohdaten()
         ' Frage und Antwort hinzufügen, auch wenn leer
         If Not IsEmpty(frage) Then
             dict(key)(1)(frage) = IIf(IsEmpty(antwort), "", antwort)
+        End If
+
+        ' Übersetze Kategorie in Spalte C
+        If Not IsEmpty(dataArray(i, 3)) And kategorieDict.exists(dataArray(i, 3)) Then
+            dict(key)(0)(3) = kategorieDict(dataArray(i, 3)) ' Ersetze Kategorie
         End If
     Next i
 
