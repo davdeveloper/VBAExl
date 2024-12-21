@@ -9,6 +9,7 @@ Sub ImportAndTransformData()
     Dim key As Variant
     Dim questionDict As Object
     Dim newLastRow As Long
+    Dim headersDict As Object
 
     ' Set the dashboard worksheet
     Set wsDashboard = ThisWorkbook.Sheets("Dashboard")
@@ -31,8 +32,9 @@ Sub ImportAndTransformData()
         lastRow = .Cells(.Rows.Count, 2).End(xlUp).Row
     End With
 
-    ' Initialize dictionary for storing transformed data
+    ' Initialize dictionaries for storing transformed data and headers
     Set dict = CreateObject("Scripting.Dictionary")
+    Set headersDict = CreateObject("Scripting.Dictionary")
 
     ' Read and transform the data
     With wbImport.Sheets(1)
@@ -46,6 +48,10 @@ Sub ImportAndTransformData()
             End If
             ' Add question and answer to the question dictionary
             questionDict(.Cells(i, 10).Value) = .Cells(i, 11).Value
+            ' Track unique questions for headers
+            If Not headersDict.exists(.Cells(i, 10).Value) Then
+                headersDict(.Cells(i, 10).Value) = headersDict.Count + 14 ' Dynamic column starting at column 14
+            End If
         Next i
     End With
 
@@ -54,6 +60,12 @@ Sub ImportAndTransformData()
 
     ' Clear existing data in Rohdaten sheet (except header)
     wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).Clear
+
+    ' Write headers for questions dynamically
+    Dim headerKey As Variant
+    For Each headerKey In headersDict.Keys
+        wsRohdaten.Cells(1, headersDict(headerKey)).Value = "Frage " & headerKey
+    Next headerKey
 
     ' Write transformed data to the Rohdaten sheet
     keysArray = dict.Keys ' Alle Schlüssel in ein Array speichern
@@ -69,11 +81,9 @@ Sub ImportAndTransformData()
         wsRohdaten.Cells(newLastRow, 1).Resize(1, UBound(rowData, 2)).Value = rowData
 
         ' Add dynamic columns for questions and answers
-        colIndex = 14 ' Start after column M
         For Each questionKey In questionDict.Keys
-            wsRohdaten.Cells(1, colIndex).Value = "Frage " & questionKey ' Header for question
+            colIndex = headersDict(questionKey)
             wsRohdaten.Cells(newLastRow, colIndex).Value = questionDict(questionKey) ' Answer
-            colIndex = colIndex + 1
         Next questionKey
 
         newLastRow = newLastRow + 1
