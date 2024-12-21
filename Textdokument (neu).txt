@@ -7,7 +7,7 @@ Sub ImportAndTransformData()
     Dim dict As Object
     Dim keysArray As Variant
     Dim key As Variant
-    Dim questionCol As Long, answerCol As Long
+    Dim questionDict As Object
     Dim newLastRow As Long
 
     ' Set the dashboard worksheet
@@ -39,10 +39,13 @@ Sub ImportAndTransformData()
         For i = 2 To lastRow
             key = .Cells(i, 2).Value ' Vorgangsnummer in Spalte B
             If Not dict.exists(key) Then
-                dict(key) = Array(.Cells(i, 1).Resize(1, 12).Value, "") ' Alle Spalten von A bis M
+                Set questionDict = CreateObject("Scripting.Dictionary")
+                dict(key) = Array(.Cells(i, 1).Resize(1, 12).Value, questionDict)
+            Else
+                Set questionDict = dict(key)(1)
             End If
-            ' Add question and answer to dynamic columns
-            dict(key)(1) = dict(key)(1) & "|" & .Cells(i, 10).Value & ":" & .Cells(i, 11).Value
+            ' Add question and answer to the question dictionary
+            questionDict(.Cells(i, 10).Value) = .Cells(i, 11).Value
         Next i
     End With
 
@@ -58,28 +61,22 @@ Sub ImportAndTransformData()
 
     For Each key In keysArray
         Dim rowData As Variant
-        Dim extraData As String
-        Dim extraParts As Variant
+        Dim questionDict As Object
         Dim colIndex As Long
+        Dim questionKey As Variant
 
         rowData = dict(key)(0)
-        extraData = dict(key)(1)
+        Set questionDict = dict(key)(1)
         wsRohdaten.Cells(newLastRow, 1).Resize(1, UBound(rowData, 2)).Value = rowData
 
         ' Add dynamic columns for questions and answers
-        If Len(extraData) > 0 Then
-            extraParts = Split(Mid(extraData, 2), "|") ' Remove leading | and split
-            colIndex = 14 ' Start after column M
-            For Each part In extraParts
-                Dim qaPair As Variant
-                qaPair = Split(part, ":")
-                If UBound(qaPair) = 1 Then
-                    wsRohdaten.Cells(1, colIndex).Value = "Frage " & qaPair(0) ' Header for question
-                    wsRohdaten.Cells(newLastRow, colIndex).Value = qaPair(1) ' Answer
-                    colIndex = colIndex + 1
-                End If
-            Next part
-        End If
+        colIndex = 14 ' Start after column M
+        For Each questionKey In questionDict.Keys
+            wsRohdaten.Cells(1, colIndex).Value = "Frage " & questionKey ' Header for question
+            wsRohdaten.Cells(newLastRow, colIndex).Value = questionDict(questionKey) ' Answer
+            colIndex = colIndex + 1
+        Next questionKey
+
         newLastRow = newLastRow + 1
     Next key
 
