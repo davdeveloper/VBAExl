@@ -6,36 +6,44 @@ Sub ImportiereUndTransformiereRohdaten()
     Dim i As Long, colOffset As Long
     Dim vorgangsnummer As String
     Dim frage As String, antwort As String
-    
-    ' Setze die Arbeitsblätter
-    Set wsRohdaten = Worksheets("Rohdaten") ' Passen Sie den Namen an
-    Set wsZiel = Worksheets("Ziel") ' Zielarbeitsblatt
-    
+    Dim dateiPfad As String
+    Dim wbRohdaten As Workbook
+
+    ' Datei auswählen und öffnen
+    dateiPfad = Application.GetOpenFilename("Excel-Dateien (*.xls; *.xlsx), *.xls; *.xlsx", , "Rohdaten-Datei auswählen")
+    If dateiPfad = "False" Then Exit Sub ' Abbrechen, wenn keine Datei ausgewählt wurde
+
+    Set wbRohdaten = Workbooks.Open(dateiPfad)
+    Set wsRohdaten = wbRohdaten.Sheets(1) ' Annahme: Die Rohdaten sind im ersten Blatt
+
+    ' Zielarbeitsblatt festlegen
+    Set wsZiel = ThisWorkbook.Sheets("Rohdaten") ' Zielarbeitsblatt
+
     ' Löschen des Zielblatts, um es neu zu befüllen
     wsZiel.Cells.Clear
-    
+
     ' Erstellen eines Dictionarys für die Transformation
     Set dict = CreateObject("Scripting.Dictionary")
-    
+
     ' Letzte Zeile in den Rohdaten ermitteln
     letzteZeileRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, 2).End(xlUp).Row
-    
+
     ' Überschriften im Zielblatt festlegen
     wsZiel.Cells(1, 1).Value = "Vorgangsnummer"
-    
+
     ' Durch die Rohdaten iterieren
     For i = 2 To letzteZeileRoh
         vorgangsnummer = wsRohdaten.Cells(i, 2).Value
         frage = wsRohdaten.Cells(i, 10).Value
         antwort = wsRohdaten.Cells(i, 11).Value
-        
+
         ' Wenn die Vorgangsnummer noch nicht existiert, dann hinzufügen
         If Not dict.exists(vorgangsnummer) Then
             letzteZeileZiel = wsZiel.Cells(wsZiel.Rows.Count, 1).End(xlUp).Row + 1
             dict(vorgangsnummer) = letzteZeileZiel
             wsZiel.Cells(letzteZeileZiel, 1).Value = vorgangsnummer
         End If
-        
+
         ' Frage und Antwort in die nächste freie Spalte einfügen
         letzteZeileZiel = dict(vorgangsnummer)
         colOffset = wsZiel.Cells(1, wsZiel.Columns.Count).End(xlToLeft).Column + 1
@@ -48,9 +56,12 @@ Sub ImportiereUndTransformiereRohdaten()
         wsZiel.Cells(letzteZeileZiel, colOffset).Value = frage
         wsZiel.Cells(letzteZeileZiel, colOffset + 1).Value = antwort
     Next i
-    
+
     ' Autofit der Spalten im Zielblatt
     wsZiel.Columns.AutoFit
+
+    ' Rohdaten-Arbeitsmappe schließen
+    wbRohdaten.Close SaveChanges:=False
 
     ' Abschlussmeldung
     MsgBox "Daten wurden erfolgreich importiert und transformiert!", vbInformation
