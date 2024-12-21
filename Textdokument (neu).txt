@@ -2,11 +2,12 @@ Sub ImportUndTransformierenRohdaten()
     Dim wsRohdaten As Worksheet
     Dim letzteZeile As Long, letzteSpalte As Long
     Dim dict As Object
-    Dim schluessel As Variant, vorgangsnummer As Variant
+    Dim vorgangsnummer As Variant
     Dim i As Long, j As Long, neueSpalte As Long
     Dim frage As Variant, antwort As String
     Dim datenDatei As Variant
     Dim wbQuelle As Workbook
+    Dim dataArray As Variant
 
     ' Datei-Auswahldialog
     datenDatei = Application.GetOpenFilename("Excel Dateien (*.xls; *.xlsx), *.xls; *.xlsx", , "Wählen Sie die Rohdaten-Datei aus")
@@ -31,8 +32,8 @@ Sub ImportUndTransformierenRohdaten()
         letzteSpalte = .Cells(1, .Columns.Count).End(xlToLeft).Column
     End With
 
-    ' Daten in das Arbeitsblatt Rohdaten kopieren
-    wbQuelle.Sheets(1).Cells(1, 1).Resize(letzteZeile, letzteSpalte).Copy wsRohdaten.Cells(1, 1)
+    ' Daten in ein Array laden
+    dataArray = wbQuelle.Sheets(1).Cells(1, 1).Resize(letzteZeile, letzteSpalte).Value
 
     ' Quelldatei schließen
     wbQuelle.Close SaveChanges:=False
@@ -41,14 +42,14 @@ Sub ImportUndTransformierenRohdaten()
     Set dict = CreateObject("Scripting.Dictionary")
 
     ' Rohdaten verarbeiten und in das Dictionary schreiben
-    For i = 2 To letzteZeile ' Überspringe Kopfzeile
-        vorgangsnummer = wsRohdaten.Cells(i, 2).Value
-        frage = wsRohdaten.Cells(i, 10).Value
-        antwort = wsRohdaten.Cells(i, 12).Value
+    For i = 2 To UBound(dataArray, 1) ' Überspringe Kopfzeile
+        vorgangsnummer = dataArray(i, 2)
+        frage = dataArray(i, 10)
+        antwort = dataArray(i, 12)
 
         ' Wenn die Vorgangsnummer noch nicht im Dictionary ist, hinzufügen
         If Not dict.exists(vorgangsnummer) Then
-            dict(vorgangsnummer) = Array(wsRohdaten.Rows(i).Value, CreateObject("Scripting.Dictionary"))
+            dict(vorgangsnummer) = Array(Application.Index(dataArray, i, 0), CreateObject("Scripting.Dictionary"))
         End If
 
         ' Frage und Antwort hinzufügen, auch wenn leer
@@ -56,47 +57,49 @@ Sub ImportUndTransformierenRohdaten()
     Next i
 
     ' Daten im Arbeitsblatt Rohdaten transformieren
-    neueSpalte = letzteSpalte + 1
-    j = 2 ' Startzeile für Daten
+    Dim outputArray() As Variant
+    Dim headerArray() As Variant
+    Dim headerIndex As Object
 
-    For Each vorgangsnummer In dict.Keys
-        ' Rohdaten zur Vorgangsnummer
-        wsRohdaten.Cells(j, 1).Resize(1, letzteSpalte).Value = dict(vorgangsnummer)(0)
+    Set headerIndex = CreateObject("Scripting.Dictionary")
+    headerArray = dataArray(1, 1).Resize(1, letzteSpalte)
+    ReDim outputArray(1 To dict.Count + 1, 1 To letzteSpalte)
 
-        ' Fragen und Antworten hinzufügen, wenn vorhanden
-        If dict(vorgangsnummer)(1).Count > 0 Then
-            For Each frage In dict(vorgangsnummer)(1).keys
-                If Not IsEmpty(frage) Then
-                    If wsRohdaten.Cells(1, neueSpalte).Value = "" Then
-                        wsRohdaten.Cells(1, neueSpalte).Value = "Frage: " & frage
-                    End If
-                    wsRohdaten.Cells(j, neueSpalte).Value = dict(vorgangsnummer)(1)(frage)
-                    neueSpalte = neueSpalte + 1
-                End If
-            Next frage
-        End If
+    ' Kopfzeile kopieren
+    For i = LBound(headerArray, 2) To UBound(headerArray, 2)
+        outputArray(1, i) = headerArray(1, i)
+        headerIndex(headerArray(1, i)) = i
+    Next i
 
-        neueSpalte = letzteSpalte + 1 ' Zurücksetzen für nächste Vorgangsnummer
+    ' Daten zusammenführen
+    j = 2
+    For Each vorgangsnummer In dict.keys
+        Dim rowData As Variant
+        Dim extraData As Object
+        rowData = dict(vorgangsnummer)(0)
+        extraData = dict(vorgangsnummer)(1)
+
+        ' Füge Basisdaten ein
+        For i = LBound(rowData, 1) To UBound(rowData, 1)
+            outputArray(j, i) = rowData(i)
+        Next i
+
+        ' Füge Fragen und Antworten ein
+        For Each frage In extraData.keys
+            If Not headerIndex.exists("Frage: " & frage) Then
+                letzteSpalte = letzteSpalte + 1
+                headerIndex("Frage: " & frage) = letzteSpalte
+                ReDim Preserve outputArray(1 To UBound(outputArray, 1), 1 To letzteSpalte)
+                outputArray(1, letzteSpalte) = "Frage: " & frage
+            End If
+            outputArray(j, headerIndex("Frage: " & frage)) = extraData(frage)
+        Next frage
+
         j = j + 1
     Next vorgangsnummer
 
-    ' Entferne doppelte Vorgangsnummern durch Sortierung und eindeutige Einträge
-    Dim letzteZeileNach As Long
-    letzteZeileNach = wsRohdaten.Cells(wsRohdaten.Rows.Count, 2).End(xlUp).Row
-
-    Dim uniqueDict As Object
-    Set uniqueDict = CreateObject("Scripting.Dictionary")
-
-    For i = 2 To letzteZeileNach
-        vorgangsnummer = wsRohdaten.Cells(i, 2).Value
-        If Not uniqueDict.exists(vorgangsnummer) Then
-            uniqueDict(vorgangsnummer) = i
-        Else
-            wsRohdaten.Rows(i).Delete
-            i = i - 1
-            letzteZeileNach = letzteZeileNach - 1
-        End If
-    Next i
+    ' Schreibe die Daten zurück in das Arbeitsblatt
+    wsRohdaten.Cells(1, 1).Resize(UBound(outputArray, 1), UBound(outputArray, 2)).Value = outputArray
 
     MsgBox "Die Rohdaten wurden erfolgreich importiert und transformiert!", vbInformation
 
