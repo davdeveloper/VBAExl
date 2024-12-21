@@ -1,6 +1,7 @@
 Sub ImportUndTransformierenRohdaten()
     Dim wsRohdaten As Worksheet
     Dim letzteZeile As Long, letzteSpalte As Long
+    Dim startZeile As Long
     Dim dict As Object
     Dim key As Variant ' Muss Variant sein für For Each
     Dim vorgangsnummer As Variant, datum As Variant
@@ -24,8 +25,8 @@ Sub ImportUndTransformierenRohdaten()
     ' Setze das Arbeitsblatt für Rohdaten
     Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
 
-    ' Lösche alle existierenden Daten im Arbeitsblatt Rohdaten
-    wsRohdaten.Cells.Clear
+    ' Finde die nächste freie Zeile für den Import
+    startZeile = wsRohdaten.Cells(wsRohdaten.Rows.Count, 1).End(xlUp).Row + 1
 
     ' Letzte Zeile und Spalte in der Quelldatei finden
     With wbQuelle.Sheets(1)
@@ -70,22 +71,28 @@ Sub ImportUndTransformierenRohdaten()
 
     Set headerIndex = CreateObject("Scripting.Dictionary")
 
-    ' Kopfzeile initialisieren
-    ReDim headerArray(1 To letzteSpalte)
-    For i = 1 To letzteSpalte
-        headerArray(i) = dataArray(1, i)
-    Next i
+    ' Kopfzeile initialisieren (nur einmal bei erstem Import)
+    If startZeile = 2 Then
+        ReDim headerArray(1 To letzteSpalte)
+        For i = 1 To letzteSpalte
+            headerArray(i) = dataArray(1, i)
+        Next i
 
-    ReDim outputArray(1 To dict.Count + 1, 1 To letzteSpalte)
+        ReDim outputArray(1 To dict.Count + 1, 1 To letzteSpalte)
 
-    ' Kopfzeile kopieren
-    For i = LBound(headerArray) To UBound(headerArray)
-        outputArray(1, i) = headerArray(i)
-        headerIndex(headerArray(i)) = i
-    Next i
+        ' Kopfzeile kopieren
+        For i = LBound(headerArray) To UBound(headerArray)
+            outputArray(1, i) = headerArray(i)
+            headerIndex(headerArray(i)) = i
+        Next i
+        j = 2
+    Else
+        ' Kopfzeile wurde bereits geschrieben
+        ReDim outputArray(1 To dict.Count, 1 To letzteSpalte)
+        j = 1
+    End If
 
     ' Daten zusammenführen
-    j = 2
     For Each key In dict.keys
         Dim rowData As Variant
         Dim extraData As Object
@@ -120,7 +127,7 @@ Sub ImportUndTransformierenRohdaten()
     Next key
 
     ' Schreibe die Daten zurück in das Arbeitsblatt
-    wsRohdaten.Cells(1, 1).Resize(UBound(outputArray, 1), UBound(outputArray, 2)).Value = outputArray
+    wsRohdaten.Cells(startZeile, 1).Resize(UBound(outputArray, 1), UBound(outputArray, 2)).Value = outputArray
 
     MsgBox "Die Rohdaten wurden erfolgreich importiert und transformiert!", vbInformation
 
