@@ -2,7 +2,7 @@ Sub ImportUndTransformierenRohdaten()
     Dim wsRohdaten As Worksheet
     Dim letzteZeile As Long, letzteSpalte As Long
     Dim dict As Object
-    Dim key As String
+    Dim key As Variant ' Muss Variant sein für For Each
     Dim vorgangsnummer As Variant, datum As Variant
     Dim i As Long, j As Long, neueSpalte As Long
     Dim frage As Variant, antwort As String
