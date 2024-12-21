@@ -194,18 +194,27 @@ Sub ImportiereRohdatenFinal()
 ' Vorgangszeile suchen
 Set rngFound = wsZiel.Columns(1).Find(What:=rawVorgang, LookAt:=xlWhole, LookIn:=xlValues, MatchCase:=False)
 
-Dim bExists As Boolean
-bExists = False
+Dim lMatchZeile As Long
+lMatchZeile = 0
 
 If Not rngFound Is Nothing Then
     ' Prüfen, ob Spalte V (22) mit rawDate übereinstimmt
     If wsZiel.Cells(rngFound.Row, 22).Value = rawDate Then
-        bExists = True
+        lMatchZeile = rngFound.Row
+    Else
+        ' Datum unterscheidet sich, suchen, ob weitere Zeilen mit derselben Vorgangsnummer existieren
+        Do
+            If wsZiel.Cells(rngFound.Row, 22).Value = rawDate Then
+                lMatchZeile = rngFound.Row
+                Exit Do
+            End If
+            Set rngFound = wsZiel.Columns(1).FindNext(rngFound)
+        Loop While Not rngFound Is Nothing And rngFound.Row <> lMatchZeile
     End If
 End If
 
-If Not bExists Then
-    ' Vorgang nicht vorhanden oder rawDate unterscheidet sich, neuen Eintrag an startZeile
+If lMatchZeile = 0 Then
+    ' Vorgang nicht vorhanden oder keine passende Datumskombination gefunden, neue Zeile verwenden
     lZielzeile = startZeile
     
     ' Übersetzung der Spalte C (Englisch -> Deutsch)
@@ -238,10 +247,14 @@ If Not bExists Then
     ' Nächste freie Zeile für neuen Vorgang
     dictStartZeilen(strZielblattName) = startZeile + 1
 Else
-    ' Vorgangsnummer existiert schon und rawDate passt, Zeile festlegen
-    lZielzeile = rngFound.Row
-    Debug.Print "Vorgangsnummer '" & rawVorgang & "' bereits vorhanden in Zeile " & lZielzeile & " mit übereinstimmendem rawDate."
+    ' Vorgangsnummer und passende Datumskombination gefunden, Zeile festlegen
+    lZielzeile = lMatchZeile
+    
+    ' Ergänzen oder aktualisieren der Werte in der Zeile
+    wsZiel.Cells(lZielzeile, 23).Value = wsData.Cells(i, 5).Value ' Beispiel für Spalte W (23)
+    Debug.Print "Vorgangsnummer '" & rawVorgang & "' bereits vorhanden in Zeile " & lZielzeile & ". Werte ergänzt."
 End If
+
 
             
             ' Header abhängige Werte (aus Spalte L)
