@@ -90,23 +90,31 @@ Sub ImportUndTransformierenRohdaten()
         Dim rowData As Variant
         Dim extraData As Object
         rowData = dict(key)(0)
-        extraData = dict(key)(1)
 
-        ' Füge Basisdaten ein
-        For i = LBound(rowData, 1) To UBound(rowData, 1)
-            outputArray(j, i) = rowData(i)
-        Next i
+        ' Sicherstellen, dass extraData ein gültiges Dictionary ist
+        On Error Resume Next
+        Set extraData = dict(key)(1)
+        On Error GoTo 0
 
-        ' Füge Fragen und Antworten ein
-        For Each frage In extraData.keys
-            If Not headerIndex.exists("Frage: " & frage) Then
-                letzteSpalte = letzteSpalte + 1
-                headerIndex("Frage: " & frage) = letzteSpalte
-                ReDim Preserve outputArray(1 To UBound(outputArray, 1), 1 To letzteSpalte)
-                outputArray(1, letzteSpalte) = "Frage: " & frage
-            End If
-            outputArray(j, headerIndex("Frage: " & frage)) = extraData(frage)
-        Next frage
+        If Not extraData Is Nothing Then
+            ' Füge Basisdaten ein
+            For i = LBound(rowData, 1) To UBound(rowData, 1)
+                outputArray(j, i) = rowData(i)
+            Next i
+
+            ' Füge Fragen und Antworten ein
+            For Each frage In extraData.keys
+                If Not headerIndex.exists("Frage: " & frage) Then
+                    letzteSpalte = letzteSpalte + 1
+                    headerIndex("Frage: " & frage) = letzteSpalte
+                    ReDim Preserve outputArray(1 To UBound(outputArray, 1), 1 To letzteSpalte)
+                    outputArray(1, letzteSpalte) = "Frage: " & frage
+                End If
+                outputArray(j, headerIndex("Frage: " & frage)) = extraData(frage)
+            Next frage
+        Else
+            MsgBox "Fehler beim Zugriff auf das Dictionary für den Schlüssel: " & key, vbExclamation
+        End If
 
         j = j + 1
     Next key
