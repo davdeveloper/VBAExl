@@ -5,7 +5,8 @@ Sub ImportAndTransformData()
     Dim filePath As String
     Dim lastRow As Long, i As Long
     Dim dict As Object
-    Dim key As String
+    Dim keysArray As Variant
+    Dim key As Variant
     Dim questionCol As Long, answerCol As Long
     Dim newLastRow As Long
 
@@ -52,8 +53,10 @@ Sub ImportAndTransformData()
     wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).Clear
 
     ' Write transformed data to the Rohdaten sheet
+    keysArray = dict.Keys ' Alle Schlüssel in ein Array speichern
     newLastRow = 2
-    For Each key In dict.keys
+
+    For Each key In keysArray
         Dim rowData As Variant
         Dim extraData As String
         Dim extraParts As Variant
