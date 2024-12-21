@@ -43,8 +43,7 @@ Sub ImportDataFromLeaptree()
         ' Nur Schlüssel verarbeiten, die in der Zuweisung existieren
         dataSheetName = ""
         For j = 2 To lastRowZuweisung
-            Debug.Print "Vergleiche: " & key & " mit " & Trim(wsZuweisung.Cells(j, "B").Value)
-            If Trim(wsZuweisung.Cells(j, "B").Value) = key Then
+            If UCase(Trim(wsZuweisung.Cells(j, "B").Value)) = UCase(key) Then
                 dataSheetName = Trim(wsZuweisung.Cells(j, "C").Value)
                 Debug.Print "Gefundenes Arbeitsblatt: " & dataSheetName
                 Exit For
@@ -53,7 +52,7 @@ Sub ImportDataFromLeaptree()
 
         If dataSheetName = "" Then
             Debug.Print "Kein Arbeitsblatt gefunden für Schlüssel: " & key
-            GoTo NextIteration
+            GoTo ContinueLoop
         End If
 
         ' Arbeitsblatt öffnen
@@ -63,7 +62,7 @@ Sub ImportDataFromLeaptree()
 
         If wsDashboard Is Nothing Then
             Debug.Print "Arbeitsblatt " & dataSheetName & " nicht gefunden!"
-            GoTo NextIteration
+            GoTo ContinueLoop
         End If
 
         ' Letzte verwendete Zeile im Dashboard
@@ -100,7 +99,7 @@ Sub ImportDataFromLeaptree()
             End If
         Next cell
 
-NextIteration:
+ContinueLoop:
     Next i
 
     Debug.Print "Datenimport abgeschlossen!"
