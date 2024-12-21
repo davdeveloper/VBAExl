@@ -17,20 +17,21 @@ Sub ImportDataFromLeaptree()
     Debug.Print "Letzte Zeile in den Rohdaten: " & lastRowRohdaten
 
     ' Letzte Zeile in Zuweisung finden
-    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "A").End(xlUp).Row
+    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
 
     ' Dashboard-Daten importieren
     For i = 2 To lastRowRohdaten
-        key = wsRohdaten.Cells(i, "A").Value
+        key = Trim(wsRohdaten.Cells(i, "A").Value)
         vorgangsnummer = wsRohdaten.Cells(i, "B").Value
         Debug.Print "Verarbeite Schlüssel: " & key & ", Vorgangsnummer: " & vorgangsnummer
 
         ' Nur Schlüssel verarbeiten, die in der Zuweisung existieren
         dataSheetName = ""
         For j = 2 To lastRowZuweisung
-            If wsZuweisung.Cells(j, "B").Value = key Then
-                dataSheetName = wsZuweisung.Cells(j, "C").Value
+            Debug.Print "Vergleiche: " & key & " mit " & Trim(wsZuweisung.Cells(j, "B").Value)
+            If Trim(wsZuweisung.Cells(j, "B").Value) = key Then
+                dataSheetName = Trim(wsZuweisung.Cells(j, "C").Value)
                 Debug.Print "Gefundenes Arbeitsblatt: " & dataSheetName
                 Exit For
             End If
