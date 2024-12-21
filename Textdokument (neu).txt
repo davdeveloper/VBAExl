@@ -22,7 +22,7 @@ Sub ImportDataFromLeaptree()
         key = wsRohdaten.Cells(i, "A").Value
         vorgangsnummer = wsRohdaten.Cells(i, "B").Value
 
-        ' Arbeitsblattname für den Schlüssel finden
+        ' Nur Schlüssel verarbeiten, die in der Zuweisung existieren
         dataSheetName = ""
         For j = 2 To lastRowZuweisung
             If wsZuweisung.Cells(j, "A").Value = key Then
@@ -32,7 +32,6 @@ Sub ImportDataFromLeaptree()
         Next j
 
         If dataSheetName = "" Then
-            MsgBox "Kein zugewiesenes Arbeitsblatt für Schlüssel " & key, vbExclamation
             GoTo NextIteration
         End If
 
