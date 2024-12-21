@@ -71,8 +71,17 @@ Sub ImportUndTransformierenRohdaten()
 
     Set headerIndex = CreateObject("Scripting.Dictionary")
 
-    ' Kopfzeile initialisieren (nur einmal bei erstem Import)
-    If startZeile = 2 Then
+    ' Kopfzeile initialisieren (lade bestehende Überschriften bei erneutem Import)
+    If startZeile > 2 Then
+        Dim existingHeaders As Range
+        Set existingHeaders = wsRohdaten.Rows(1)
+        For i = 1 To existingHeaders.Columns.Count
+            If Not IsEmpty(existingHeaders.Cells(1, i).Value) Then
+                headerIndex(existingHeaders.Cells(1, i).Value) = i
+            End If
+        Next i
+    Else
+        ' Nur bei erstem Import Kopfzeile erstellen
         ReDim headerArray(1 To letzteSpalte)
         For i = 1 To letzteSpalte
             headerArray(i) = dataArray(1, i)
@@ -85,11 +94,13 @@ Sub ImportUndTransformierenRohdaten()
             outputArray(1, i) = headerArray(i)
             headerIndex(headerArray(i)) = i
         Next i
+    End If
+
+    ' Initialisiere j für Daten
+    If startZeile = 2 Then
         j = 2
     Else
-        ' Kopfzeile wurde bereits geschrieben
-        ReDim outputArray(1 To dict.Count, 1 To letzteSpalte)
-        j = 1
+        j = startZeile
     End If
 
     ' Daten zusammenführen
@@ -106,7 +117,7 @@ Sub ImportUndTransformierenRohdaten()
         If Not extraData Is Nothing Then
             ' Füge Basisdaten ein
             For i = LBound(rowData, 1) To UBound(rowData, 1)
-                outputArray(j, i) = rowData(i)
+                wsRohdaten.Cells(j, i).Value = rowData(i)
             Next i
 
             ' Füge Fragen und Antworten ein
@@ -114,10 +125,9 @@ Sub ImportUndTransformierenRohdaten()
                 If Not headerIndex.exists("Frage: " & frage) Then
                     letzteSpalte = letzteSpalte + 1
                     headerIndex("Frage: " & frage) = letzteSpalte
-                    ReDim Preserve outputArray(1 To UBound(outputArray, 1), 1 To letzteSpalte)
-                    outputArray(1, letzteSpalte) = "Frage: " & frage
+                    wsRohdaten.Cells(1, letzteSpalte).Value = "Frage: " & frage
                 End If
-                outputArray(j, headerIndex("Frage: " & frage)) = extraData(frage)
+                wsRohdaten.Cells(j, headerIndex("Frage: " & frage)).Value = extraData(frage)
             Next frage
         Else
             MsgBox "Fehler beim Zugriff auf das Dictionary für den Schlüssel: " & key, vbExclamation
@@ -125,9 +135,6 @@ Sub ImportUndTransformierenRohdaten()
 
         j = j + 1
     Next key
-
-    ' Schreibe die Daten zurück in das Arbeitsblatt
-    wsRohdaten.Cells(startZeile, 1).Resize(UBound(outputArray, 1), UBound(outputArray, 2)).Value = outputArray
 
     MsgBox "Die Rohdaten wurden erfolgreich importiert und transformiert!", vbInformation
 
