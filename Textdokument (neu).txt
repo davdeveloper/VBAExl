@@ -1,93 +1,64 @@
-Sub ImportAndTransformData()
-    Dim wsDashboard As Worksheet
-    Dim wsRohdaten As Worksheet
-    Dim wbImport As Workbook
-    Dim filePath As String
-    Dim lastRow As Long, i As Long
+Sub KonsolidiereRohdaten()
+    Dim ws As Worksheet
     Dim dict As Object
-    Dim keysArray As Variant
-    Dim key As Variant
-    Dim questionDict As Object
-    Dim newLastRow As Long
-    Dim headersDict As Object
-
-    ' Set the dashboard worksheet
-    Set wsDashboard = ThisWorkbook.Sheets("Dashboard")
-    Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
-
-    ' Ask user to select the file to import
-    With Application.FileDialog(msoFileDialogFilePicker)
-        .Title = "Wählen Sie die Datei Leaptree_Data aus"
-        .Filters.Clear
-        .Filters.Add "Excel Dateien", "*.xls; *.xlsx; *.xlsm"
-        If .Show <> -1 Then Exit Sub ' Abbrechen, wenn keine Datei ausgewählt wurde
-        filePath = .SelectedItems(1)
-    End With
-
-    ' Open the selected workbook
-    Set wbImport = Workbooks.Open(filePath)
-
-    ' Get the last row of data in the imported workbook (assuming data is in the first sheet)
-    With wbImport.Sheets(1)
-        lastRow = .Cells(.Rows.Count, 2).End(xlUp).Row
-    End With
-
-    ' Initialize dictionaries for storing transformed data and headers
+    Dim letzteZeile As Long
+    Dim zeile As Long
+    Dim vorgangsnummer As String
+    Dim frage As String
+    Dim antwort As String
+    Dim ergebnisRow As Long
+    
+    ' Arbeitsblatt "Rohdaten" auswählen
+    Set ws = ThisWorkbook.Worksheets("Rohdaten")
+    
+    ' Dictionary erstellen für die Konsolidierung
     Set dict = CreateObject("Scripting.Dictionary")
-    Set headersDict = CreateObject("Scripting.Dictionary")
-
-    ' Read and transform the data
-    With wbImport.Sheets(1)
-        For i = 2 To lastRow
-            key = .Cells(i, 2).Value ' Vorgangsnummer in Spalte B
-            If Not dict.exists(key) Then
-                Set questionDict = CreateObject("Scripting.Dictionary")
-                dict(key) = Array(.Cells(i, 1).Resize(1, 12).Value, questionDict)
-            Else
-                Set questionDict = dict(key)(1)
-            End If
-            ' Add question and answer to the question dictionary
-            questionDict(.Cells(i, 10).Value) = .Cells(i, 11).Value
-            ' Track unique questions for headers
-            If Not headersDict.exists(.Cells(i, 10).Value) Then
-                headersDict(.Cells(i, 10).Value) = headersDict.Count + 14 ' Dynamic column starting at column 14
-            End If
-        Next i
-    End With
-
-    ' Close the imported workbook
-    wbImport.Close SaveChanges:=False
-
-    ' Clear existing data in Rohdaten sheet (except header)
-    wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).Clear
-
-    ' Write headers for questions dynamically
-    Dim headerKey As Variant
-    For Each headerKey In headersDict.Keys
-        wsRohdaten.Cells(1, headersDict(headerKey)).Value = "Frage " & headerKey
-    Next headerKey
-
-    ' Write transformed data to the Rohdaten sheet
-    keysArray = dict.Keys ' Alle Schlüssel in ein Array speichern
-    newLastRow = 2
-
-    For Each key In keysArray
-        Dim rowData As Variant
-        Dim colIndex As Long
-        Dim questionKey As Variant
-
-        rowData = dict(key)(0)
-        Set questionDict = dict(key)(1)
-        wsRohdaten.Cells(newLastRow, 1).Resize(1, UBound(rowData, 2)).Value = rowData
-
-        ' Add dynamic columns for questions and answers
-        For Each questionKey In questionDict.Keys
-            colIndex = headersDict(questionKey)
-            wsRohdaten.Cells(newLastRow, colIndex).Value = questionDict(questionKey) ' Answer
-        Next questionKey
-
-        newLastRow = newLastRow + 1
+    
+    ' Letzte Zeile in den Rohdaten ermitteln
+    letzteZeile = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Durch die Zeilen iterieren und Daten in das Dictionary aufnehmen
+    For zeile = 2 To letzteZeile ' Start bei 2, da erste Zeile die Überschrift ist
+        vorgangsnummer = ws.Cells(zeile, 2).Value ' Vorgangsnummer aus Spalte B
+        frage = ws.Cells(zeile, 10).Value ' Frage aus Spalte J
+        antwort = ws.Cells(zeile, 11).Value ' Antwort aus Spalte K
+        
+        ' Wenn die Vorgangsnummer noch nicht im Dictionary ist, hinzufügen
+        If Not dict.exists(vorgangsnummer) Then
+            dict.Add vorgangsnummer, Array(ws.Cells(zeile, 1).Value, ws.Cells(zeile, 3).Value, ws.Cells(zeile, 4).Value, ws.Cells(zeile, 5).Value, ws.Cells(zeile, 6).Value, ws.Cells(zeile, 7).Value, ws.Cells(zeile, 8).Value, ws.Cells(zeile, 9).Value, frage & ": " & antwort)
+        Else
+            ' Wenn die Vorgangsnummer schon existiert, die Frage und Antwort hinzufügen
+            Dim tempArray As Variant
+            tempArray = dict(vorgangsnummer)
+            tempArray(UBound(tempArray)) = tempArray(UBound(tempArray)) & " | " & frage & ": " & antwort
+            dict(vorgangsnummer) = tempArray
+        End If
+    Next zeile
+    
+    ' Ergebnisse in ein neues Blatt schreiben
+    Dim ergebnisWs As Worksheet
+    On Error Resume Next
+    Set ergebnisWs = ThisWorkbook.Worksheets("Ergebnis")
+    If ergebnisWs Is Nothing Then
+        Set ergebnisWs = ThisWorkbook.Worksheets.Add
+        ergebnisWs.Name = "Ergebnis"
+    End If
+    On Error GoTo 0
+    
+    ergebnisWs.Cells.Clear
+    
+    ' Überschriften hinzufügen
+    ergebnisWs.Cells(1, 1).Value = "Vorgangsnummer"
+    ergebnisWs.Cells(1, 2).Value = "Zusammengefasste Daten"
+    
+    ' Konsolidierte Daten eintragen
+    ergebnisRow = 2
+    Dim key As Variant
+    For Each key In dict.keys
+        ergebnisWs.Cells(ergebnisRow, 1).Value = key
+        ergebnisWs.Cells(ergebnisRow, 2).Value = Join(dict(key), " | ")
+        ergebnisRow = ergebnisRow + 1
     Next key
-
-    MsgBox "Daten wurden erfolgreich importiert und transformiert!", vbInformation
+    
+    MsgBox "Daten wurden erfolgreich konsolidiert und in das Blatt 'Ergebnis' geschrieben.", vbInformation
 End Sub
