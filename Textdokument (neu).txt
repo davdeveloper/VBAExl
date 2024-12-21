@@ -1,64 +1,57 @@
-Sub KonsolidiereRohdaten()
-    Dim ws As Worksheet
+Sub ImportiereUndTransformiereRohdaten()
+    Dim wsRohdaten As Worksheet
+    Dim wsZiel As Worksheet
+    Dim letzteZeileRoh As Long, letzteZeileZiel As Long
     Dim dict As Object
-    Dim letzteZeile As Long
-    Dim zeile As Long
+    Dim i As Long, colOffset As Long
     Dim vorgangsnummer As String
-    Dim frage As String
-    Dim antwort As String
-    Dim ergebnisRow As Long
+    Dim frage As String, antwort As String
     
-    ' Arbeitsblatt "Rohdaten" auswählen
-    Set ws = ThisWorkbook.Worksheets("Rohdaten")
+    ' Setze die Arbeitsblätter
+    Set wsRohdaten = Worksheets("Rohdaten") ' Passen Sie den Namen an
+    Set wsZiel = Worksheets("Ziel") ' Zielarbeitsblatt
     
-    ' Dictionary erstellen für die Konsolidierung
+    ' Löschen des Zielblatts, um es neu zu befüllen
+    wsZiel.Cells.Clear
+    
+    ' Erstellen eines Dictionarys für die Transformation
     Set dict = CreateObject("Scripting.Dictionary")
     
     ' Letzte Zeile in den Rohdaten ermitteln
-    letzteZeile = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    letzteZeileRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, 2).End(xlUp).Row
     
-    ' Durch die Zeilen iterieren und Daten in das Dictionary aufnehmen
-    For zeile = 2 To letzteZeile ' Start bei 2, da erste Zeile die Überschrift ist
-        vorgangsnummer = ws.Cells(zeile, 2).Value ' Vorgangsnummer aus Spalte B
-        frage = ws.Cells(zeile, 10).Value ' Frage aus Spalte J
-        antwort = ws.Cells(zeile, 11).Value ' Antwort aus Spalte K
+    ' Überschriften im Zielblatt festlegen
+    wsZiel.Cells(1, 1).Value = "Vorgangsnummer"
+    
+    ' Durch die Rohdaten iterieren
+    For i = 2 To letzteZeileRoh
+        vorgangsnummer = wsRohdaten.Cells(i, 2).Value
+        frage = wsRohdaten.Cells(i, 10).Value
+        antwort = wsRohdaten.Cells(i, 11).Value
         
-        ' Wenn die Vorgangsnummer noch nicht im Dictionary ist, hinzufügen
+        ' Wenn die Vorgangsnummer noch nicht existiert, dann hinzufügen
         If Not dict.exists(vorgangsnummer) Then
-            dict.Add vorgangsnummer, Array(ws.Cells(zeile, 1).Value, ws.Cells(zeile, 3).Value, ws.Cells(zeile, 4).Value, ws.Cells(zeile, 5).Value, ws.Cells(zeile, 6).Value, ws.Cells(zeile, 7).Value, ws.Cells(zeile, 8).Value, ws.Cells(zeile, 9).Value, frage & ": " & antwort)
-        Else
-            ' Wenn die Vorgangsnummer schon existiert, die Frage und Antwort hinzufügen
-            Dim tempArray As Variant
-            tempArray = dict(vorgangsnummer)
-            tempArray(UBound(tempArray)) = tempArray(UBound(tempArray)) & " | " & frage & ": " & antwort
-            dict(vorgangsnummer) = tempArray
+            letzteZeileZiel = wsZiel.Cells(wsZiel.Rows.Count, 1).End(xlUp).Row + 1
+            dict(vorgangsnummer) = letzteZeileZiel
+            wsZiel.Cells(letzteZeileZiel, 1).Value = vorgangsnummer
         End If
-    Next zeile
+        
+        ' Frage und Antwort in die nächste freie Spalte einfügen
+        letzteZeileZiel = dict(vorgangsnummer)
+        colOffset = wsZiel.Cells(1, wsZiel.Columns.Count).End(xlToLeft).Column + 1
+
+        If wsZiel.Cells(1, colOffset).Value = "" Then
+            wsZiel.Cells(1, colOffset).Value = "Frage " & colOffset - 1
+            wsZiel.Cells(1, colOffset + 1).Value = "Antwort " & colOffset - 1
+        End If
+
+        wsZiel.Cells(letzteZeileZiel, colOffset).Value = frage
+        wsZiel.Cells(letzteZeileZiel, colOffset + 1).Value = antwort
+    Next i
     
-    ' Ergebnisse in ein neues Blatt schreiben
-    Dim ergebnisWs As Worksheet
-    On Error Resume Next
-    Set ergebnisWs = ThisWorkbook.Worksheets("Ergebnis")
-    If ergebnisWs Is Nothing Then
-        Set ergebnisWs = ThisWorkbook.Worksheets.Add
-        ergebnisWs.Name = "Ergebnis"
-    End If
-    On Error GoTo 0
-    
-    ergebnisWs.Cells.Clear
-    
-    ' Überschriften hinzufügen
-    ergebnisWs.Cells(1, 1).Value = "Vorgangsnummer"
-    ergebnisWs.Cells(1, 2).Value = "Zusammengefasste Daten"
-    
-    ' Konsolidierte Daten eintragen
-    ergebnisRow = 2
-    Dim key As Variant
-    For Each key In dict.keys
-        ergebnisWs.Cells(ergebnisRow, 1).Value = key
-        ergebnisWs.Cells(ergebnisRow, 2).Value = Join(dict(key), " | ")
-        ergebnisRow = ergebnisRow + 1
-    Next key
-    
-    MsgBox "Daten wurden erfolgreich konsolidiert und in das Blatt 'Ergebnis' geschrieben.", vbInformation
+    ' Autofit der Spalten im Zielblatt
+    wsZiel.Columns.AutoFit
+
+    ' Abschlussmeldung
+    MsgBox "Daten wurden erfolgreich importiert und transformiert!", vbInformation
 End Sub
