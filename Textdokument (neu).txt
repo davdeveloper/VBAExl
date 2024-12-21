@@ -4,7 +4,7 @@ Sub ImportUndTransformierenRohdaten()
     Dim dict As Object
     Dim schluessel As Variant, vorgangsnummer As Variant
     Dim i As Long, j As Long, neueSpalte As Long
-    Dim frage As String, antwort As String
+    Dim frage As Variant, antwort As String
     Dim datenDatei As Variant
     Dim wbQuelle As Workbook
 
