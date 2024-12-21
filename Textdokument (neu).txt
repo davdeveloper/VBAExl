@@ -32,35 +32,47 @@ Sub ImportUndTransformiereDaten()
         Dim vorgangsnummer As String
         Dim frage As String
         Dim antwort As String
+        Dim andereDaten As Variant
 
         vorgangsnummer = wsQuell.Cells(i, 2).Value ' Spalte B
         frage = wsQuell.Cells(i, 10).Value ' Spalte J
         antwort = wsQuell.Cells(i, 11).Value ' Spalte K
+        andereDaten = wsQuell.Rows(i).Value ' Ganze Zeile
 
         If Not dict.exists(vorgangsnummer) Then
             dict.Add vorgangsnummer, CreateObject("Scripting.Dictionary")
+            dict(vorgangsnummer)("Basisdaten") = andereDaten
         End If
 
         With dict(vorgangsnummer)
-            .Add "Frage" & (.Count + 1), frage
-            .Add "Antwort" & (.Count + 1), antwort
+            .Add "Frage" & (.Count - 1), frage
+            .Add "Antwort" & (.Count - 1), antwort
         End With
     Next i
 
     ' Daten ins Zielblatt schreiben
     Dim key As Variant
     Dim colIndex As Long
+    Dim basisdaten As Variant
     letzteZeileZiel = 1
 
     For Each key In dict.keys
         letzteZeileZiel = letzteZeileZiel + 1
-        wsZiel.Cells(letzteZeileZiel, 1).Value = key ' Vorgangsnummer in Spalte A
+        basisdaten = dict(key)("Basisdaten")
+        
+        ' Basisdaten schreiben
+        For colIndex = 1 To UBound(basisdaten, 2)
+            wsZiel.Cells(letzteZeileZiel, colIndex).Value = basisdaten(1, colIndex)
+        Next colIndex
 
-        colIndex = 2
+        ' Fragen und Antworten anhängen
+        colIndex = UBound(basisdaten, 2) + 1
         Dim innerKey As Variant
         For Each innerKey In dict(key).keys
-            wsZiel.Cells(letzteZeileZiel, colIndex).Value = dict(key)(innerKey)
-            colIndex = colIndex + 1
+            If innerKey <> "Basisdaten" Then
+                wsZiel.Cells(letzteZeileZiel, colIndex).Value = dict(key)(innerKey)
+                colIndex = colIndex + 1
+            End If
         Next innerKey
     Next key
 
