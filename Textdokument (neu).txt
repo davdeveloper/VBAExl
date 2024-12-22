@@ -37,9 +37,6 @@ Sub DatenZuweisung()
             ' Starte ab Zeile 16
             zielRow = 16
 
-            ' Text aus C12 im Zielarbeitsblatt für Überschriftensuche, ergänzt mit "Frage: "
-            SuchText = "Frage: " & ZielWs.Cells(12, "C").Value
-
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
@@ -62,14 +59,26 @@ Sub DatenZuweisung()
                         End If
                     Next k
 
-                    ' Überschrift in Zeile 1 von "Rohdaten" suchen
-                    headerCol = 0
-                    For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
-                        If wsRohdaten.Cells(1, k).Value = SuchText Then
-                            headerCol = k
-                            Exit For
+                    ' Text in Zielarbeitsblatt von C12 bis Q12 durchsuchen und Werte aus Rohdaten holen
+                    For headerCol = 3 To 17 ' Spalten C bis Q (3 bis 17)
+                        SuchText = "Frage: " & ZielWs.Cells(12, headerCol).Value
+
+                        ' Überschrift in Zeile 1 von "Rohdaten" suchen
+                        Dim rohCol As Long
+                        rohCol = 0
+                        For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
+                            If wsRohdaten.Cells(1, k).Value = SuchText Then
+                                rohCol = k
+                                Exit For
+                            End If
+                        Next k
+
+                        If rohCol > 0 Then
+                            ZielWs.Cells(zielRow, headerCol).Value = wsRohdaten.Cells(j, rohCol).Value ' Wert aus der gefundenen Spalte
+                        Else
+                            Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
                         End If
-                    Next k
+                    Next headerCol
 
                     ' Daten übertragen
                     ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
@@ -77,12 +86,6 @@ Sub DatenZuweisung()
                     ZielWs.Cells(zielRow, "U").Value = Gestern ' Datum von Gestern oder Freitag
                     ZielWs.Cells(zielRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                     ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
-                    
-                    If headerCol > 0 Then
-                        ZielWs.Cells(zielRow, "C").Value = wsRohdaten.Cells(j, headerCol).Value ' Wert aus der gefundenen Spalte
-                    Else
-                        Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
-                    End If
 
                     zielRow = zielRow + 1 ' Nächste Zeile vorbereiten
                 End If
