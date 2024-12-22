@@ -1,11 +1,9 @@
-Sub ForwardingImport()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
+Sub ServiceImport()
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet
     Dim ZielWs As Worksheet
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
+    Dim lastRowRoh As Long, lastRowZuweisung As Long
     Dim i As Long, j As Long, k As Long
     Dim Schluessel As String, ZielBlattName As String
-    Dim Datum As Date, Gestern As Variant
-    Dim Kategorie As String
     Dim Kalenderwoche As String
     Dim cell As Range, headerCol As Long
     Dim SuchText As String, rohCol As Long
@@ -13,21 +11,18 @@ Sub ForwardingImport()
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
-    Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
 
-    ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
+    ' Letzte Zeile in "Rohdaten" und "Zuweisung" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
-    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "F").End(xlUp).Row
-    lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
+    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "L").End(xlUp).Row
 
     Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
-    Debug.Print "Letzte Zeile in Kategorien: " & lastRowKategorien
 
     ' Durch die Schlüssel in "Zuweisung" iterieren
     For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
-        Schluessel = wsZuweisung.Cells(i, "F").Value
-        ZielBlattName = wsZuweisung.Cells(i, "G").Value
+        Schluessel = wsZuweisung.Cells(i, "L").Value
+        ZielBlattName = wsZuweisung.Cells(i, "M").Value
 
         Debug.Print "Verarbeite Schlüssel: " & Schluessel & ", Zielblatt: " & ZielBlattName
 
@@ -42,30 +37,9 @@ Sub ForwardingImport()
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
-                    ' Berechne Gestern oder letzten Freitag
-                    Datum = wsRohdaten.Cells(j, "D").Value
-                    If Datum <> 0 Then ' Sicherstellen, dass Datum gültig ist
-                        If Weekday(Datum - 1, vbMonday) = 7 Then ' Wenn Sonntag
-                            Gestern = Datum - 2 ' Letzter Freitag
-                        Else
-                            Gestern = Datum - 1 ' Normaler Vortag
-                        End If
-                    Else
-                        Debug.Print "Ungültiges Datum in Rohdaten: Zeile " & j
-                        Gestern = "" ' Leerer Wert für ungültiges Datum
-                    End If
-
-                    ' Kategorie aus "Kategorien" suchen
-                    Kategorie = wsRohdaten.Cells(j, "C").Value
-                    For k = 2 To lastRowKategorien
-                        If wsKategorien.Cells(k, "A").Value = Kategorie Then
-                            Kategorie = wsKategorien.Cells(k, "B").Value
-                            Exit For
-                        End If
-                    Next k
 
                     ' Kalenderwoche berechnen
-                    Kalenderwoche = "KW " & Format(Application.WeekNum(Datum, vbMonday), "00")
+                    Kalenderwoche = "KW " & Format(Application.WeekNum(wsRohdaten.Cells(j, "D").Value, vbMonday), "00")
 
                     ' Debugging für Kalenderwoche
                     Debug.Print "Berechnete KW: " & Kalenderwoche
@@ -74,7 +48,7 @@ Sub ForwardingImport()
                     For Each cell In ZielWs.Range("A1:A500")
                         If Trim(cell.Value) = Kalenderwoche Then
                             Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
-                            zielRow = cell.Row + 7 ' 7 Zeilen unter der gefundenen Zelle beginnen
+                            zielRow = cell.Row + 8 ' 8 Zeilen unter der gefundenen Zelle beginnen
 
                             ' Prüfen, ob die Zellen leer sind und Daten einfügen
                             Do While ZielWs.Cells(zielRow, "A").Value <> ""
@@ -84,14 +58,11 @@ Sub ForwardingImport()
                             Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
                             ' Daten übertragen
-                            ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
-                            ZielWs.Cells(zielRow, "B").Value = Kategorie ' Angepasste Kategorie
-                            ZielWs.Cells(zielRow, "C").Value = Gestern ' Datum von Gestern oder Freitag
-                            ZielWs.Cells(zielRow, "J").Value = wsRohdaten.Cells(j, "D").Value ' Datum
-                            ZielWs.Cells(zielRow, "K").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
+                            ZielWs.Cells(zielRow, "A").Value = "Service" ' Statischer Text
+                            ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
 
-                            ' Texte für Fragen suchen und einfügen (Spalten D10 bis F10)
-                            For headerCol = 4 To 6 ' Spalten D bis F im Zielarbeitsblatt
+                            ' Texte für Fragen suchen und einfügen (Spalten C10 bis V10)
+                            For headerCol = 3 To 22 ' Spalten C bis V im Zielarbeitsblatt
                                 SuchText = "Frage: " & ZielWs.Cells(10, headerCol).Value
 
                                 ' Überschrift in Zeile 1 von "Rohdaten" suchen
@@ -124,6 +95,9 @@ Sub ForwardingImport()
                                     Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
                                 End If
                             Next headerCol
+
+                            ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen
+                            ZielWs.Cells(zielRow, "Z").Value = wsRohdaten.Cells(j, "E").Value
 
                         End If
                     Next cell
