@@ -38,8 +38,8 @@ Sub DatenZuweisung()
                     Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
                     ' Daten übertragen
-                    ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "A").Value ' Schlüssel
-                    ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
+                    ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
+                    ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "C").Value ' Kategorie
                     ZielWs.Cells(zielRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                     ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
 
