@@ -35,8 +35,10 @@ Sub DatenZuweisung()
         On Error GoTo 0
 
         If Not ZielWs Is Nothing Then
+            Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
+
             ' Debugging: Inhalte der Spalte A auflisten
-            Debug.Print "--- Inhalte von Spalte A im Zielarbeitsblatt ---"
+            Debug.Print "--- Inhalte von Spalte A im Zielarbeitsblatt " & ZielBlattName & " ---"
             For k = 1 To ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row
                 Debug.Print "Zeile " & k & ": " & ZielWs.Cells(k, "A").Text
             Next k
@@ -55,7 +57,7 @@ Sub DatenZuweisung()
                     Dim startCell As Range, targetRow As Long
                     Set startCell = ZielWs.Columns("A").Find(What:=Trim(Kalenderwoche), LookIn:=xlFormulas, LookAt:=xlWhole)
                     If Not startCell Is Nothing Then
-                        Debug.Print "Gefundene KW-Zelle: Zeile " & startCell.Row & ", Inhalt: " & startCell.Value
+                        Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & startCell.Row & ", Inhalt: " & startCell.Value
                         targetRow = startCell.Row + 9 ' 9 Zeilen unter der gefundenen Zelle beginnen
 
                         ' Prüfen, ob die Zellen leer sind und Daten einfügen
@@ -108,7 +110,7 @@ Sub DatenZuweisung()
                         ZielWs.Cells(targetRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                         ZielWs.Cells(targetRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
                     Else
-                        Debug.Print "Kalenderwoche " & Kalenderwoche & " nicht in Zielblatt gefunden."
+                        Debug.Print "Kalenderwoche " & Kalenderwoche & " nicht in Zielblatt " & ZielBlattName & " gefunden."
                     End If
                 End If
             Next j
