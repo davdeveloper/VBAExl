@@ -14,10 +14,15 @@ Sub DatenZuweisung()
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
     lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
 
+    Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
+    Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
+
     ' Durch die Schlüssel in "Zuweisung" iterieren
     For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
         Schluessel = wsZuweisung.Cells(i, "B").Value
         ZielBlattName = wsZuweisung.Cells(i, "C").Value
+        
+        Debug.Print "Verarbeite Schlüssel: " & Schluessel & ", Zielblatt: " & ZielBlattName
         
         ' Ziel-Arbeitsblatt prüfen
         On Error Resume Next
@@ -32,6 +37,8 @@ Sub DatenZuweisung()
                     zielRow = ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row + 1
                     If zielRow < 16 Then zielRow = 16 ' Sicherstellen, dass ab Zeile 16 gestartet wird
 
+                    Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
+
                     ' Daten übertragen
                     ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "A").Value ' Schlüssel
                     ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
@@ -42,15 +49,19 @@ Sub DatenZuweisung()
                     For Each headerCol In wsRohdaten.Range("N1:BA1")
                         Set zielCol = ZielWs.Rows(12).Find(What:=headerCol.Value, LookIn:=xlValues, LookAt:=xlWhole)
                         If Not zielCol Is Nothing Then
+                            Debug.Print "Füge Wert aus Spalte " & headerCol.Column & " in Zielspalte " & zielCol.Column
                             ZielWs.Cells(zielRow, zielCol.Column).Value = wsRohdaten.Cells(j, headerCol.Column).Value
+                        Else
+                            Debug.Print "Spalte " & headerCol.Value & " nicht im Zielblatt gefunden."
                         End If
                     Next headerCol
                 End If
             Next j
         Else
-            MsgBox "Das Arbeitsblatt " & ZielBlattName & " existiert nicht.", vbExclamation
+            Debug.Print "Das Arbeitsblatt " & ZielBlattName & " existiert nicht."
         End If
     Next i
 
+    Debug.Print "Datenübertragung abgeschlossen!"
     MsgBox "Datenübertragung abgeschlossen!", vbInformation
 End Sub
