@@ -24,7 +24,7 @@ Sub ImportUndTransformierenRohdaten()
     ' Rohdaten-Datei öffnen
     Set wbQuelle = Workbooks.Open(datenDatei)
 
-    ' Setze das Arbeitsblatt für Rohdaten
+    ' Setze das Arbeitsblatt für Rohdaten und Kategorien
     Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
     Set wsKategorien = ThisWorkbook.Sheets("Kategorien")
 
@@ -46,8 +46,8 @@ Sub ImportUndTransformierenRohdaten()
     ' Kategorien in ein Dictionary laden
     Set kategorieDict = CreateObject("Scripting.Dictionary")
     Dim kategorieZeile As Long
-    kategorieZeile = wsKategorien.Cells(wsKategorien.Rows.Count, 1).End(xlUp).Row
     Dim kategorieArray As Variant
+    kategorieZeile = wsKategorien.Cells(wsKategorien.Rows.Count, 1).End(xlUp).Row
     kategorieArray = wsKategorien.Range("A1:B" & kategorieZeile).Value
 
     For i = 1 To UBound(kategorieArray, 1)
