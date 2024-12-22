@@ -4,7 +4,7 @@ Sub ServiceImport()
     Dim lastRowRoh As Long, lastRowZuweisung As Long
     Dim i As Long, j As Long, k As Long
     Dim Schluessel As String, ZielBlattName As String
-    Dim Kalenderwoche As String
+    Dim zielRow As Long
     Dim cell As Range, headerCol As Long
     Dim SuchText As String, rohCol As Long
 
@@ -38,69 +38,60 @@ Sub ServiceImport()
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
 
-                    ' Kalenderwoche berechnen
-                    Kalenderwoche = "KW " & Format(Application.WeekNum(wsRohdaten.Cells(j, "D").Value, vbMonday), "00")
+                    ' Bestimme Startzeile im Zielarbeitsblatt
+                    If ZielWs.Cells(14, "A").Value = "" Then
+                        zielRow = 14
+                    ElseIf ZielWs.Cells(130, "A").Value = "" Then
+                        zielRow = 130
+                    Else
+                        MsgBox "Arbeitsblatt " & ZielBlattName & " - maximale Aufzeichnungseinträge für Calls erreicht", vbExclamation
+                        Exit Sub
+                    End If
 
-                    ' Debugging für Kalenderwoche
-                    Debug.Print "Berechnete KW: " & Kalenderwoche
+                    Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
-                    ' Alle Zellen mit der Kalenderwoche in den ersten 500 Zeilen suchen
-                    For Each cell In ZielWs.Range("A1:A500")
-                        If Trim(cell.Value) = Kalenderwoche Then
-                            Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
-                            zielRow = cell.Row + 8 ' 8 Zeilen unter der gefundenen Zelle beginnen
+                    ' Daten übertragen
+                    ZielWs.Cells(zielRow, "A").Value = "Service" ' Statischer Text
+                    ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
 
-                            ' Prüfen, ob die Zellen leer sind und Daten einfügen
-                            Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                                zielRow = zielRow + 1
-                            Loop
+                    ' Texte für Fragen suchen und einfügen (Spalten C10 bis V10)
+                    For headerCol = 3 To 22 ' Spalten C bis V im Zielarbeitsblatt
+                        SuchText = "Frage: " & ZielWs.Cells(10, headerCol).Value
 
-                            Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
+                        ' Überschrift in Zeile 1 von "Rohdaten" suchen
+                        rohCol = 0
+                        For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
+                            If wsRohdaten.Cells(1, k).Value = SuchText Then
+                                rohCol = k
+                                Exit For
+                            End If
+                        Next k
 
-                            ' Daten übertragen
-                            ZielWs.Cells(zielRow, "A").Value = "Service" ' Statischer Text
-                            ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
+                        If rohCol > 0 Then
+                            Dim rohWert As String
+                            rohWert = wsRohdaten.Cells(j, rohCol).Value
 
-                            ' Texte für Fragen suchen und einfügen (Spalten C10 bis V10)
-                            For headerCol = 3 To 22 ' Spalten C bis V im Zielarbeitsblatt
-                                SuchText = "Frage: " & ZielWs.Cells(10, headerCol).Value
-
-                                ' Überschrift in Zeile 1 von "Rohdaten" suchen
-                                rohCol = 0
-                                For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
-                                    If wsRohdaten.Cells(1, k).Value = SuchText Then
-                                        rohCol = k
-                                        Exit For
-                                    End If
-                                Next k
-
-                                If rohCol > 0 Then
-                                    Dim rohWert As String
-                                    rohWert = wsRohdaten.Cells(j, rohCol).Value
-
-                                    ' Überschreiben der Werte
-                                    Select Case rohWert
-                                        Case "Ja"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "j"
-                                        Case "Nein"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "n"
-                                        Case "Teilweise"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "t"
-                                        Case "N/A"
-                                            ZielWs.Cells(zielRow, headerCol).Value = ""
-                                        Case Else
-                                            ZielWs.Cells(zielRow, headerCol).Value = rohWert
-                                    End Select
-                                Else
-                                    Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
-                                End If
-                            Next headerCol
-
-                            ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen
-                            ZielWs.Cells(zielRow, "Z").Value = wsRohdaten.Cells(j, "E").Value
-
+                            ' Überschreiben der Werte
+                            Select Case rohWert
+                                Case "Ja"
+                                    ZielWs.Cells(zielRow, headerCol).Value = "j"
+                                Case "Nein"
+                                    ZielWs.Cells(zielRow, headerCol).Value = "n"
+                                Case "Teilweise"
+                                    ZielWs.Cells(zielRow, headerCol).Value = "t"
+                                Case "N/A"
+                                    ZielWs.Cells(zielRow, headerCol).Value = ""
+                                Case Else
+                                    ZielWs.Cells(zielRow, headerCol).Value = rohWert
+                            End Select
+                        Else
+                            Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
                         End If
-                    Next cell
+                    Next headerCol
+
+                    ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen
+                    ZielWs.Cells(zielRow, "Z").Value = wsRohdaten.Cells(j, "E").Value
+
                 End If
             Next j
         Else
