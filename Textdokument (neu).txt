@@ -1,29 +1,33 @@
 Sub DatenZuweisung()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
     Dim ZielWs As Worksheet
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, zielRow As Long
-    Dim i As Long, j As Long
+    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
+    Dim i As Long, j As Long, k As Long
     Dim Schluessel As String, ZielBlattName As String
     Dim Datum As Date, Gestern As Date
+    Dim Kategorie As String
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
-    
-    ' Letzte Zeile in "Rohdaten" und "Zuweisung" finden
+    Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
+
+    ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
     lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
+    lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
 
     Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
+    Debug.Print "Letzte Zeile in Kategorien: " & lastRowKategorien
 
     ' Durch die Schlüssel in "Zuweisung" iterieren
     For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
         Schluessel = wsZuweisung.Cells(i, "B").Value
         ZielBlattName = wsZuweisung.Cells(i, "C").Value
-        
+
         Debug.Print "Verarbeite Schlüssel: " & Schluessel & ", Zielblatt: " & ZielBlattName
-        
+
         ' Ziel-Arbeitsblatt prüfen
         On Error Resume Next
         Set ZielWs = ThisWorkbook.Worksheets(ZielBlattName)
@@ -46,9 +50,19 @@ Sub DatenZuweisung()
                         Gestern = Datum - 1 ' Normaler Vortag
                     End If
 
+                    ' Kategorie aus "Kategorien" suchen
+                    Kategorie = wsRohdaten.Cells(j, "C").Value
+                    For k = 2 To lastRowKategorien
+                        If wsKategorien.Cells(k, "A").Value = Kategorie Then
+                            Kategorie = wsKategorien.Cells(k, "B").Value
+                            Exit For
+                        End If
+                    Next k
+
                     ' Daten übertragen
                     ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
                     ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "C").Value ' Kategorie
+                    ZielWs.Cells(zielRow, "C").Value = Kategorie ' Angepasste Kategorie aus "Kategorien"
                     ZielWs.Cells(zielRow, "U").Value = Gestern ' Datum von Gestern oder Freitag
                     ZielWs.Cells(zielRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                     ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
