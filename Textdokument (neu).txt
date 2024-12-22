@@ -29,13 +29,12 @@ Sub DatenZuweisung()
         On Error GoTo 0
 
         If Not ZielWs Is Nothing Then
+            ' Starte ab Zeile 16
+            zielRow = 16
+
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
-                    ' Letzte Zeile im Ziel-Arbeitsblatt finden
-                    zielRow = ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row + 1
-                    If zielRow < 16 Then zielRow = 16 ' Sicherstellen, dass ab Zeile 16 gestartet wird
-
                     Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
                     ' Daten übertragen
@@ -43,6 +42,8 @@ Sub DatenZuweisung()
                     ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
                     ZielWs.Cells(zielRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                     ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
+
+                    zielRow = zielRow + 1 ' Nächste Zeile vorbereiten
                 End If
             Next j
         Else
