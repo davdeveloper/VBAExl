@@ -4,7 +4,8 @@ Sub DatenZuweisung()
     Dim lastRowRoh As Long, lastRowZuweisung As Long, zielRow As Long
     Dim i As Long, j As Long
     Dim Schluessel As String, ZielBlattName As String
-    
+    Dim Datum As Date, Gestern As Date
+
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
@@ -37,9 +38,18 @@ Sub DatenZuweisung()
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
                     Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
+                    ' Berechne Gestern oder letzten Freitag
+                    Datum = wsRohdaten.Cells(j, "D").Value
+                    If Weekday(Datum - 1, vbMonday) = 7 Then ' Wenn Sonntag
+                        Gestern = Datum - 2 ' Letzter Freitag
+                    Else
+                        Gestern = Datum - 1 ' Normaler Vortag
+                    End If
+
                     ' Daten übertragen
                     ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
                     ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "C").Value ' Kategorie
+                    ZielWs.Cells(zielRow, "U").Value = Gestern ' Datum von Gestern oder Freitag
                     ZielWs.Cells(zielRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                     ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
 
