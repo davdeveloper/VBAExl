@@ -13,11 +13,15 @@ Sub DatenZuweisung()
 
     ' Arbeitsblätter definieren
     Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
+    Debug.Print "Arbeitsblatt Rohdaten gesetzt"
     Set wsZuweisung = ThisWorkbook.Sheets("Zuweisung")
+    Debug.Print "Arbeitsblatt Zuweisung gesetzt"
 
     ' Letzte Zeile in den Arbeitsblättern finden
     letzteZeileRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, 1).End(xlUp).Row
+    Debug.Print "Letzte Zeile in Rohdaten: " & letzteZeileRoh
     letzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 1).End(xlUp).Row
+    Debug.Print "Letzte Zeile in Zuweisung: " & letzteZeileZuweisung
 
     ' Durch die Zeilen der Rohdaten iterieren
     For i = 2 To letzteZeileRoh ' Annahme: Header in Zeile 1
@@ -27,24 +31,37 @@ Sub DatenZuweisung()
         Datum = wsRohdaten.Cells(i, 4).Value
         Wert = wsRohdaten.Cells(i, 5).Value
 
+        Debug.Print "Verarbeite Zeile " & i & ": Schlüssel=" & Schluessel
+
         ' Nach Schlüssel im Arbeitsblatt "Zuweisung" suchen
         For j = 2 To letzteZeileZuweisung
+            Debug.Print "Prüfe Schlüssel in Zuweisung Zeile " & j
             If wsZuweisung.Cells(j, 2).Value = Schluessel Then
                 ZielName = wsZuweisung.Cells(j, 3).Value
+                Debug.Print "Schlüssel gefunden: Zielblatt=" & ZielName
 
                 ' Ziel-Arbeitsblatt überprüfen und Daten einfügen
                 On Error Resume Next
                 Set ZielBlatt = ThisWorkbook.Sheets(ZielName)
+                If Err.Number <> 0 Then
+                    Debug.Print "Fehler: Zielblatt " & ZielName & " existiert nicht."
+                    Err.Clear
+                    On Error GoTo 0
+                    Exit For
+                End If
                 On Error GoTo 0
 
                 If Not ZielBlatt Is Nothing Then
                     Dim letzteZeileZiel As Long
                     letzteZeileZiel = ZielBlatt.Cells(ZielBlatt.Rows.Count, 1).End(xlUp).Row + 1
+                    Debug.Print "Letzte Zeile im Zielblatt " & ZielName & ": " & letzteZeileZiel
 
                     ZielBlatt.Cells(letzteZeileZiel, 1).Value = Vorgangsnummer
                     ZielBlatt.Cells(letzteZeileZiel, 2).Value = Kategorie
                     ZielBlatt.Cells(letzteZeileZiel, 3).Value = Datum
                     ZielBlatt.Cells(letzteZeileZiel, 4).Value = Wert
+
+                    Debug.Print "Daten eingefügt in " & ZielName & " (Zeile " & letzteZeileZiel & ")"
                 End If
 
                 ' Zielblatt-Referenz zurücksetzen
@@ -57,4 +74,5 @@ Sub DatenZuweisung()
     Next i
 
     MsgBox "Datenzuweisung abgeschlossen!", vbInformation
+    Debug.Print "Datenzuweisung abgeschlossen!"
 End Sub
