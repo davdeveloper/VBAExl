@@ -42,9 +42,9 @@ Sub DatenZuweisung()
                     Datum = wsRohdaten.Cells(j, "D").Value
                     Kalenderwoche = "KW " & Format(Application.WeekNum(Datum, vbMonday), "00")
 
-                    ' Zielzelle für Kalenderwoche finden
+                    ' Zielzelle für Kalenderwoche finden (nur exakt "KW xx", auch wenn es aus einer Formel kommt)
                     Dim startCell As Range, targetRow As Long
-                    Set startCell = ZielWs.Rows(1).Find(What:=Kalenderwoche, LookIn:=xlValues, LookAt:=xlWhole)
+                    Set startCell = ZielWs.Rows(1).Find(What:=Kalenderwoche, LookIn:=xlFormulas, LookAt:=xlWhole)
                     If Not startCell Is Nothing Then
                         targetRow = startCell.Row + 9 ' 9 Zeilen unter der gefundenen Zelle beginnen
 
