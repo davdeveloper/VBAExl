@@ -53,7 +53,7 @@ Sub DatenZuweisung()
 
                 If Not ZielBlatt Is Nothing Then
                     Dim letzteZeileZiel As Long
-                    letzteZeileZiel = ZielBlatt.Cells(ZielBlatt.Rows.Count, 1).End(xlUp).Row + 1
+                    letzteZeileZiel = Application.Max(16, ZielBlatt.Cells(ZielBlatt.Rows.Count, 1).End(xlUp).Row + 1)
                     Debug.Print "Letzte Zeile im Zielblatt " & ZielName & ": " & letzteZeileZiel
 
                     ZielBlatt.Cells(letzteZeileZiel, 1).Value = Vorgangsnummer
