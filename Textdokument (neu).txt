@@ -110,6 +110,12 @@ Sub DatenZuweisung()
         End If
     Next i
 
+    ' Löschen aller Zeilen bis auf Zeile 1 in "Rohdaten"
+    If lastRowRoh > 1 Then
+        wsRohdaten.Rows("2:" & lastRowRoh).Delete
+        Debug.Print "Alle Zeilen außer Zeile 1 in Rohdaten gelöscht."
+    End If
+
     Debug.Print "Datenübertragung abgeschlossen!"
     MsgBox "Datenübertragung abgeschlossen!", vbInformation
 End Sub
