@@ -7,7 +7,8 @@ Sub ForwardingImport()
     Dim Datum As Date, Gestern As Variant
     Dim Kategorie As String
     Dim Kalenderwoche As String
-    Dim cell As Range
+    Dim cell As Range, headerCol As Long
+    Dim SuchText As String, rohCol As Long
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
@@ -73,7 +74,7 @@ Sub ForwardingImport()
                     For Each cell In ZielWs.Range("A1:A500")
                         If Trim(cell.Value) = Kalenderwoche Then
                             Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
-                            zielRow = cell.Row + 9 ' 9 Zeilen unter der gefundenen Zelle beginnen
+                            zielRow = cell.Row + 7 ' 7 Zeilen unter der gefundenen Zelle beginnen
 
                             ' Prüfen, ob die Zellen leer sind und Daten einfügen
                             Do While ZielWs.Cells(zielRow, "A").Value <> ""
@@ -88,6 +89,42 @@ Sub ForwardingImport()
                             ZielWs.Cells(zielRow, "C").Value = Gestern ' Datum von Gestern oder Freitag
                             ZielWs.Cells(zielRow, "J").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                             ZielWs.Cells(zielRow, "K").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
+
+                            ' Texte für Fragen suchen und einfügen (Spalten D10 bis F10)
+                            For headerCol = 4 To 6 ' Spalten D bis F im Zielarbeitsblatt
+                                SuchText = "Frage: " & ZielWs.Cells(10, headerCol).Value
+
+                                ' Überschrift in Zeile 1 von "Rohdaten" suchen
+                                rohCol = 0
+                                For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
+                                    If wsRohdaten.Cells(1, k).Value = SuchText Then
+                                        rohCol = k
+                                        Exit For
+                                    End If
+                                Next k
+
+                                If rohCol > 0 Then
+                                    Dim rohWert As String
+                                    rohWert = wsRohdaten.Cells(j, rohCol).Value
+
+                                    ' Überschreiben der Werte
+                                    Select Case rohWert
+                                        Case "Ja"
+                                            ZielWs.Cells(zielRow, headerCol).Value = "j"
+                                        Case "Nein"
+                                            ZielWs.Cells(zielRow, headerCol).Value = "n"
+                                        Case "Teilweise"
+                                            ZielWs.Cells(zielRow, headerCol).Value = "t"
+                                        Case "N/A"
+                                            ZielWs.Cells(zielRow, headerCol).Value = ""
+                                        Case Else
+                                            ZielWs.Cells(zielRow, headerCol).Value = rohWert
+                                    End Select
+                                Else
+                                    Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
+                                End If
+                            Next headerCol
+
                         End If
                     Next cell
                 End If
