@@ -37,8 +37,8 @@ Sub DatenZuweisung()
             ' Starte ab Zeile 16
             zielRow = 16
 
-            ' Text aus C12 im Zielarbeitsblatt für Überschriftensuche
-            SuchText = ZielWs.Cells(12, "C").Value
+            ' Text aus C12 im Zielarbeitsblatt für Überschriftensuche, ergänzt mit "Frage: "
+            SuchText = "Frage: " & ZielWs.Cells(12, "C").Value
 
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
