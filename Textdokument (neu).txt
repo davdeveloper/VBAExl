@@ -1,76 +1,56 @@
 Sub DatenZuweisung()
-    Dim wsRohdaten As Worksheet
-    Dim wsZuweisung As Worksheet
-    Dim ZielBlatt As Worksheet
-    Dim letzteZeileRoh As Long, letzteZeileZuweisung As Long
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet
+    Dim ZielWs As Worksheet
+    Dim lastRowRoh As Long, lastRowZuweisung As Long, zielRow As Long
     Dim i As Long, j As Long
-    Dim Schluessel As String
-    Dim ZielName As String
-    Dim Vorgangsnummer As String
-    Dim Kategorie As String
-    Dim Datum As String
-    Dim Wert As String
+    Dim Schluessel As String, ZielBlattName As String
+    Dim headerCol As Range, zielCol As Range
+    
+    ' Arbeitsblätter zuweisen
+    Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
+    Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
+    
+    ' Letzte Zeile in "Rohdaten" und "Zuweisung" finden
+    lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
+    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
 
-    ' Arbeitsblätter definieren
-    Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
-    Debug.Print "Arbeitsblatt Rohdaten gesetzt"
-    Set wsZuweisung = ThisWorkbook.Sheets("Zuweisung")
-    Debug.Print "Arbeitsblatt Zuweisung gesetzt"
+    ' Durch die Schlüssel in "Zuweisung" iterieren
+    For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
+        Schluessel = wsZuweisung.Cells(i, "B").Value
+        ZielBlattName = wsZuweisung.Cells(i, "C").Value
+        
+        ' Ziel-Arbeitsblatt prüfen
+        On Error Resume Next
+        Set ZielWs = ThisWorkbook.Worksheets(ZielBlattName)
+        On Error GoTo 0
 
-    ' Letzte Zeile in den Arbeitsblättern finden
-    letzteZeileRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, 1).End(xlUp).Row
-    Debug.Print "Letzte Zeile in Rohdaten: " & letzteZeileRoh
-    letzteZeileZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, 1).End(xlUp).Row
-    Debug.Print "Letzte Zeile in Zuweisung: " & letzteZeileZuweisung
+        If Not ZielWs Is Nothing Then
+            ' Daten aus "Rohdaten" finden
+            For j = 2 To lastRowRoh
+                If wsRohdaten.Cells(j, "A").Value = Schluessel Then
+                    ' Letzte Zeile im Ziel-Arbeitsblatt finden
+                    zielRow = ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row + 1
+                    If zielRow < 16 Then zielRow = 16 ' Sicherstellen, dass ab Zeile 16 gestartet wird
 
-    ' Durch die Zeilen der Rohdaten iterieren
-    For i = 2 To letzteZeileRoh ' Annahme: Header in Zeile 1
-        Schluessel = wsRohdaten.Cells(i, 1).Value
-        Vorgangsnummer = wsRohdaten.Cells(i, 2).Value
-        Kategorie = wsRohdaten.Cells(i, 3).Value
-        Datum = wsRohdaten.Cells(i, 4).Value
-        Wert = wsRohdaten.Cells(i, 5).Value
+                    ' Daten übertragen
+                    ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "A").Value ' Schlüssel
+                    ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
+                    ZielWs.Cells(zielRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
+                    ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
 
-        Debug.Print "Verarbeite Zeile " & i & ": Schlüssel=" & Schluessel
-
-        ' Nach Schlüssel im Arbeitsblatt "Zuweisung" suchen
-        For j = 2 To letzteZeileZuweisung
-            Debug.Print "Prüfe Schlüssel in Zuweisung Zeile " & j
-            If wsZuweisung.Cells(j, 2).Value = Schluessel Then
-                ZielName = wsZuweisung.Cells(j, 3).Value
-                Debug.Print "Schlüssel gefunden: Zielblatt=" & ZielName
-
-                ' Ziel-Arbeitsblatt überprüfen und Daten einfügen
-                On Error Resume Next
-                Set ZielBlatt = ThisWorkbook.Sheets(ZielName)
-                If Err.Number <> 0 Then
-                    Debug.Print "Fehler: Zielblatt " & ZielName & " existiert nicht."
-                    Err.Clear
-                    On Error GoTo 0
-                    Exit For
+                    ' Dynamische Spaltenzuweisung von N bis BA
+                    For Each headerCol In wsRohdaten.Range("N1:BA1")
+                        Set zielCol = ZielWs.Rows(12).Find(What:=headerCol.Value, LookIn:=xlValues, LookAt:=xlWhole)
+                        If Not zielCol Is Nothing Then
+                            ZielWs.Cells(zielRow, zielCol.Column).Value = wsRohdaten.Cells(j, headerCol.Column).Value
+                        End If
+                    Next headerCol
                 End If
-                On Error GoTo 0
-
-                If Not ZielBlatt Is Nothing Then
-                    Debug.Print "Daten werden ab Zeile 16 eingefügt in Zielblatt " & ZielName
-
-                    ZielBlatt.Cells(16, 1).Value = Vorgangsnummer
-                    ZielBlatt.Cells(16, 2).Value = Kategorie
-                    ZielBlatt.Cells(16, 3).Value = Datum
-                    ZielBlatt.Cells(16, 4).Value = Wert
-
-                    Debug.Print "Daten eingefügt in " & ZielName & " (ab Zeile 16)"
-                End If
-
-                ' Zielblatt-Referenz zurücksetzen
-                Set ZielBlatt = Nothing
-
-                ' Schlüssel gefunden, nächste Zeile
-                Exit For
-            End If
-        Next j
+            Next j
+        Else
+            MsgBox "Das Arbeitsblatt " & ZielBlattName & " existiert nicht.", vbExclamation
+        End If
     Next i
 
-    MsgBox "Datenzuweisung abgeschlossen!", vbInformation
-    Debug.Print "Datenzuweisung abgeschlossen!"
+    MsgBox "Datenübertragung abgeschlossen!", vbInformation
 End Sub
