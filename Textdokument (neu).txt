@@ -35,6 +35,12 @@ Sub DatenZuweisung()
         On Error GoTo 0
 
         If Not ZielWs Is Nothing Then
+            ' Debugging: Inhalte der Spalte A auflisten
+            Debug.Print "--- Inhalte von Spalte A im Zielarbeitsblatt ---"
+            For k = 1 To ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row
+                Debug.Print "Zeile " & k & ": " & ZielWs.Cells(k, "A").Text
+            Next k
+
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
