@@ -74,7 +74,22 @@ Sub DatenZuweisung()
                         Next k
 
                         If rohCol > 0 Then
-                            ZielWs.Cells(zielRow, headerCol).Value = wsRohdaten.Cells(j, rohCol).Value ' Wert aus der gefundenen Spalte
+                            Dim rohWert As String
+                            rohWert = wsRohdaten.Cells(j, rohCol).Value
+
+                            ' Überschreiben der Werte
+                            Select Case rohWert
+                                Case "Ja"
+                                    ZielWs.Cells(zielRow, headerCol).Value = "j"
+                                Case "Nein"
+                                    ZielWs.Cells(zielRow, headerCol).Value = "n"
+                                Case "Teilweise"
+                                    ZielWs.Cells(zielRow, headerCol).Value = "t"
+                                Case "N/A"
+                                    ZielWs.Cells(zielRow, headerCol).Value = ""
+                                Case Else
+                                    ZielWs.Cells(zielRow, headerCol).Value = rohWert
+                            End Select
                         Else
                             Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
                         End If
