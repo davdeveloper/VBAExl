@@ -8,7 +8,7 @@ Sub ForwardingImport()
     Dim Kategorie As String
     Dim Kalenderwoche As String
     Dim cell As Range, headerCol As Long
-    Dim SuchText As String, rohCol As Long
+    Dim SuchText As String, rohCol As Long, nextCol As Long
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
@@ -106,6 +106,15 @@ Sub ForwardingImport()
                                 If rohCol > 0 Then
                                     Dim rohWert As String
                                     rohWert = wsRohdaten.Cells(j, rohCol).Value
+
+                                    ' Wenn kein Wert in der ersten gefundenen Spalte vorhanden ist, weitere Spalten durchsuchen
+                                    nextCol = rohCol + 1
+                                    While rohWert = "" And nextCol <= wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
+                                        If wsRohdaten.Cells(1, nextCol).Value = SuchText Then
+                                            rohWert = wsRohdaten.Cells(j, nextCol).Value
+                                        End If
+                                        nextCol = nextCol + 1
+                                    Wend
 
                                     ' Überschreiben der Werte
                                     Select Case rohWert
