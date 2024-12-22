@@ -4,7 +4,7 @@ Sub DatenZuweisung()
     Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
     Dim i As Long, j As Long, k As Long, headerCol As Long
     Dim Schluessel As String, ZielBlattName As String
-    Dim Datum As Date, Gestern As Date
+    Dim Datum As Date, Gestern As Variant
     Dim Kategorie As String, SuchText As String
     Dim Kalenderwoche As String
     Dim cell As Range
@@ -43,6 +43,19 @@ Sub DatenZuweisung()
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
                     ' Kalenderwoche berechnen
                     Datum = wsRohdaten.Cells(j, "D").Value
+
+                    ' Berechne Gestern oder letzten Freitag
+                    If Datum <> 0 Then ' Sicherstellen, dass Datum gültig ist
+                        If Weekday(Datum - 1, vbMonday) = 7 Then ' Wenn Sonntag
+                            Gestern = Datum - 2 ' Letzter Freitag
+                        Else
+                            Gestern = Datum - 1 ' Normaler Vortag
+                        End If
+                    Else
+                        Debug.Print "Ungültiges Datum in Rohdaten: Zeile " & j
+                        Gestern = "" ' Leerer Wert für ungültiges Datum
+                    End If
+
                     Kalenderwoche = "KW " & Format(Application.WeekNum(Datum, vbMonday), "00")
 
                     ' Debugging für Kalenderwoche
