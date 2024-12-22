@@ -61,8 +61,7 @@ Sub DatenZuweisung()
 
                     ' Daten übertragen
                     ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
-                    ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "C").Value ' Kategorie
-                    ZielWs.Cells(zielRow, "C").Value = Kategorie ' Angepasste Kategorie aus "Kategorien"
+                    ZielWs.Cells(zielRow, "B").Value = Kategorie ' Angepasste Kategorie aus "Kategorien"
                     ZielWs.Cells(zielRow, "U").Value = Gestern ' Datum von Gestern oder Freitag
                     ZielWs.Cells(zielRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                     ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
