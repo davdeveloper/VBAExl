@@ -4,7 +4,6 @@ Sub DatenZuweisung()
     Dim lastRowRoh As Long, lastRowZuweisung As Long, zielRow As Long
     Dim i As Long, j As Long
     Dim Schluessel As String, ZielBlattName As String
-    Dim headerCol As Range, zielCol As Range
     
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
@@ -44,17 +43,6 @@ Sub DatenZuweisung()
                     ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
                     ZielWs.Cells(zielRow, "V").Value = wsRohdaten.Cells(j, "D").Value ' Datum
                     ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "E").Value ' Bemerkung
-
-                    ' Dynamische Spaltenzuweisung von N bis BA
-                    For Each headerCol In wsRohdaten.Range("N1:BA1")
-                        Set zielCol = ZielWs.Rows(12).Find(What:=headerCol.Value, LookIn:=xlValues, LookAt:=xlWhole)
-                        If Not zielCol Is Nothing Then
-                            Debug.Print "Füge Wert aus Spalte " & headerCol.Column & " in Zielspalte " & zielCol.Column
-                            ZielWs.Cells(zielRow, zielCol.Column).Value = wsRohdaten.Cells(j, headerCol.Column).Value
-                        Else
-                            Debug.Print "Spalte " & headerCol.Value & " nicht im Zielblatt gefunden."
-                        End If
-                    Next headerCol
                 End If
             Next j
         Else
