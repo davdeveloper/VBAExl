@@ -34,19 +34,28 @@ Sub ServiceImport()
         If Not ZielWs Is Nothing Then
             Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
 
+            ' Überprüfen, ob Zeile 14 leer ist, andernfalls ab Zeile 130 beginnen
+            If ZielWs.Cells(14, "A").Value = "" Then
+                zielRow = 14
+            ElseIf ZielWs.Cells(130, "A").Value = "" Then
+                zielRow = 130
+            Else
+                MsgBox "Arbeitsblatt " & ZielBlattName & " - maximale Aufzeichnungseinträge für Calls erreicht", vbExclamation
+                Exit Sub
+            End If
+
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
 
-                    ' Bestimme Startzeile im Zielarbeitsblatt
-                    If ZielWs.Cells(14, "A").Value = "" Then
-                        zielRow = 14
-                    ElseIf ZielWs.Cells(130, "A").Value = "" Then
-                        zielRow = 130
-                    Else
-                        MsgBox "Arbeitsblatt " & ZielBlattName & " - maximale Aufzeichnungseinträge für Calls erreicht", vbExclamation
-                        Exit Sub
-                    End If
+                    ' Bestimme die nächste freie Zeile ab dem Startpunkt
+                    Do While ZielWs.Cells(zielRow, "A").Value <> ""
+                        zielRow = zielRow + 1
+                        If zielRow >= 130 And ZielWs.Cells(130, "A").Value <> "" Then
+                            MsgBox "Arbeitsblatt " & ZielBlattName & " - maximale Aufzeichnungseinträge für Calls erreicht", vbExclamation
+                            Exit Sub
+                        End If
+                    Loop
 
                     Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
