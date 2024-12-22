@@ -37,9 +37,9 @@ Sub DatenZuweisung()
         If Not ZielWs Is Nothing Then
             Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
 
-            ' Debugging: Inhalte der Spalte A auflisten
-            Debug.Print "--- Inhalte von Spalte A im Zielarbeitsblatt " & ZielBlattName & " ---"
-            For k = 1 To ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row
+            ' Debugging: Inhalte der ersten 500 Zeilen der Spalte A auflisten
+            Debug.Print "--- Inhalte von Spalte A (Zeilen 1-500) im Zielarbeitsblatt " & ZielBlattName & " ---"
+            For k = 1 To 500
                 Debug.Print "Zeile " & k & ": " & ZielWs.Cells(k, "A").Text
             Next k
 
@@ -53,9 +53,9 @@ Sub DatenZuweisung()
                     ' Debugging für Kalenderwoche
                     Debug.Print "Berechnete KW: " & Kalenderwoche
 
-                    ' Zielzelle für Kalenderwoche finden (nur exakt "KW xx" in Spalte A, einschließlich Formeln)
+                    ' Zielzelle für Kalenderwoche finden (nur exakt "KW xx" in Spalte A, in den ersten 500 Zeilen)
                     Dim startCell As Range, targetRow As Long
-                    Set startCell = ZielWs.Columns("A").Find(What:=Trim(Kalenderwoche), LookIn:=xlFormulas, LookAt:=xlWhole)
+                    Set startCell = ZielWs.Range("A1:A500").Find(What:=Trim(Kalenderwoche), LookIn:=xlFormulas, LookAt:=xlWhole)
                     If Not startCell Is Nothing Then
                         Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & startCell.Row & ", Inhalt: " & startCell.Value
                         targetRow = startCell.Row + 9 ' 9 Zeilen unter der gefundenen Zelle beginnen
