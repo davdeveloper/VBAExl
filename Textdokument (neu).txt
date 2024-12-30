@@ -8,6 +8,7 @@ Sub ServiceImport()
     Dim cell As Range, headerCol As Long
     Dim SuchText As String, rohCol As Long
     Dim Kategorie As String
+    Dim spalteAValue As String
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
@@ -36,6 +37,20 @@ Sub ServiceImport()
 
         If Not ZielWs Is Nothing Then
             Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
+
+            ' Festlegen, was in Spalte A eingefügt wird, basierend auf dem Arbeitsblattnamen
+            Select Case ZielBlattName
+                Case "Filiale Calls"
+                    spalteAValue = "Filiale"
+                Case "Lidl Plus Calls"
+                    spalteAValue = "Lidl Plus"
+                Case "eCom Calls"
+                    spalteAValue = "Onlineshop"
+                Case "Produkt Calls"
+                    spalteAValue = "Produkt"
+                Case Else
+                    spalteAValue = "Service"
+            End Select
 
             ' Überprüfen, ob Zeile 14 leer ist, andernfalls nach "2. Aufzeichnung" suchen
             If ZielWs.Cells(14, "A").Value = "" Then
@@ -70,7 +85,7 @@ Sub ServiceImport()
                     Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
                     ' Kategorie aus "Kategorien" suchen
-                     Kategorie = wsRohdaten.Cells(j, "C").Value
+                    Kategorie = wsRohdaten.Cells(j, "C").Value
                     For k = 2 To lastRowKategorien
                         If wsKategorien.Cells(k, "A").Value = Kategorie Then
                             Kategorie = wsKategorien.Cells(k, "B").Value
@@ -79,7 +94,7 @@ Sub ServiceImport()
                     Next k
 
                     ' Daten übertragen
-                    ZielWs.Cells(zielRow, "A").Value = "Service" ' Statischer Text
+                    ZielWs.Cells(zielRow, "A").Value = spalteAValue ' Dynamischer Text basierend auf dem Arbeitsblattnamen
                     ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
                     ZielWs.Cells(zielRow, "C").Value = Kategorie ' Übersetzte Kategorie
 
