@@ -1,20 +1,23 @@
 Sub ServiceImport()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
     Dim ZielWs As Worksheet
-    Dim lastRowRoh As Long, lastRowZuweisung As Long
+    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long
     Dim i As Long, j As Long, k As Long
     Dim Schluessel As String, ZielBlattName As String
     Dim zielRow As Long
     Dim cell As Range, headerCol As Long
     Dim SuchText As String, rohCol As Long
+    Dim Kategorie As String
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
+    Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
 
-    ' Letzte Zeile in "Rohdaten" und "Zuweisung" finden
+    ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
     lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "L").End(xlUp).Row
+    lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
 
     Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
@@ -34,14 +37,25 @@ Sub ServiceImport()
         If Not ZielWs Is Nothing Then
             Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
 
-            ' Überprüfen, ob Zeile 14 leer ist, andernfalls ab Zeile 130 beginnen
+            ' Überprüfen, ob Zeile 14 leer ist, andernfalls nach "2. Aufzeichnung" suchen
             If ZielWs.Cells(14, "A").Value = "" Then
-                zielRow = 14
-            ElseIf ZielWs.Cells(130, "A").Value = "" Then
-                zielRow = 130
+                zielRow = 14 ' Wenn Zeile 14 leer ist, ab hier beginnen
             Else
-                MsgBox "Arbeitsblatt " & ZielBlattName & " - maximale Aufzeichnungseinträge für Calls erreicht", vbExclamation
-                Exit Sub
+                ' Alternative Methode: Suche nach "2. Aufzeichnung" in Spalte K
+                Dim aufzeichnungRow As Range
+                For Each cell In ZielWs.Columns("K").Cells
+                    If Trim(cell.Value) = "2. Aufzeichnung" Then
+                        Set aufzeichnungRow = cell
+                        Exit For
+                    End If
+                Next cell
+
+                If Not aufzeichnungRow Is Nothing Then
+                    zielRow = aufzeichnungRow.Row + 4 ' 4 Zeilen unter "2. Aufzeichnung"
+                Else
+                    MsgBox "2. Aufzeichnung in Spalte K nicht gefunden. Daten können nicht eingefügt werden.", vbExclamation
+                    Exit Sub
+                End If
             End If
 
             ' Daten aus "Rohdaten" finden
@@ -51,17 +65,23 @@ Sub ServiceImport()
                     ' Bestimme die nächste freie Zeile ab dem Startpunkt
                     Do While ZielWs.Cells(zielRow, "A").Value <> ""
                         zielRow = zielRow + 1
-                        If zielRow >= 130 And ZielWs.Cells(130, "A").Value <> "" Then
-                            MsgBox "Arbeitsblatt " & ZielBlattName & " - maximale Aufzeichnungseinträge für Calls erreicht", vbExclamation
-                            Exit Sub
-                        End If
                     Loop
 
                     Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
+                    ' Kategorie aus "Kategorien" suchen
+                     Kategorie = wsRohdaten.Cells(j, "C").Value
+                    For k = 2 To lastRowKategorien
+                        If wsKategorien.Cells(k, "A").Value = Kategorie Then
+                            Kategorie = wsKategorien.Cells(k, "B").Value
+                            Exit For
+                        End If
+                    Next k
+
                     ' Daten übertragen
                     ZielWs.Cells(zielRow, "A").Value = "Service" ' Statischer Text
                     ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
+                    ZielWs.Cells(zielRow, "C").Value = Kategorie ' Übersetzte Kategorie
 
                     ' Texte für Fragen suchen und einfügen (Spalten C10 bis V10)
                     For headerCol = 3 To 22 ' Spalten C bis V im Zielarbeitsblatt
@@ -98,8 +118,8 @@ Sub ServiceImport()
                         End If
                     Next headerCol
 
-                    ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen
-                    ZielWs.Cells(zielRow, "Z").Value = wsRohdaten.Cells(j, "E").Value
+                    ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen (im Format TT.MM.)
+                    ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.")
 
                 End If
             Next j
@@ -107,6 +127,9 @@ Sub ServiceImport()
             Debug.Print "Das Arbeitsblatt " & ZielBlattName & " existiert nicht."
         End If
     Next i
+
+    ' Lösche alle Zeilen außer der ersten in "Rohdaten"
+    wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).ClearContents
 
     Debug.Print "Datenübertragung abgeschlossen!"
     MsgBox "Datenübertragung abgeschlossen!", vbInformation
