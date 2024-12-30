@@ -24,6 +24,9 @@ Sub ServiceImport()
     Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
 
+    ' Abfrage: 1. Aufzeichnung oder 2. Aufzeichnung? (Nur einmal)
+    response = MsgBox("Bitte wählen Sie die Aufzeichnung:", vbYesNo + vbQuestion + vbDefaultButton1, "1. Aufzeichnung = Ja, 2. Aufzeichnung = Nein")
+
     ' Durch die Schlüssel in "Zuweisung" iterieren
     For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
         Schluessel = wsZuweisung.Cells(i, "L").Value
@@ -53,15 +56,13 @@ Sub ServiceImport()
                     spalteAValue = "Service"
             End Select
 
-            ' Abfrage: 1. Aufzeichnung oder 2. Aufzeichnung? (Nur einmal)
-            If i = 2 Then
-                response = MsgBox("Bitte wählen Sie die Aufzeichnung:", vbYesNo + vbQuestion + vbDefaultButton1, "1. Aufzeichnung = Ja, 2. Aufzeichnung = Nein")
-            End If
-
+            ' Zielzeile bestimmen
             If response = vbYes Then
-                ' 1. Aufzeichnung: Ab Zeile 14 einfügen, aber prüfe auf nächste freie Zeile
-                zielRow = ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row + 1
-                If zielRow < 14 Then zielRow = 14
+                ' 1. Aufzeichnung: Ab Zeile 14 die nächste freie Zeile finden
+                zielRow = 14
+                Do While ZielWs.Cells(zielRow, "A").Value <> ""
+                    zielRow = zielRow + 1
+                Loop
             Else
                 ' 2. Aufzeichnung: Suche nach "2. Aufzeichnung" in Spalte S und 7 Zeilen darunter starten
                 Dim aufzeichnungRow As Range
