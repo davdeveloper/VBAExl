@@ -53,8 +53,10 @@ Sub ServiceImport()
                     spalteAValue = "Service"
             End Select
 
-            ' Abfrage: 1. Aufzeichnung oder 2. Aufzeichnung?
-            response = MsgBox("Bitte wählen Sie die Aufzeichnung:", vbYesNo + vbQuestion + vbDefaultButton1, "1. Aufzeichnung = Ja, 2. Aufzeichnung = Nein")
+            ' Abfrage: 1. Aufzeichnung oder 2. Aufzeichnung? (Nur einmal)
+            If i = 2 Then
+                response = MsgBox("Bitte wählen Sie die Aufzeichnung:", vbYesNo + vbQuestion + vbDefaultButton1, "1. Aufzeichnung = Ja, 2. Aufzeichnung = Nein")
+            End If
 
             If response = vbYes Then
                 ' 1. Aufzeichnung: Ab Zeile 14 einfügen, aber prüfe auf nächste freie Zeile
