@@ -9,6 +9,7 @@ Sub ServiceImport()
     Dim SuchText As String, rohCol As Long
     Dim Kategorie As String
     Dim spalteAValue As String
+    Dim response As VbMsgBoxResult
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
@@ -52,13 +53,20 @@ Sub ServiceImport()
                     spalteAValue = "Service"
             End Select
 
-            ' Überprüfen, ob Zeile 14 leer ist, andernfalls nach "2. Aufzeichnung" suchen
-            If ZielWs.Cells(14, "A").Value = "" Then
-                zielRow = 14 ' Wenn Zeile 14 leer ist, ab hier beginnen
+            ' Abfrage: 1. Aufzeichnung oder 2. Aufzeichnung?
+            response = MsgBox("Bitte wählen Sie die Aufzeichnung:", vbYesNo + vbQuestion + vbDefaultButton1, "1. Aufzeichnung = Ja, 2. Aufzeichnung = Nein")
+
+            If response = vbYes Then
+                ' 1. Aufzeichnung: Ab Zeile 14 einfügen, aber prüfe auf nächste freie Zeile
+                zielRow = 14
+                Do While ZielWs.Cells(zielRow, "A").Value <> ""
+                    zielRow = zielRow + 1
+                Loop
             Else
-                ' Alternative Methode: Suche nach "2. Aufzeichnung" in Spalte K
+                ' 2. Aufzeichnung: Suche nach "2. Aufzeichnung" in Spalte S und 7 Zeilen darunter starten
                 Dim aufzeichnungRow As Range
-                For Each cell In ZielWs.Columns("K").Cells
+                Set aufzeichnungRow = Nothing
+                For Each cell In ZielWs.Columns("S").Cells
                     If Trim(cell.Value) = "2. Aufzeichnung" Then
                         Set aufzeichnungRow = cell
                         Exit For
@@ -66,21 +74,21 @@ Sub ServiceImport()
                 Next cell
 
                 If Not aufzeichnungRow Is Nothing Then
-                    zielRow = aufzeichnungRow.Row + 4 ' 4 Zeilen unter "2. Aufzeichnung"
+                    zielRow = aufzeichnungRow.Row + 7 ' 7 Zeilen unter "2. Aufzeichnung"
                 Else
-                    MsgBox "2. Aufzeichnung in Spalte K nicht gefunden. Daten können nicht eingefügt werden.", vbExclamation
+                    MsgBox "2. Aufzeichnung in Spalte S nicht gefunden. Daten können nicht eingefügt werden.", vbExclamation
                     Exit Sub
                 End If
+
+                ' Nächste freie Zeile ab Startpunkt finden
+                Do While ZielWs.Cells(zielRow, "A").Value <> ""
+                    zielRow = zielRow + 1
+                Loop
             End If
 
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
-
-                    ' Bestimme die nächste freie Zeile ab dem Startpunkt
-                    Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                        zielRow = zielRow + 1
-                    Loop
 
                     Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
