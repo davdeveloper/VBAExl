@@ -60,10 +60,8 @@ Sub ServiceImport()
 
             If response = vbYes Then
                 ' 1. Aufzeichnung: Ab Zeile 14 einfügen, aber prüfe auf nächste freie Zeile
-                zielRow = 14
-                Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                    zielRow = zielRow + 1
-                Loop
+                zielRow = ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row + 1
+                If zielRow < 14 Then zielRow = 14
             Else
                 ' 2. Aufzeichnung: Suche nach "2. Aufzeichnung" in Spalte S und 7 Zeilen darunter starten
                 Dim aufzeichnungRow As Range
@@ -145,6 +143,9 @@ Sub ServiceImport()
 
                     ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen (im Format TT.MM.)
                     ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.")
+
+                    ' Nächste freie Zeile bestimmen
+                    zielRow = zielRow + 1
 
                 End If
             Next j
