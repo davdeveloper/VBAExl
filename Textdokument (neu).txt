@@ -70,19 +70,19 @@ Sub DatenZuweisung()
                     ' Debugging für Kalenderwoche
                     Debug.Print "Berechnete KW: " & Kalenderwoche
 
-                    ' Alle Zellen mit der Kalenderwoche in den ersten 500 Zeilen suchen
-                    For Each cell In ZielWs.Range("A1:A500")
+                    ' Alle Zellen mit der Kalenderwoche in den ersten 900 Zeilen suchen
+                    For Each cell In ZielWs.Range("A1:A900")
                         If Trim(cell.Value) = Kalenderwoche Then
                             Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
                             zielRow = cell.Row + 9 ' 9 Zeilen unter der gefundenen Zelle beginnen
 
-                            ' Wochentag aus Spalte V berechnen
-                            Wochentag = Format(wsRohdaten.Cells(j, "F").Value, "dddd")
+                            ' Wochentag aus Spalte U berechnen
+                            Wochentag = Format(wsRohdaten.Cells(j, "U").Value, "dddd")
 
                             ' Suche nach dem Wochentag in Spalte Y
                             Do While ZielWs.Cells(zielRow, "Y").Value <> Wochentag
                                 zielRow = zielRow + 1
-                                If zielRow > 500 Then
+                                If zielRow > 900 Then
                                     MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
                                     Exit Sub
                                 End If
