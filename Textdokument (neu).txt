@@ -154,8 +154,8 @@ Sub ServiceImport()
                         End If
                     Next headerCol
 
-                    ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen (im Format TT.MM.)
-                    ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.")
+                    ' Daten aus Spalte G in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen (im Format TT.MM.)
+                    ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "G").Value, "dd.mm.")
 
 NextRow:
                 End If
