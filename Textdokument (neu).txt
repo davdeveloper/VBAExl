@@ -1,4 +1,4 @@
-Sub DatenZuweisung()
+Sub ForwardingImport()
     Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
     Dim ZielWs As Worksheet
     Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
@@ -154,5 +154,4 @@ Sub DatenZuweisung()
     Next i
 
     Debug.Print "Datenübertragung abgeschlossen!"
-    ForwardingImport
 End Sub
