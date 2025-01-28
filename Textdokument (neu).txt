@@ -76,8 +76,8 @@ Sub DatenZuweisung()
                             Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
                             zielRow = cell.Row + 9 ' 9 Zeilen unter der gefundenen Zelle beginnen
 
-                            ' Wochentag aus Spalte U berechnen
-                            Wochentag = Format(wsRohdaten.Cells(j, "U").Value, "dddd")
+                            ' Wochentag aus der Variable "Gestern" berechnen
+                            Wochentag = Format(Gestern, "dddd")
 
                             ' Suche nach dem Wochentag in Spalte Y ab der gefundenen KW-Zeile
                             Dim foundRow As Long
