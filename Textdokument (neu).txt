@@ -1,5 +1,5 @@
 Sub ServiceImport()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet, wsDMCockpit As Worksheet
     Dim ZielWs As Worksheet
     Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long
     Dim i As Long, j As Long, k As Long
@@ -9,12 +9,14 @@ Sub ServiceImport()
     Dim SuchText As String, rohCol As Long
     Dim Kategorie As String
     Dim spalteAValue As String
-    Dim response As VbMsgBoxResult
+    Dim datumRohdaten As Date
+    Dim datumErste As Date, datumZweite As Date
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
     Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
+    Set wsDMCockpit = ThisWorkbook.Worksheets("DMCockpit")
 
     ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
@@ -24,8 +26,6 @@ Sub ServiceImport()
     Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
 
-    ' Abfrage: 1. Aufzeichnung oder 2. Aufzeichnung? (Nur einmal)
-    response = MsgBox("Sofern Calls ausgewertet worden sind - Handelt es sich hierbei um die 1. Call Aufzeichnung?", vbYesNo + vbQuestion + vbDefaultButton1, "1. Aufzeichnung = Ja, 2. Aufzeichnung = Nein")
     ' Durch die Schlüssel in "Zuweisung" iterieren
     For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
         Schluessel = wsZuweisung.Cells(i, "L").Value
@@ -45,50 +45,63 @@ Sub ServiceImport()
             Select Case ZielBlattName
                 Case "Filiale Calls"
                     spalteAValue = "Filiale"
+                    datumErste = wsDMCockpit.Range("T21").Value
+                    datumZweite = wsDMCockpit.Range("T22").Value
                 Case "Lidl Plus Calls"
                     spalteAValue = "Lidl Plus"
+                    datumErste = wsDMCockpit.Range("T30").Value
+                    datumZweite = wsDMCockpit.Range("T31").Value
                 Case "eCom Calls"
                     spalteAValue = "Onlineshop"
+                    datumErste = wsDMCockpit.Range("T16").Value
+                    datumZweite = wsDMCockpit.Range("T17").Value
                 Case "Produkt Calls"
                     spalteAValue = "Produkt"
+                    datumErste = wsDMCockpit.Range("T25").Value
+                    datumZweite = wsDMCockpit.Range("T26").Value
                 Case Else
                     spalteAValue = "Service"
             End Select
 
-            ' Zielzeile bestimmen
-            If response = vbYes Then
-                ' 1. Aufzeichnung: Ab Zeile 14 die nächste freie Zeile finden
-                zielRow = 14
-                Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                    zielRow = zielRow + 1
-                Loop
-            Else
-                ' 2. Aufzeichnung: Suche nach "2. Aufzeichnung" in Spalte S und 7 Zeilen darunter starten
-                Dim aufzeichnungRow As Range
-                Set aufzeichnungRow = Nothing
-                For Each cell In ZielWs.Columns("S").Cells
-                    If Trim(cell.Value) = "2. Aufzeichnung" Then
-                        Set aufzeichnungRow = cell
-                        Exit For
-                    End If
-                Next cell
-
-                If Not aufzeichnungRow Is Nothing Then
-                    zielRow = aufzeichnungRow.Row + 7 ' 7 Zeilen unter "2. Aufzeichnung"
-                Else
-                    MsgBox "2. Aufzeichnung in Spalte S nicht gefunden. Daten können nicht eingefügt werden.", vbExclamation
-                    Exit Sub
-                End If
-
-                ' Nächste freie Zeile ab Startpunkt finden
-                Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                    zielRow = zielRow + 1
-                Loop
-            End If
-
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
+
+                    datumRohdaten = wsRohdaten.Cells(j, "D").Value ' Datum aus Spalte D der Rohdaten
+
+                    ' Zielzeile bestimmen basierend auf dem Datum
+                    If datumRohdaten = datumErste Then
+                        ' 1. Call-Aufzeichnung: Ab Zeile 14 die nächste freie Zeile finden
+                        zielRow = 14
+                        Do While ZielWs.Cells(zielRow, "A").Value <> ""
+                            zielRow = zielRow + 1
+                        Loop
+                    ElseIf datumRohdaten = datumZweite Then
+                        ' 2. Call-Aufzeichnung: Suche nach "2. Aufzeichnung" in Spalte S und 7 Zeilen darunter starten
+                        Dim aufzeichnungRow As Range
+                        Set aufzeichnungRow = Nothing
+                        For Each cell In ZielWs.Columns("S").Cells
+                            If Trim(cell.Value) = "2. Aufzeichnung" Then
+                                Set aufzeichnungRow = cell
+                                Exit For
+                            End If
+                        Next cell
+
+                        If Not aufzeichnungRow Is Nothing Then
+                            zielRow = aufzeichnungRow.Row + 7 ' 7 Zeilen unter "2. Aufzeichnung"
+                        Else
+                            MsgBox "2. Aufzeichnung in Spalte S nicht gefunden. Daten können nicht eingefügt werden.", vbExclamation
+                            Exit Sub
+                        End If
+
+                        ' Nächste freie Zeile ab Startpunkt finden
+                        Do While ZielWs.Cells(zielRow, "A").Value <> ""
+                            zielRow = zielRow + 1
+                        Loop
+                    Else
+                        Debug.Print "Datum in Rohdaten stimmt nicht mit den Call-Aufzeichnungen überein."
+                        GoTo NextRow
+                    End If
 
                     Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
@@ -142,11 +155,9 @@ Sub ServiceImport()
                     Next headerCol
 
                     ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen (im Format TT.MM.)
-                    ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "G").Value, "dd.mm.")
+                    ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.")
 
-                    ' Nächste freie Zeile bestimmen
-                    zielRow = zielRow + 1
-
+NextRow:
                 End If
             Next j
         Else
