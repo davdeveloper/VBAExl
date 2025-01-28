@@ -80,11 +80,11 @@ Sub ForwardingImport()
                             Dim Wochentag As String
                             Wochentag = Format(Gestern, "dddd")
 
-                            ' Suche nach dem Wochentag in Spalte Y ab der gefundenen KW-Zeile
+                            ' Suche nach dem Wochentag in Spalte M ab der gefundenen KW-Zeile
                             Dim foundRow As Long
                             foundRow = 0
                             For k = zielRow To 500
-                                If ZielWs.Cells(k, "Y").Value = Wochentag Then
+                                If ZielWs.Cells(k, "M").Value = Wochentag Then
                                     foundRow = k
                                     Exit For
                                 End If
