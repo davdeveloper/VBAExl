@@ -25,8 +25,7 @@ Sub ServiceImport()
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
 
     ' Abfrage: 1. Aufzeichnung oder 2. Aufzeichnung? (Nur einmal)
-    response = MsgBox("Bitte wählen Sie die Aufzeichnung:", vbYesNo + vbQuestion + vbDefaultButton1, "1. Aufzeichnung = Ja, 2. Aufzeichnung = Nein")
-
+    response = MsgBox("Sofern Calls ausgewertet worden sind - Handelt es sich hierbei um die 1. Call Aufzeichnung?", vbYesNo + vbQuestion + vbDefaultButton1, "1. Aufzeichnung = Ja, 2. Aufzeichnung = Nein")
     ' Durch die Schlüssel in "Zuweisung" iterieren
     For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
         Schluessel = wsZuweisung.Cells(i, "L").Value
@@ -143,7 +142,7 @@ Sub ServiceImport()
                     Next headerCol
 
                     ' Daten aus Spalte E in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen (im Format TT.MM.)
-                    ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.")
+                    ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "G").Value, "dd.mm.")
 
                     ' Nächste freie Zeile bestimmen
                     zielRow = zielRow + 1
