@@ -79,16 +79,23 @@ Sub DatenZuweisung()
                             ' Wochentag aus Spalte U berechnen
                             Wochentag = Format(wsRohdaten.Cells(j, "U").Value, "dddd")
 
-                            ' Suche nach dem Wochentag in Spalte Y
-                            Do While ZielWs.Cells(zielRow, "Y").Value <> Wochentag
-                                zielRow = zielRow + 1
-                                If zielRow > 900 Then
-                                    MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
-                                    Exit Sub
+                            ' Suche nach dem Wochentag in Spalte Y ab der gefundenen KW-Zeile
+                            Dim foundRow As Long
+                            foundRow = 0
+                            For k = zielRow To 900
+                                If ZielWs.Cells(k, "Y").Value = Wochentag Then
+                                    foundRow = k
+                                    Exit For
                                 End If
-                            Loop
+                            Next k
 
-                            ' Prüfen, ob die Zellen leer sind und Daten einfügen
+                            If foundRow = 0 Then
+                                MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
+                                Exit Sub
+                            End If
+
+                            ' Ab der gefundenen Wochentagszeile die nächste freie Zeile suchen
+                            zielRow = foundRow
                             Do While ZielWs.Cells(zielRow, "A").Value <> ""
                                 zielRow = zielRow + 1
                             Loop
