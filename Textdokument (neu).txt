@@ -1,7 +1,7 @@
 Sub DatenZuweisung()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
-    Dim ZielWs As Worksheet, wsZuweisungName As Worksheet
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, lastRowZuweisungName As Long, zielRow As Long
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet, wsTemp As Worksheet
+    Dim ZielWs As Worksheet
+    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, lastRowTemp As Long, zielRow As Long
     Dim i As Long, j As Long, k As Long, headerCol As Long
     Dim Schluessel As String, ZielBlattName As String
     Dim Datum As Date, Gestern As Variant
@@ -21,7 +21,7 @@ Sub DatenZuweisung()
     ' Pfad der Datei "ZuweisungName" anpassen (im gleichen Verzeichnis wie die Hauptdatei)
     filePath = ThisWorkbook.Path & "\\ZuweisungName.xlsx"
     
-    ' Datei "ZuweisungName" öffnen
+    ' Datei "ZuweisungName" öffnen und Daten in ein temporäres Arbeitsblatt kopieren
     On Error Resume Next
     Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87")
     On Error GoTo 0
@@ -31,25 +31,36 @@ Sub DatenZuweisung()
         Exit Sub
     End If
     
-    ' Arbeitsblatt aus der Datei "ZuweisungName" zuweisen
-    Set wsZuweisungName = wbZuweisungName.Sheets(1) ' Falls es mehrere gibt, muss die richtige gewählt werden
-    lastRowZuweisungName = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
+    ' Temporäres Arbeitsblatt erstellen
+    Application.ScreenUpdating = False
+    On Error Resume Next
+    Set wsTemp = ThisWorkbook.Sheets("TempZuweisung")
+    If Not wsTemp Is Nothing Then ThisWorkbook.Sheets("TempZuweisung").Delete
+    On Error GoTo 0
+    Set wsTemp = ThisWorkbook.Sheets.Add
+    wsTemp.Name = "TempZuweisung"
+    
+    ' Kopiere Daten aus ZuweisungName in das temporäre Arbeitsblatt
+    wbZuweisungName.Sheets(1).Cells.Copy
+    wsTemp.Cells(1, 1).PasteSpecial Paste:=xlPasteValues
+    Application.CutCopyMode = False
+    
+    ' Schließe die Datei nach dem Kopieren
+    wbZuweisungName.Close False
+    Set wbZuweisungName = Nothing
+    
+    ' Letzte Zeile im temporären Arbeitsblatt bestimmen
+    lastRowTemp = wsTemp.Cells(wsTemp.Rows.Count, "A").End(xlUp).Row
 
     ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
     lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
     lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
 
-    Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
-    Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
-    Debug.Print "Letzte Zeile in Kategorien: " & lastRowKategorien
-
     ' Durch die Schlüssel in "Zuweisung" iterieren
-    For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
+    For i = 2 To lastRowZuweisung
         Schluessel = wsZuweisung.Cells(i, "B").Value
         ZielBlattName = wsZuweisung.Cells(i, "C").Value
-
-        Debug.Print "Verarbeite Schlüssel: " & Schluessel & ", Zielblatt: " & ZielBlattName
 
         ' Ziel-Arbeitsblatt prüfen
         On Error Resume Next
@@ -57,24 +68,19 @@ Sub DatenZuweisung()
         On Error GoTo 0
 
         If Not ZielWs Is Nothing Then
-            Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
-
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
                     ' Kalenderwoche berechnen
                     Datum = wsRohdaten.Cells(j, "F").Value
-
-                    ' Berechne Gestern oder letzten Freitag
-                    If Datum <> 0 Then ' Sicherstellen, dass Datum gültig ist
-                        If Weekday(Datum - 1, vbMonday) = 7 Then ' Wenn Sonntag
-                            Gestern = Datum - 3 ' Letzter Freitag
+                    If Datum <> 0 Then
+                        If Weekday(Datum - 1, vbMonday) = 7 Then
+                            Gestern = Datum - 3
                         Else
-                            Gestern = Datum - 1 ' Normaler Vortag
+                            Gestern = Datum - 1
                         End If
                     Else
-                        Debug.Print "Ungültiges Datum in Rohdaten: Zeile " & j
-                        Gestern = "" ' Leerer Wert für ungültiges Datum
+                        Gestern = ""
                     End If
 
                     ' Kategorie aus "Kategorien" suchen
@@ -87,41 +93,36 @@ Sub DatenZuweisung()
                     Next k
 
                     Kalenderwoche = "KW " & Format(Application.WeekNum(Gestern, vbMonday), "00")
-
-                    ' Debugging für Kalenderwoche
-                    Debug.Print "Berechnete KW: " & Kalenderwoche
-
-                    ' Namen aus Spalte O extrahieren und matchen
+                    
+                    ' Namen aus Spalte O extrahieren und in TempZuweisung suchen
                     OriginalWert = wsRohdaten.Cells(j, "O").Value
-                    splitArray = Split(OriginalWert, " ") ' Nur ersten Teil extrahieren
+                    splitArray = Split(OriginalWert, " ")
                     MappingWert = ""
-
-                    ' Suche den Wert in der Datei "ZuweisungName" (Spalte A) und hole Spalte B
-                    For k = 2 To lastRowZuweisungName
-                        If wsZuweisungName.Cells(k, "A").Value = splitArray(0) Then
-                            MappingWert = wsZuweisungName.Cells(k, "B").Value
+                    
+                    For k = 2 To lastRowTemp
+                        If wsTemp.Cells(k, "A").Value = splitArray(0) Then
+                            MappingWert = wsTemp.Cells(k, "B").Value
                             Exit For
                         End If
                     Next k
-
+                    
                     ' Daten übertragen
-                    ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
-                    ZielWs.Cells(zielRow, "B").Value = Kategorie ' Angepasste Kategorie aus "Kategorien"
-                    ZielWs.Cells(zielRow, "U").Value = Gestern ' Datum von Gestern oder Freitag
-                    ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.") ' Datum
-                    ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value ' Bemerkung
-                    ZielWs.Cells(zielRow, "X").Value = MappingWert ' Zugeordneter Wert für Inhaber
+                    ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value
+                    ZielWs.Cells(zielRow, "B").Value = Kategorie
+                    ZielWs.Cells(zielRow, "U").Value = Gestern
+                    ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.")
+                    ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value
+                    ZielWs.Cells(zielRow, "X").Value = MappingWert
                 End If
             Next j
-        Else
-            Debug.Print "Das Arbeitsblatt " & ZielBlattName & " existiert nicht."
         End If
     Next i
     
-    ' Datei "ZuweisungName" schließen
-    wbZuweisungName.Close False
-    Set wbZuweisungName = Nothing
-
+    ' Temporäres Arbeitsblatt löschen
+    Application.DisplayAlerts = False
+    wsTemp.Delete
+    Application.DisplayAlerts = True
+    
     Debug.Print "Datenübertragung abgeschlossen!"
     ForwardingImport
 End Sub
