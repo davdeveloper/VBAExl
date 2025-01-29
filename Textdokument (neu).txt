@@ -68,55 +68,66 @@ Sub DatenZuweisung()
         Set ZielWs = ThisWorkbook.Worksheets(ZielBlattName)
         On Error GoTo 0
 
-        If Not ZielWs Is Nothing Then
-            ' Daten aus "Rohdaten" finden
-            For j = 2 To lastRowRoh
-                If wsRohdaten.Cells(j, "A").Value = Schluessel Then
-                    ' Kalenderwoche berechnen
-                    Datum = wsRohdaten.Cells(j, "F").Value
-                    If Datum <> 0 Then
-                        If Weekday(Datum - 1, vbMonday) = 7 Then
-                            Gestern = Datum - 3
-                        Else
-                            Gestern = Datum - 1
-                        End If
-                    Else
-                        Gestern = ""
-                    End If
-
-                    ' Kategorie aus "Kategorien" suchen
-                    Kategorie = wsRohdaten.Cells(j, "C").Value
-                    For k = 2 To lastRowKategorien
-                        If wsKategorien.Cells(k, "A").Value = Kategorie Then
-                            Kategorie = wsKategorien.Cells(k, "B").Value
-                            Exit For
-                        End If
-                    Next k
-
-                    Kalenderwoche = "KW " & Format(Application.WeekNum(Gestern, vbMonday), "00")
-                    
-                    ' Namen aus Spalte O extrahieren und in TempZuweisung suchen
-                    OriginalWert = wsRohdaten.Cells(j, "O").Value
-                    splitArray = Split(OriginalWert, " ")
-                    MappingWert = ""
-                    
-                    For k = 2 To lastRowTemp
-                        If wsTemp.Cells(k, "A").Value = splitArray(0) Then
-                            MappingWert = wsTemp.Cells(k, "B").Value
-                            Exit For
-                        End If
-                    Next k
-                    
-                    ' Daten übertragen
-                    ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value
-                    ZielWs.Cells(zielRow, "B").Value = Kategorie
-                    ZielWs.Cells(zielRow, "U").Value = Gestern
-                    ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.")
-                    ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value
-                    ZielWs.Cells(zielRow, "X").Value = MappingWert
-                End If
-            Next j
+        If ZielWs Is Nothing Then
+            Debug.Print "FEHLER: Das Arbeitsblatt " & ZielBlattName & " existiert nicht."
+            GoTo NextIteration
         End If
+
+        ' Daten aus "Rohdaten" finden
+        For j = 2 To lastRowRoh
+            If wsRohdaten.Cells(j, "A").Value = Schluessel Then
+                ' Kalenderwoche berechnen
+                Datum = wsRohdaten.Cells(j, "F").Value
+                If Datum <> 0 Then
+                    If Weekday(Datum - 1, vbMonday) = 7 Then
+                        Gestern = Datum - 3
+                    Else
+                        Gestern = Datum - 1
+                    End If
+                Else
+                    Gestern = ""
+                End If
+
+                ' Kategorie aus "Kategorien" suchen
+                Kategorie = wsRohdaten.Cells(j, "C").Value
+                For k = 2 To lastRowKategorien
+                    If wsKategorien.Cells(k, "A").Value = Kategorie Then
+                        Kategorie = wsKategorien.Cells(k, "B").Value
+                        Exit For
+                    End If
+                Next k
+
+                Kalenderwoche = "KW " & Format(Application.WeekNum(Gestern, vbMonday), "00")
+                
+                ' Namen aus Spalte O extrahieren und in TempZuweisung suchen
+                OriginalWert = wsRohdaten.Cells(j, "O").Value
+                splitArray = Split(OriginalWert, " ")
+                MappingWert = ""
+                
+                For k = 2 To lastRowTemp
+                    If wsTemp.Cells(k, "A").Value = splitArray(0) Then
+                        MappingWert = wsTemp.Cells(k, "B").Value
+                        Exit For
+                    End If
+                Next k
+                
+                ' Prüfen, ob eine gültige Zeile gefunden wurde
+                If zielRow = 0 Then
+                    zielRow = ZielWs.Cells(ZielWs.Rows.Count, "A").End(xlUp).Row + 1
+                End If
+
+                Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
+
+                ' Daten übertragen
+                ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value
+                ZielWs.Cells(zielRow, "B").Value = Kategorie
+                ZielWs.Cells(zielRow, "U").Value = Gestern
+                ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.")
+                ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value
+                ZielWs.Cells(zielRow, "X").Value = MappingWert
+            End If
+        Next j
+NextIteration:
     Next i
     
     ' Temporäres Arbeitsblatt löschen
