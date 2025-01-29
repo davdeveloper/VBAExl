@@ -8,7 +8,7 @@ Sub DatenZuweisung()
     Dim Kategorie As String, SuchText As String
     Dim Kalenderwoche As String, Wochentag As String
     Dim cell As Range
-    Dim lastRowMap As Long, mapDict As Object
+    Dim lastRowMap As Long
     Dim OriginalWert As String, MappingWert As String
     Dim splitArray() As String
 
@@ -18,17 +18,11 @@ Sub DatenZuweisung()
     Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
     Set wsZuweisungName = ThisWorkbook.Worksheets("ZuweisungName") ' Arbeitsblatt direkt in der Mappe
     
-    ' Mapping-Werte in Dictionary speichern
-    Set mapDict = CreateObject("Scripting.Dictionary")
-    lastRowMap = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
-    For i = 2 To lastRowMap
-        mapDict(wsZuweisungName.Cells(i, "A").Value) = wsZuweisungName.Cells(i, "B").Value
-    Next i
-    
     ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
     lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
     lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
+    lastRowMap = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
 
     ' Durch die Schlüssel in "Zuweisung" iterieren
     For i = 2 To lastRowZuweisung
@@ -67,14 +61,16 @@ Sub DatenZuweisung()
 
                     Kalenderwoche = "KW " & Format(Application.WeekNum(Gestern, vbMonday), "00")
                     
-                    ' Namen aus Spalte O extrahieren und im Dictionary suchen
+                    ' Namen aus Spalte O extrahieren und in "ZuweisungName" suchen
                     OriginalWert = wsRohdaten.Cells(j, "O").Value
                     splitArray = Split(OriginalWert, " ")
-                    If mapDict.exists(splitArray(0)) Then
-                        MappingWert = mapDict(splitArray(0))
-                    Else
-                        MappingWert = OriginalWert
-                    End If
+                    MappingWert = OriginalWert ' Standardwert beibehalten
+                    For k = 2 To lastRowMap
+                        If wsZuweisungName.Cells(k, "A").Value = splitArray(0) Then
+                            MappingWert = wsZuweisungName.Cells(k, "B").Value
+                            Exit For
+                        End If
+                    Next k
                     
                     ' Daten übertragen
                     ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value
