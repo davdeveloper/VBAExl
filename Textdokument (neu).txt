@@ -1,23 +1,26 @@
 Sub DatenZuweisung()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet, wsZuweisungName As Worksheet
     Dim ZielWs As Worksheet
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
+    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, lastRowZuweisungName As Long, zielRow As Long
     Dim i As Long, j As Long, k As Long, headerCol As Long
     Dim Schluessel As String, ZielBlattName As String
     Dim Datum As Date, Gestern As Variant
     Dim Kategorie As String, SuchText As String
     Dim Kalenderwoche As String, Wochentag As String
     Dim cell As Range
+    Dim OriginalWert As String, MappingWert As String
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
     Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
+    Set wsZuweisungName = ThisWorkbook.Worksheets("ZuweisungName")
 
-    ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
+    ' Letzte Zeile in "Rohdaten", "Zuweisung", "Kategorien" und "ZuweisungName" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
     lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
     lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
+    lastRowZuweisungName = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
 
     Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
@@ -65,6 +68,16 @@ Sub DatenZuweisung()
                         End If
                     Next k
 
+                    ' Mapping für Spalte X (ZuweisungName)
+                    OriginalWert = wsRohdaten.Cells(j, "O").Value
+                    MappingWert = OriginalWert
+                    For k = 2 To lastRowZuweisungName
+                        If wsZuweisungName.Cells(k, "A").Value = OriginalWert Then
+                            MappingWert = wsZuweisungName.Cells(k, "B").Value
+                            Exit For
+                        End If
+                    Next k
+
                     Kalenderwoche = "KW " & Format(Application.WeekNum(Gestern, vbMonday), "00")
 
                     ' Debugging für Kalenderwoche
@@ -102,49 +115,13 @@ Sub DatenZuweisung()
 
                             Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
-                            ' Text in Zielarbeitsblatt von C12 bis Q12 durchsuchen und Werte aus Rohdaten holen
-                            For headerCol = 3 To 17 ' Spalten C bis Q (3 bis 17)
-                                SuchText = "Frage: " & ZielWs.Cells(12, headerCol).Value
-
-                                ' Überschrift in Zeile 1 von "Rohdaten" suchen
-                                Dim rohCol As Long
-                                rohCol = 0
-                                For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
-                                    If wsRohdaten.Cells(1, k).Value = SuchText Then
-                                        rohCol = k
-                                        Exit For
-                                    End If
-                                Next k
-
-                                If rohCol > 0 Then
-                                    Dim rohWert As String
-                                    rohWert = wsRohdaten.Cells(j, rohCol).Value
-
-                                    ' Überschreiben der Werte
-                                    Select Case rohWert
-                                        Case "Ja"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "j"
-                                        Case "Nein"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "n"
-                                        Case "Teilweise"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "t"
-                                        Case "N/A"
-                                            ZielWs.Cells(zielRow, headerCol).Value = ""
-                                        Case Else
-                                            ZielWs.Cells(zielRow, headerCol).Value = rohWert
-                                    End Select
-                                Else
-                                    Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
-                                End If
-                            Next headerCol
-
                             ' Daten übertragen
                             ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
                             ZielWs.Cells(zielRow, "B").Value = Kategorie ' Angepasste Kategorie aus "Kategorien"
                             ZielWs.Cells(zielRow, "U").Value = Gestern ' Datum von Gestern oder Freitag
                             ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.") ' Datum
                             ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value ' Bemerkung
-                            ZielWs.Cells(zielRow, "X").Value = wsRohdaten.Cells(j, "O").Value ' Bemerkung
+                            ZielWs.Cells(zielRow, "X").Value = MappingWert ' Gemappter Name aus "ZuweisungName"
                         End If
                     Next cell
                 End If
