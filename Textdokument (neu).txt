@@ -68,6 +68,8 @@ Sub DatenZuweisung()
         On Error GoTo 0
 
         If Not ZielWs Is Nothing Then
+            ZielWs.Activate ' Arbeitsblatt aktivieren, um Fehler zu vermeiden
+            
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
