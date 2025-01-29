@@ -1,6 +1,8 @@
 Sub DatenZuweisung()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet, wsZuweisungName As Worksheet
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
     Dim ZielWs As Worksheet
+    Dim wbZuweisungName As Workbook ' Neue Variable für die externe Arbeitsmappe
+    Dim wsZuweisungName As Worksheet ' Arbeitsblatt in der externen Arbeitsmappe
     Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, lastRowZuweisungName As Long, zielRow As Long
     Dim i As Long, j As Long, k As Long, headerCol As Long
     Dim Schluessel As String, ZielBlattName As String
@@ -10,12 +12,28 @@ Sub DatenZuweisung()
     Dim cell As Range
     Dim MappingWert As String
     Dim OriginalWert As String
+    Dim filePath As String
 
-    ' Arbeitsblätter zuweisen
+    ' Pfad zur Datei "ZuweisungName.xlsx" im gleichen Projektpfad
+    filePath = ThisWorkbook.Path & "\ZuweisungName.xlsx"
+
+    ' Externe Arbeitsmappe "ZuweisungName.xlsx" öffnen und entsperren
+    On Error Resume Next
+    Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87")
+    On Error GoTo 0
+
+    If wbZuweisungName Is Nothing Then
+        MsgBox "Die Datei 'ZuweisungName.xlsx' konnte nicht geöffnet werden.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Arbeitsblatt "ZuweisungName" in der externen Arbeitsmappe zuweisen
+    Set wsZuweisungName = wbZuweisungName.Worksheets("ZuweisungName")
+
+    ' Arbeitsblätter in der aktuellen Arbeitsmappe zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
     Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
-    Set wsZuweisungName = ThisWorkbook.Worksheets("ZuweisungName") ' Arbeitsblatt für Mapping
 
     ' Letzte Zeile in "Rohdaten", "Zuweisung", "Kategorien" und "ZuweisungName" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
@@ -146,6 +164,9 @@ Sub DatenZuweisung()
             Next j
         End If
     Next i
+
+    ' Externe Arbeitsmappe schließen
+    wbZuweisungName.Close SaveChanges:=False
 
     Debug.Print "Datenübertragung abgeschlossen!"
     ForwardingImport
