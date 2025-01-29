@@ -1,5 +1,5 @@
 Sub DatenZuweisung()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet, wsZuweisungName As Worksheet
     Dim ZielWs As Worksheet
     Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
     Dim i As Long, j As Long, k As Long, headerCol As Long
@@ -8,9 +8,6 @@ Sub DatenZuweisung()
     Dim Kategorie As String, SuchText As String
     Dim Kalenderwoche As String, Wochentag As String
     Dim cell As Range
-    Dim wbZuweisungName As Workbook
-    Dim wsZuweisungName As Worksheet
-    Dim filePath As String
     Dim lastRowMap As Long, mapDict As Object
     Dim OriginalWert As String, MappingWert As String
     Dim splitArray() As String
@@ -19,31 +16,14 @@ Sub DatenZuweisung()
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
     Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
-    
-    ' Datei "ZuweisungName" öffnen (im Hintergrund)
-    filePath = ThisWorkbook.Path & "\\ZuweisungName.xlsx"
-    On Error Resume Next
-    Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87", ReadOnly:=True)
-    On Error GoTo 0
-    
-    If wbZuweisungName Is Nothing Then
-        MsgBox "Die Datei ZuweisungName.xlsx konnte nicht geöffnet werden!", vbCritical
-        Exit Sub
-    End If
-    
-    ' Arbeitsblatt in ZuweisungName auswählen
-    Set wsZuweisungName = wbZuweisungName.Sheets(1)
-    lastRowMap = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
+    Set wsZuweisungName = ThisWorkbook.Worksheets("ZuweisungName") ' Arbeitsblatt direkt in der Mappe
     
     ' Mapping-Werte in Dictionary speichern
     Set mapDict = CreateObject("Scripting.Dictionary")
+    lastRowMap = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
     For i = 2 To lastRowMap
         mapDict(wsZuweisungName.Cells(i, "A").Value) = wsZuweisungName.Cells(i, "B").Value
     Next i
-    
-    ' Excel-Datei schließen, bevor Daten übertragen werden
-    wbZuweisungName.Close False
-    Set wbZuweisungName = Nothing
     
     ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
