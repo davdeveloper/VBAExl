@@ -1,5 +1,5 @@
 Sub DatenZuweisung()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet, wsTemp As Worksheet
+    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
     Dim ZielWs As Worksheet
     Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
     Dim i As Long, j As Long, k As Long, headerCol As Long
@@ -40,6 +40,10 @@ Sub DatenZuweisung()
     For i = 2 To lastRowMap
         mapDict(wsZuweisungName.Cells(i, "A").Value) = wsZuweisungName.Cells(i, "B").Value
     Next i
+    
+    ' Excel-Datei schließen, bevor Daten übertragen werden
+    wbZuweisungName.Close False
+    Set wbZuweisungName = Nothing
     
     ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
@@ -103,10 +107,6 @@ Sub DatenZuweisung()
             Next j
         End If
     Next i
-    
-    ' Excel-Datei schließen
-    wbZuweisungName.Close False
-    Set wbZuweisungName = Nothing
     
     Debug.Print "Datenübertragung abgeschlossen!"
     ForwardingImport
