@@ -148,7 +148,7 @@ Sub DatenZuweisung()
     Dim Schluessel As String, ZielBlattName As String
     Dim Datum As Date, Gestern As Variant
     Dim Kategorie As String, SuchText As String
-    Dim Kalenderwoche As String
+    Dim Kalenderwoche As String, Wochentag As String
     Dim cell As Range
 
     ' Arbeitsblätter zuweisen
@@ -197,7 +197,7 @@ Sub DatenZuweisung()
                         Debug.Print "Ungültiges Datum in Rohdaten: Zeile " & j
                         Gestern = "" ' Leerer Wert für ungültiges Datum
                     End If
-                    
+
                     ' Kategorie aus "Kategorien" suchen
                     Kategorie = wsRohdaten.Cells(j, "C").Value
                     For k = 2 To lastRowKategorien
@@ -212,13 +212,32 @@ Sub DatenZuweisung()
                     ' Debugging für Kalenderwoche
                     Debug.Print "Berechnete KW: " & Kalenderwoche
 
-                    ' Alle Zellen mit der Kalenderwoche in den ersten 500 Zeilen suchen
-                    For Each cell In ZielWs.Range("A1:A500")
+                    ' Alle Zellen mit der Kalenderwoche in den ersten 900 Zeilen suchen
+                    For Each cell In ZielWs.Range("A1:A900")
                         If Trim(cell.Value) = Kalenderwoche Then
                             Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
                             zielRow = cell.Row + 9 ' 9 Zeilen unter der gefundenen Zelle beginnen
 
-                            ' Prüfen, ob die Zellen leer sind und Daten einfügen
+                            ' Wochentag aus der Variable "Gestern" berechnen
+                            Wochentag = Format(Gestern, "dddd")
+
+                            ' Suche nach dem Wochentag in Spalte Y ab der gefundenen KW-Zeile
+                            Dim foundRow As Long
+                            foundRow = 0
+                            For k = zielRow To 900
+                                If ZielWs.Cells(k, "Y").Value = Wochentag Then
+                                    foundRow = k
+                                    Exit For
+                                End If
+                            Next k
+
+                            If foundRow = 0 Then
+                                MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
+                                Exit Sub
+                            End If
+
+                            ' Ab der gefundenen Wochentagszeile die nächste freie Zeile suchen
+                            zielRow = foundRow
                             Do While ZielWs.Cells(zielRow, "A").Value <> ""
                                 zielRow = zielRow + 1
                             Loop
@@ -358,7 +377,27 @@ Sub ForwardingImport()
                             Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
                             zielRow = cell.Row + 7 ' 7 Zeilen unter der gefundenen Zelle beginnen
 
-                            ' Prüfen, ob die Zellen leer sind und Daten einfügen
+                            ' Wochentag aus der Variable "Gestern" berechnen
+                            Dim Wochentag As String
+                            Wochentag = Format(Gestern, "dddd")
+
+                            ' Suche nach dem Wochentag in Spalte M ab der gefundenen KW-Zeile
+                            Dim foundRow As Long
+                            foundRow = 0
+                            For k = zielRow To 500
+                                If ZielWs.Cells(k, "M").Value = Wochentag Then
+                                    foundRow = k
+                                    Exit For
+                                End If
+                            Next k
+
+                            If foundRow = 0 Then
+                                MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
+                                Exit Sub
+                            End If
+
+                            ' Ab der gefundenen Wochentagszeile die nächste freie Zeile suchen
+                            zielRow = foundRow
                             Do While ZielWs.Cells(zielRow, "A").Value <> ""
                                 zielRow = zielRow + 1
                             Loop
@@ -587,7 +626,7 @@ NextRow:
     Next i
 
     ' Lösche alle Zeilen außer der ersten in "Rohdaten"
-    wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).ClearContents
+    'wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).ClearContents
 
     Debug.Print "Datenübertragung abgeschlossen!"
     MsgBox "Datenübertragung abgeschlossen!", vbInformation
