@@ -8,7 +8,6 @@ Sub DatenZuweisung()
     Dim Kategorie As String, SuchText As String
     Dim Kalenderwoche As String, Wochentag As String
     Dim cell As Range
-    Dim InhaberName As String
 
     ' Arbeitsblätter zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
@@ -103,8 +102,41 @@ Sub DatenZuweisung()
 
                             Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
 
-                            ' Inhabername aus Spalte O der Rohdaten holen
-                            InhaberName = wsRohdaten.Cells(j, "O").Value
+                            ' Text in Zielarbeitsblatt von C12 bis Q12 durchsuchen und Werte aus Rohdaten holen
+                            For headerCol = 3 To 17 ' Spalten C bis Q (3 bis 17)
+                                SuchText = "Frage: " & ZielWs.Cells(12, headerCol).Value
+
+                                ' Überschrift in Zeile 1 von "Rohdaten" suchen
+                                Dim rohCol As Long
+                                rohCol = 0
+                                For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
+                                    If wsRohdaten.Cells(1, k).Value = SuchText Then
+                                        rohCol = k
+                                        Exit For
+                                    End If
+                                Next k
+
+                                If rohCol > 0 Then
+                                    Dim rohWert As String
+                                    rohWert = wsRohdaten.Cells(j, rohCol).Value
+
+                                    ' Überschreiben der Werte
+                                    Select Case rohWert
+                                        Case "Ja"
+                                            ZielWs.Cells(zielRow, headerCol).Value = "j"
+                                        Case "Nein"
+                                            ZielWs.Cells(zielRow, headerCol).Value = "n"
+                                        Case "Teilweise"
+                                            ZielWs.Cells(zielRow, headerCol).Value = "t"
+                                        Case "N/A"
+                                            ZielWs.Cells(zielRow, headerCol).Value = ""
+                                        Case Else
+                                            ZielWs.Cells(zielRow, headerCol).Value = rohWert
+                                    End Select
+                                Else
+                                    Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
+                                End If
+                            Next headerCol
 
                             ' Daten übertragen
                             ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
@@ -112,7 +144,6 @@ Sub DatenZuweisung()
                             ZielWs.Cells(zielRow, "U").Value = Gestern ' Datum von Gestern oder Freitag
                             ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.") ' Datum
                             ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value ' Bemerkung
-                            ZielWs.Cells(zielRow, "X").Value = InhaberName ' Inhabername aus Spalte O
                         End If
                     Next cell
                 End If
