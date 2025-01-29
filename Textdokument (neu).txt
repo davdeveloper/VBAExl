@@ -13,17 +13,25 @@ Sub DatenZuweisung()
     Dim MappingWert As String
     Dim OriginalWert As String
     Dim filePath As String
+    Dim appVisibility As Boolean ' Variable zur Speicherung der Sichtbarkeit der Excel-Anwendung
 
     ' Pfad zur Datei "ZuweisungName.xlsx" im gleichen Projektpfad
     filePath = ThisWorkbook.Path & "\ZuweisungName.xlsx"
 
-    ' Externe Arbeitsmappe "ZuweisungName.xlsx" öffnen und entsperren
+    ' Aktuelle Sichtbarkeit der Excel-Anwendung speichern
+    appVisibility = Application.Visible
+
+    ' Excel-Anwendung unsichtbar machen
+    Application.Visible = False
+
+    ' Externe Arbeitsmappe "ZuweisungName.xlsx" im Hintergrund öffnen und entsperren
     On Error Resume Next
-    Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87")
+    Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87", UpdateLinks:=0, ReadOnly:=True)
     On Error GoTo 0
 
     If wbZuweisungName Is Nothing Then
         MsgBox "Die Datei 'ZuweisungName.xlsx' konnte nicht geöffnet werden.", vbExclamation
+        Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
         Exit Sub
     End If
 
@@ -108,6 +116,7 @@ Sub DatenZuweisung()
 
                             If foundRow = 0 Then
                                 MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
+                                Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
                                 Exit Sub
                             End If
 
@@ -167,6 +176,9 @@ Sub DatenZuweisung()
 
     ' Externe Arbeitsmappe schließen
     wbZuweisungName.Close SaveChanges:=False
+
+    ' Sichtbarkeit der Excel-Anwendung wiederherstellen
+    Application.Visible = appVisibility
 
     Debug.Print "Datenübertragung abgeschlossen!"
     ForwardingImport
