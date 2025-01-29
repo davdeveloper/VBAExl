@@ -140,37 +140,65 @@ Sub ImportUndTransformierenRohdaten()
 
 End Sub
 
+
 Sub DatenZuweisung()
     Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
     Dim ZielWs As Worksheet
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
+    Dim wbZuweisungName As Workbook ' Neue Variable für die externe Arbeitsmappe
+    Dim wsZuweisungName As Worksheet ' Arbeitsblatt in der externen Arbeitsmappe
+    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, lastRowZuweisungName As Long, zielRow As Long
     Dim i As Long, j As Long, k As Long, headerCol As Long
     Dim Schluessel As String, ZielBlattName As String
     Dim Datum As Date, Gestern As Variant
     Dim Kategorie As String, SuchText As String
     Dim Kalenderwoche As String, Wochentag As String
     Dim cell As Range
+    Dim MappingWert As String
+    Dim OriginalWert As String
+    Dim filePath As String
+    Dim appVisibility As Boolean ' Variable zur Speicherung der Sichtbarkeit der Excel-Anwendung
 
-    ' Arbeitsblätter zuweisen
+    ' Pfad zur Datei "ZuweisungName.xlsx" im gleichen Projektpfad
+    filePath = ThisWorkbook.Path & "\ZuweisungName.xlsx"
+
+    ' Aktuelle Sichtbarkeit der Excel-Anwendung speichern
+    appVisibility = Application.Visible
+
+    ' Excel-Anwendung unsichtbar machen
+    Application.Visible = False
+    
+    Application.ScreenUpdating = False
+
+    ' Externe Arbeitsmappe "ZuweisungName.xlsx" im Hintergrund öffnen und entsperren
+    On Error Resume Next
+    Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87", UpdateLinks:=0, ReadOnly:=True)
+    On Error GoTo 0
+    wbZuweisungName.Windows(1).Visible = False
+
+    If wbZuweisungName Is Nothing Then
+        MsgBox "Die Datei 'ZuweisungName.xlsx' konnte nicht geöffnet werden.", vbExclamation
+        Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
+        Exit Sub
+    End If
+
+    ' Arbeitsblatt "ZuweisungName" in der externen Arbeitsmappe zuweisen
+    Set wsZuweisungName = wbZuweisungName.Worksheets("ZuweisungName")
+
+    ' Arbeitsblätter in der aktuellen Arbeitsmappe zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
     Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
 
-    ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
+    ' Letzte Zeile in "Rohdaten", "Zuweisung", "Kategorien" und "ZuweisungName" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
     lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
     lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
-
-    Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
-    Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
-    Debug.Print "Letzte Zeile in Kategorien: " & lastRowKategorien
+    lastRowZuweisungName = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
 
     ' Durch die Schlüssel in "Zuweisung" iterieren
-    For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
+    For i = 2 To lastRowZuweisung
         Schluessel = wsZuweisung.Cells(i, "B").Value
         ZielBlattName = wsZuweisung.Cells(i, "C").Value
-
-        Debug.Print "Verarbeite Schlüssel: " & Schluessel & ", Zielblatt: " & ZielBlattName
 
         ' Ziel-Arbeitsblatt prüfen
         On Error Resume Next
@@ -178,24 +206,19 @@ Sub DatenZuweisung()
         On Error GoTo 0
 
         If Not ZielWs Is Nothing Then
-            Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
-
             ' Daten aus "Rohdaten" finden
             For j = 2 To lastRowRoh
                 If wsRohdaten.Cells(j, "A").Value = Schluessel Then
                     ' Kalenderwoche berechnen
                     Datum = wsRohdaten.Cells(j, "F").Value
-
-                    ' Berechne Gestern oder letzten Freitag
-                    If Datum <> 0 Then ' Sicherstellen, dass Datum gültig ist
-                        If Weekday(Datum - 1, vbMonday) = 7 Then ' Wenn Sonntag
-                            Gestern = Datum - 3 ' Letzter Freitag
+                    If Datum <> 0 Then
+                        If Weekday(Datum - 1, vbMonday) = 7 Then
+                            Gestern = Datum - 3
                         Else
-                            Gestern = Datum - 1 ' Normaler Vortag
+                            Gestern = Datum - 1
                         End If
                     Else
-                        Debug.Print "Ungültiges Datum in Rohdaten: Zeile " & j
-                        Gestern = "" ' Leerer Wert für ungültiges Datum
+                        Gestern = ""
                     End If
 
                     ' Kategorie aus "Kategorien" suchen
@@ -209,14 +232,20 @@ Sub DatenZuweisung()
 
                     Kalenderwoche = "KW " & Format(Application.WeekNum(Gestern, vbMonday), "00")
 
-                    ' Debugging für Kalenderwoche
-                    Debug.Print "Berechnete KW: " & Kalenderwoche
+                    ' Namen aus Spalte O extrahieren und in "ZuweisungName" suchen
+                    OriginalWert = wsRohdaten.Cells(j, "O").Value
+                    MappingWert = OriginalWert ' Standardwert beibehalten
+                    For k = 2 To lastRowZuweisungName
+                        If wsZuweisungName.Cells(k, "A").Value = OriginalWert Then
+                            MappingWert = wsZuweisungName.Cells(k, "B").Value
+                            Exit For
+                        End If
+                    Next k
 
                     ' Alle Zellen mit der Kalenderwoche in den ersten 900 Zeilen suchen
                     For Each cell In ZielWs.Range("A1:A900")
                         If Trim(cell.Value) = Kalenderwoche Then
-                            Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
-                            zielRow = cell.Row + 9 ' 9 Zeilen unter der gefundenen Zelle beginnen
+                            zielRow = cell.Row + 9
 
                             ' Wochentag aus der Variable "Gestern" berechnen
                             Wochentag = Format(Gestern, "dddd")
@@ -233,6 +262,7 @@ Sub DatenZuweisung()
 
                             If foundRow = 0 Then
                                 MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
+                                Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
                                 Exit Sub
                             End If
 
@@ -242,10 +272,8 @@ Sub DatenZuweisung()
                                 zielRow = zielRow + 1
                             Loop
 
-                            Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
-
                             ' Text in Zielarbeitsblatt von C12 bis Q12 durchsuchen und Werte aus Rohdaten holen
-                            For headerCol = 3 To 17 ' Spalten C bis Q (3 bis 17)
+                            For headerCol = 3 To 17
                                 SuchText = "Frage: " & ZielWs.Cells(12, headerCol).Value
 
                                 ' Überschrift in Zeile 1 von "Rohdaten" suchen
@@ -275,30 +303,32 @@ Sub DatenZuweisung()
                                         Case Else
                                             ZielWs.Cells(zielRow, headerCol).Value = rohWert
                                     End Select
-                                Else
-                                    Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
                                 End If
                             Next headerCol
 
                             ' Daten übertragen
                             ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
-                            ZielWs.Cells(zielRow, "B").Value = Kategorie ' Angepasste Kategorie aus "Kategorien"
-                            ZielWs.Cells(zielRow, "U").Value = Gestern ' Datum von Gestern oder Freitag
-                            ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.") ' Datum
-                            ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value ' Bemerkung
+                            ZielWs.Cells(zielRow, "B").Value = Kategorie
+                            ZielWs.Cells(zielRow, "U").Value = Gestern
+                            ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.")
+                            ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value
+                            ZielWs.Cells(zielRow, "X").Value = MappingWert
                         End If
                     Next cell
                 End If
             Next j
-        Else
-            Debug.Print "Das Arbeitsblatt " & ZielBlattName & " existiert nicht."
         End If
     Next i
+
+    ' Externe Arbeitsmappe schließen
+    wbZuweisungName.Close SaveChanges:=False
+
+    ' Sichtbarkeit der Excel-Anwendung wiederherstellen
+    Application.Visible = appVisibility
 
     Debug.Print "Datenübertragung abgeschlossen!"
     ForwardingImport
 End Sub
-
 Sub ForwardingImport()
     Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
     Dim ZielWs As Worksheet
@@ -626,8 +656,8 @@ NextRow:
     Next i
 
     ' Lösche alle Zeilen außer der ersten in "Rohdaten"
-    'wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).ClearContents
-
+    wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).ClearContents
+    Application.ScreenUpdating = True
     Debug.Print "Datenübertragung abgeschlossen!"
     MsgBox "Datenübertragung abgeschlossen!", vbInformation
 End Sub
