@@ -19,7 +19,4 @@
       INDEX($AK$10:$AK$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
       INDEX($BJ$10:$BJ$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
       INDEX($CI$10:$CI$40;VERGLEICH(B262;$R$10:$R$40;0));
-   ""))
-   )))
-   )))
-   )))
+   0)))))))
