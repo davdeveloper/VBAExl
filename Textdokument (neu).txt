@@ -7,6 +7,19 @@
       INDEX($Y$10:$Y$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
       INDEX($AX$10:$AX$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
       INDEX($BW$10:$BW$40;VERGLEICH(B262;$R$10:$R$40;0));
-   "")
-);
-"")
+   WENN($P$228="Filiale";
+      INDEX($AC$10:$AC$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
+      INDEX($BB$10:$BB$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
+      INDEX($CA$10:$CA$40;VERGLEICH(B262;$R$10:$R$40;0));
+   WENN($P$228="Produkt";
+      INDEX($AG$10:$AG$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
+      INDEX($BF$10:$BF$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
+      INDEX($CE$10:$CE$40;VERGLEICH(B262;$R$10:$R$40;0));
+   WENN($P$228="Lidl Plus";
+      INDEX($AK$10:$AK$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
+      INDEX($BJ$10:$BJ$40;VERGLEICH(B262;$R$10:$R$40;0)) + 
+      INDEX($CI$10:$CI$40;VERGLEICH(B262;$R$10:$R$40;0));
+   ""))
+   )))
+   )))
+   )))
