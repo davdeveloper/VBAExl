@@ -159,7 +159,7 @@ Sub DatenZuweisung()
     Dim appVisibility As Boolean ' Variable zur Speicherung der Sichtbarkeit der Excel-Anwendung
 
     ' Pfad zur Datei "ZuweisungName.xlsx" im gleichen Projektpfad
-    filePath = ThisWorkbook.Path & "\ZuweisungName.xlsx"
+    filePath = "O:\Kundenservice_Berlin\14_QM\01_QM Übersicht\TMA\Zuweisung.xlsx"
 
     ' Aktuelle Sichtbarkeit der Excel-Anwendung speichern
     appVisibility = Application.Visible
@@ -248,7 +248,7 @@ Sub DatenZuweisung()
                             zielRow = cell.Row + 9
 
                             ' Wochentag aus der Variable "Gestern" berechnen
-                            Wochentag = Format(Gestern, "dddd")
+                            Wochentag = Format(wsRohdaten.Cells(j, "E").Value, "dddd")
 
                             ' Suche nach dem Wochentag in Spalte Y ab der gefundenen KW-Zeile
                             Dim foundRow As Long
@@ -309,7 +309,7 @@ Sub DatenZuweisung()
                             ' Daten übertragen
                             ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
                             ZielWs.Cells(zielRow, "B").Value = Kategorie
-                            ZielWs.Cells(zielRow, "U").Value = Gestern
+                            ZielWs.Cells(zielRow, "U").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.")
                             ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.")
                             ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value
                             ZielWs.Cells(zielRow, "X").Value = MappingWert
@@ -332,24 +332,54 @@ End Sub
 Sub ForwardingImport()
     Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
     Dim ZielWs As Worksheet
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, zielRow As Long
-    Dim i As Long, j As Long, k As Long
+    Dim wbZuweisungName As Workbook ' Neue Variable für die externe Arbeitsmappe
+    Dim wsZuweisungName As Worksheet ' Arbeitsblatt in der externen Arbeitsmappe
+    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, lastRowZuweisungName As Long, zielRow As Long
+    Dim i As Long, j As Long, k As Long, headerCol As Long
     Dim Schluessel As String, ZielBlattName As String
     Dim Datum As Date, Gestern As Variant
-    Dim Kategorie As String
-    Dim Kalenderwoche As String
-    Dim cell As Range, headerCol As Long
-    Dim SuchText As String, rohCol As Long
+    Dim Kategorie As String, SuchText As String
+    Dim Kalenderwoche As String, Wochentag As String
+    Dim cell As Range
+    Dim MappingWert As String
+    Dim OriginalWert As String
+    Dim filePath As String
+    Dim appVisibility As Boolean ' Variable zur Speicherung der Sichtbarkeit der Excel-Anwendung
 
-    ' Arbeitsblätter zuweisen
+    ' Pfad zur Datei "ZuweisungName.xlsx" im gleichen Projektpfad
+    filePath = "O:\Kundenservice_Berlin\14_QM\01_QM Übersicht\TMA\Zuweisung.xlsx"
+    
+    ' Aktuelle Sichtbarkeit der Excel-Anwendung speichern
+    appVisibility = Application.Visible
+
+    ' Excel-Anwendung unsichtbar machen
+    Application.Visible = False
+
+    ' Externe Arbeitsmappe "ZuweisungName.xlsx" im Hintergrund öffnen und entsperren
+    On Error Resume Next
+    Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87", UpdateLinks:=0, ReadOnly:=True)
+    On Error GoTo 0
+    wbZuweisungName.Windows(1).Visible = False
+
+    If wbZuweisungName Is Nothing Then
+        MsgBox "Die Datei 'ZuweisungName.xlsx' konnte nicht geöffnet werden.", vbExclamation
+        Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
+        Exit Sub
+    End If
+
+    ' Arbeitsblatt "ZuweisungName" in der externen Arbeitsmappe zuweisen
+    Set wsZuweisungName = wbZuweisungName.Worksheets("ZuweisungName")
+
+    ' Arbeitsblätter in der aktuellen Arbeitsmappe zuweisen
     Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
     Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
     Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
 
-    ' Letzte Zeile in "Rohdaten", "Zuweisung" und "Kategorien" finden
+    ' Letzte Zeile in "Rohdaten", "Zuweisung", "Kategorien" und "ZuweisungName" finden
     lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
     lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "F").End(xlUp).Row
     lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
+    lastRowZuweisungName = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
 
     Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
     Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
@@ -401,6 +431,16 @@ Sub ForwardingImport()
                     ' Debugging für Kalenderwoche
                     Debug.Print "Berechnete KW: " & Kalenderwoche
 
+                    ' Namen aus Spalte O extrahieren und in "ZuweisungName" suchen
+                    OriginalWert = wsRohdaten.Cells(j, "O").Value
+                    MappingWert = OriginalWert ' Standardwert beibehalten
+                    For k = 2 To lastRowZuweisungName
+                        If wsZuweisungName.Cells(k, "A").Value = OriginalWert Then
+                            MappingWert = wsZuweisungName.Cells(k, "B").Value
+                            Exit For
+                        End If
+                    Next k
+
                     ' Alle Zellen mit der Kalenderwoche in den ersten 500 Zeilen suchen
                     For Each cell In ZielWs.Range("A1:A500")
                         If Trim(cell.Value) = Kalenderwoche Then
@@ -408,8 +448,7 @@ Sub ForwardingImport()
                             zielRow = cell.Row + 7 ' 7 Zeilen unter der gefundenen Zelle beginnen
 
                             ' Wochentag aus der Variable "Gestern" berechnen
-                            Dim Wochentag As String
-                            Wochentag = Format(Gestern, "dddd")
+                            Wochentag = Format(wsRohdaten.Cells(j, "E").Value, "dddd")
 
                             ' Suche nach dem Wochentag in Spalte M ab der gefundenen KW-Zeile
                             Dim foundRow As Long
@@ -423,6 +462,7 @@ Sub ForwardingImport()
 
                             If foundRow = 0 Then
                                 MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
+                                Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
                                 Exit Sub
                             End If
 
@@ -437,15 +477,17 @@ Sub ForwardingImport()
                             ' Daten übertragen
                             ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
                             ZielWs.Cells(zielRow, "B").Value = Kategorie ' Angepasste Kategorie
-                            ZielWs.Cells(zielRow, "C").Value = Gestern ' Datum von Gestern oder Freitag
+                            ZielWs.Cells(zielRow, "C").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.") ' Vorgangsnummer ' Datum von Gestern oder Freitag
                             ZielWs.Cells(zielRow, "J").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.") ' Datum
                             ZielWs.Cells(zielRow, "K").Value = wsRohdaten.Cells(j, "G").Value ' Bemerkung
+                            ZielWs.Cells(zielRow, "L").Value = MappingWert ' Mapping-Wert in Spalte L
 
                             ' Texte für Fragen suchen und einfügen (Spalten D10 bis F10)
                             For headerCol = 4 To 6 ' Spalten D bis F im Zielarbeitsblatt
                                 SuchText = "Frage: " & ZielWs.Cells(10, headerCol).Value
 
                                 ' Überschrift in Zeile 1 von "Rohdaten" suchen
+                                Dim rohCol As Long
                                 rohCol = 0
                                 For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
                                     If wsRohdaten.Cells(1, k).Value = SuchText Then
@@ -484,6 +526,13 @@ Sub ForwardingImport()
             Debug.Print "Das Arbeitsblatt " & ZielBlattName & " existiert nicht."
         End If
     Next i
+
+    ' Externe Arbeitsmappe schließen
+    wbZuweisungName.Close SaveChanges:=False
+
+    ' Sichtbarkeit der Excel-Anwendung wiederherstellen
+    Application.Visible = appVisibility
+    Application.ScreenUpdating = True
 
     Debug.Print "Datenübertragung abgeschlossen!"
     ServiceImport
