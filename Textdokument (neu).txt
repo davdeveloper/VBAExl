@@ -1,1 +1,6 @@
-=ZÄHLENWENNS(Daten_Gesamt_NEU!B:B;">="&DATUM(JAHR(A1);MONAT(A1);1);Daten_Gesamt_NEU!B:B;"<"&DATUM(JAHR(A1);MONAT(A1)+1;1);Daten_Gesamt_NEU!E:E;"Salesforce")
+=ZÄHLENWENNS(
+    Daten_Gesamt_NEU!B:B;">="&DATUM(JAHR(A1);MONAT(A1);1);
+    Daten_Gesamt_NEU!B:B;"<"&DATUM(JAHR(A1);MONAT(A1)+1;1);
+    Daten_Gesamt_NEU!E:E;"<>Salesforce";
+    Daten_Gesamt_NEU!E:E;"<>CSA"
+)
