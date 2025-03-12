@@ -1,6 +1,23 @@
-=ZÄHLENWENNS(
-    Daten_Gesamt_NEU!B:B;">="&DATUM(JAHR(A1);MONAT(A1);1);
-    Daten_Gesamt_NEU!B:B;"<"&DATUM(JAHR(A1);MONAT(A1)+1;1);
-    Daten_Gesamt_NEU!E:E;"<>Salesforce";
-    Daten_Gesamt_NEU!E:E;"<>CSA"
-)
+Option Explicit
+
+Sub KeepActive()
+    Dim filePath As String
+    Dim fileNum As Integer
+    
+    ' Pfad zur Textdatei (Anpassen!)
+    filePath = "C:\Pfad\zu\Rohdaten.txt" ' <-- Hier anpassen!
+
+    Do While True ' Endlosschleife
+        ' Prüfen, ob Datei existiert
+        If Dir(filePath) <> "" Then
+            ' Datei öffnen
+            fileNum = FreeFile
+            Open filePath For Input As #fileNum
+            Application.Wait Now + TimeValue("00:00:05") ' 5 Sekunden warten
+            Close #fileNum ' Datei wieder schließen
+        End If
+        
+        ' 60 Sekunden warten, bevor die nächste Aktion passiert
+        Application.Wait Now + TimeValue("00:01:00")
+    Loop
+End Sub
