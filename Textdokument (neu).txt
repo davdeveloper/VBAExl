@@ -1,34 +1,41 @@
-Option Explicit
+Option Explicit 'muss rein sonst stress
 
-Dim StopLoop As Boolean ' Variable zum Stoppen des Makros
+Dim StopLoop As Boolean 'stopp ding 
 
 Sub StartExcelKeepActive()
-    Dim wb As Workbook
-    Dim filePath As String
-    StopLoop = False ' Stop-Variable auf "False" setzen
+    Dim wb As Workbook 'excel datei dings
+    Dim filePath As String 'datei ort
+    Dim ws As Worksheet 'blatt zeug
+    Dim StartTime As Double, Progress As Double 'zeit iwas 
+    Dim WaitTime As Double 'warte 
 
-    ' Pfad zur Datei automatisch bestimmen
-    filePath = ThisWorkbook.Path & "\Rohdaten.xlsx"
+    StopLoop = False 'nicht stoppen lol
+    filePath = ThisWorkbook.Path & "\Rohdaten.xlsx" 'datei von hier 
 
-    Do While Not StopLoop
-        ' Prüfen, ob Datei existiert
-        If Dir(filePath) <> "" Then
-            ' Excel-Datei öffnen
-            Set wb = Workbooks.Open(filePath)
-            Application.Wait Now + TimeValue("00:00:05") ' 5 Sekunden offen lassen
-            wb.Close False ' Datei schließen (ohne Speichern)
+    Set ws = ThisWorkbook.Sheets(1) 'blatt 1 sonst geht nix
+
+    WaitTime = 60 '1 min oda so 
+
+    Do While Not StopLoop 'wiederholen bis kaputt
+        If Dir(filePath) <> "" Then 'gucken obs die datei gibt
+            Set wb = Workbooks.Open(filePath) 'aufmachen
+            Application.Wait Now + TimeValue("00:00:05") '5 sec nix tun
+            wb.Close False 'zumachen ohne speichern
         End If
 
-        ' Wartezeit von 60 Sekunden, ohne Excel zu blockieren
-        Dim StartTime As Double
+        'anzeige machn
         StartTime = Timer
-        Do While Timer < StartTime + 60
-            DoEvents ' Verhindert Einfrieren von Excel
-            If StopLoop Then Exit Sub ' Falls Stop gedrückt wird, verlässt es die Schleife
-        Loop
+        For i = 0 To 100 Step 5 'bis 100 hochzählen
+            Progress = (Timer - StartTime) / WaitTime * 100 'rechnen kp warum
+            If Progress > 100 Then Progress = 100 'geht nich über 100% lol
+            ws.Range("B1").Value = "öffnen in: " & Format(Progress, "0") & "%" 'hier steht status oda so
+            Application.Wait Now + TimeValue("00:00:03") 'kurz warten
+            DoEvents 'damit excel nich einfriert oder so
+            If StopLoop Then Exit Sub 'stopp wenn stopp
+        Next i
     Loop
 End Sub
 
 Sub StopExcelKeepActive()
-    StopLoop = True ' Stoppt die Schleife beim nächsten Durchlauf
+    StopLoop = True 'stopp halt
 End Sub
