@@ -1,23 +1,34 @@
 Option Explicit
 
-Sub KeepActive()
-    Dim filePath As String
-    Dim fileNum As Integer
-    
-    ' Pfad zur Textdatei (Anpassen!)
-    filePath = "C:\Pfad\zu\Rohdaten.txt" ' <-- Hier anpassen!
+Dim StopLoop As Boolean ' Variable zum Stoppen des Makros
 
-    Do While True ' Endlosschleife
+Sub StartExcelKeepActive()
+    Dim wb As Workbook
+    Dim filePath As String
+    StopLoop = False ' Stop-Variable auf "False" setzen
+
+    ' Pfad zur Datei automatisch bestimmen
+    filePath = ThisWorkbook.Path & "\Rohdaten.xlsx"
+
+    Do While Not StopLoop
         ' Prüfen, ob Datei existiert
         If Dir(filePath) <> "" Then
-            ' Datei öffnen
-            fileNum = FreeFile
-            Open filePath For Input As #fileNum
-            Application.Wait Now + TimeValue("00:00:05") ' 5 Sekunden warten
-            Close #fileNum ' Datei wieder schließen
+            ' Excel-Datei öffnen
+            Set wb = Workbooks.Open(filePath)
+            Application.Wait Now + TimeValue("00:00:05") ' 5 Sekunden offen lassen
+            wb.Close False ' Datei schließen (ohne Speichern)
         End If
-        
-        ' 60 Sekunden warten, bevor die nächste Aktion passiert
-        Application.Wait Now + TimeValue("00:01:00")
+
+        ' Wartezeit von 60 Sekunden, ohne Excel zu blockieren
+        Dim StartTime As Double
+        StartTime = Timer
+        Do While Timer < StartTime + 60
+            DoEvents ' Verhindert Einfrieren von Excel
+            If StopLoop Then Exit Sub ' Falls Stop gedrückt wird, verlässt es die Schleife
+        Loop
     Loop
+End Sub
+
+Sub StopExcelKeepActive()
+    StopLoop = True ' Stoppt die Schleife beim nächsten Durchlauf
 End Sub
