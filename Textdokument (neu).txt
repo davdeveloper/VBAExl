@@ -1,5 +1,5 @@
 =LET(
-    prozent; C334*100;
+    prozent; C344*100;
     bereiche; TEXTSPLIT(TEXTJOIN(",";WAHR;B330:B334); "-,");
     untergrenzen; WERT(INDEX(bereiche;;1));
     obergrenzen; WERT(INDEX(bereiche;;2));
@@ -8,5 +8,5 @@
     index; XMATCH(WAHR; (prozent >= untergrenzen)*(prozent <= obergrenzen));
     minwert; INDEX(minwerte; index);
     maxwert; INDEX(maxwerte; index);
-    minwert + (maxwert - minwert) * (C334)
+    minwert + (maxwert - minwert) * C344
 )
