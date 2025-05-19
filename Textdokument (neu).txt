@@ -1,4 +1,12 @@
-=WENN(BC43<BB43;
-    "- " & TEXT((BB43-BC43)*2,94; "#.##0,00");
-    "+ " & TEXT((BC43-BB43)*2,94; "#.##0,00")
+=LET(
+    prozent; C334*100;
+    bereiche; TEXTSPLIT(TEXTJOIN(",";WAHR;B330:B334); "-,");
+    untergrenzen; WERT(INDEX(bereiche;;1));
+    obergrenzen; WERT(INDEX(bereiche;;2));
+    minwerte; C330:C334;
+    maxwerte; D330:D334;
+    index; XMATCH(WAHR; (prozent >= untergrenzen)*(prozent <= obergrenzen));
+    minwert; INDEX(minwerte; index);
+    maxwert; INDEX(maxwerte; index);
+    minwert + (maxwert - minwert) * (C334)
 )
