@@ -1,12 +1,7 @@
-=LET(
-    prozent; C344*100;
-    bereiche; TEXTSPLIT(TEXTVERKETTEN(";" ;WAHR;B330:B334); "-;");
-    untergrenzen; WERT(INDEX(bereiche;;1));
-    obergrenzen; WERT(INDEX(bereiche;;2));
-    minwerte; C330:C334;
-    maxwerte; D330:D334;
-    index; XVERGLEICH(WAHR; (prozent >= untergrenzen)*(prozent <= obergrenzen); 0);
-    minwert; INDEX(minwerte; index);
-    maxwert; INDEX(maxwerte; index);
-    minwert + (maxwert - minwert) * C344
+=INDEX(C330:C334;VERGLEICH(1;(C344*100>=WERT(LINKS(B330:B334;SUCHEN("-";B330:B334)-1)))*(C344*100<=WERT(TEIL(B330:B334;SUCHEN("-";B330:B334)+1;99)));0))
++
+(C344*
+(INDEX(D330:D334;VERGLEICH(1;(C344*100>=WERT(LINKS(B330:B334;SUCHEN("-";B330:B334)-1)))*(C344*100<=WERT(TEIL(B330:B334;SUCHEN("-";B330:B334)+1;99)));0))
+-
+INDEX(C330:C334;VERGLEICH(1;(C344*100>=WERT(LINKS(B330:B334;SUCHEN("-";B330:B334)-1)))*(C344*100<=WERT(TEIL(B330:B334;SUCHEN("-";B330:B334)+1;99)));0)))
 )
