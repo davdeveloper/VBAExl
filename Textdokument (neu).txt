@@ -1,6 +1,6 @@
 =LET(
     prozent; C344*100;
-    bereiche; TEXTSPLIT(TEXTVERKETTEN(",";WAHR;B330:B334); "-,");
+    bereiche; TEXTSPLIT(TEXTVERKETTEN(";" ;WAHR;B330:B334); "-;");
     untergrenzen; WERT(INDEX(bereiche;;1));
     obergrenzen; WERT(INDEX(bereiche;;2));
     minwerte; C330:C334;
