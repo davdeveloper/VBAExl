@@ -21,15 +21,38 @@
         0))
     ;
     WENN($P$228="Filiale";
-        INDEX($AC$10:$AC$40;VERGLEICH(B262;$R$10:$R$40;0))+
-        INDEX($BB$10:$BB$40;VERGLEICH(B262;$R$10:$R$40;0))+
-        INDEX($CA$10:$CA$40;VERGLEICH(B262;$R$10:$R$40;0));
+        WENN($R$226="Telefonie";
+            INDEX($AE$10:$AE$40;VERGLEICH(B262;$R$10:$R$40;0))+
+            INDEX($BD$10:$BD$40;VERGLEICH(B262;$R$10:$R$40;0))+
+            INDEX($CC$10:$CC$40;VERGLEICH(B262;$R$10:$R$40;0));
+        WENN($R$226="Gesamt";
+            INDEX($AC$10:$AC$40;VERGLEICH(B262;$R$10:$R$40;0))+
+            INDEX($BB$10:$BB$40;VERGLEICH(B262;$R$10:$R$40;0))+
+            INDEX($CA$10:$CA$40;VERGLEICH(B262;$R$10:$R$40;0));
+        0))
+    ;
     WENN($P$228="Produkt";
-        INDEX($AG$10:$AG$40;VERGLEICH(B262;$R$10:$R$40;0))+
-        INDEX($BF$10:$BF$40;VERGLEICH(B262;$R$10:$R$40;0))+
-        INDEX($CE$10:$CE$40;VERGLEICH(B262;$R$10:$R$40;0));
+        WENN($R$226="Telefonie";
+            INDEX($AI$10:$AI$40;VERGLEICH(B262;$R$10;$R$40;0))+
+            INDEX($BH$10:$BH$40;VERGLEICH(B262;$R$10;$R$40;0))+
+            INDEX($CG$10:$CG$40;VERGLEICH(B262;$R$10;$R$40;0));
+        WENN($R$226="Gesamt";
+            INDEX($AG$10:$AG$40;VERGLEICH(B262;$R$10;$R$40;0))+
+            INDEX($BF$10:$BF$40;VERGLEICH(B262;$R$10;$R$40;0))+
+            INDEX($CE$10:$CE$40;VERGLEICH(B262;$R$10;$R$40;0));
+        0))
+    ;
     WENN($P$228="Lidl Plus";
-        INDEX($AK$10:$AK$40;VERGLEICH(B262;$R$10:$R$40;0))+
-        INDEX($BJ$10:$BJ$40;VERGLEICH(B262;$R$10:$R$40;0))+
-        INDEX($CI$10:$CI$40;VERGLEICH(B262;$R$10:$R$40;0));
-    0)))))
+        WENN($R$226="Telefonie";
+            INDEX($AM$10:$AM$40;VERGLEICH(B262;$R$10;$R$40;0))+
+            INDEX($BL$10:$BL$40;VERGLEICH(B262;$R$10;$R$40;0))+
+            INDEX($CK$10:$CK$40;VERGLEICH(B262;$R$10;$R$40;0));
+        WENN($R$226="Gesamt";
+            INDEX($AK$10:$AK$40;VERGLEICH(B262;$R$10;$R$40;0))+
+            INDEX($BJ$10:$BJ$40;VERGLEICH(B262;$R$10;$R$40;0))+
+            INDEX($CI$10;$CI$40;VERGLEICH(B262;$R$10;$R$40;0));
+        0))
+    ;
+    0
+    )
+)
