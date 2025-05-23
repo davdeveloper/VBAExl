@@ -1,151 +1,46 @@
 =WENN($N$227="Gesamt";
-    WENN($P$228="Gesamt";
-        WENN($R$226="Telefonie";
-            INDEX($U$10:$U$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($AT$10:$AT$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BS$10:$BS$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($T$10:$T$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($AS$10:$AS$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BR$10:$BR$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Onlineshop";
-        WENN($R$226="Telefonie";
-            INDEX($AA$10:$AA$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($AZ$10:$AZ$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BY$10:$BY$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($Y$10:$Y$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($AX$10:$AX$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BW$10:$BW$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Filiale";
-        WENN($R$226="Telefonie";
-            INDEX($AE$10:$AE$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BD$10:$BD$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($CC$10:$CC$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($AC$10:$AC$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BB$10:$BB$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($CA$10:$CA$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Produkt";
-        WENN($R$226="Telefonie";
-            INDEX($AI$10:$AI$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BH$10:$BH$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($CG$10:$CG$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($AG$10:$AG$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BF$10:$BF$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($CE$10:$CE$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Lidl Plus";
-        WENN($R$226="Telefonie";
-            INDEX($AM$10:$AM$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BL$10:$BL$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($CK$10:$CK$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($AK$10:$AK$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($BJ$10:$BJ$40;VERGLEICH(B262;$R$10:$R$40;0))+
-            INDEX($CI$10:$CI$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    0)))))
-;
-WENN($N$227="Teleperformance";
-    WENN($P$228="Gesamt";
-        WENN($R$226="Telefonie";
-            INDEX($U$10:$U$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($T$10:$T$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Onlineshop";
-        WENN($R$226="Telefonie";
-            INDEX($AA$10:$AA$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($Y$10:$Y$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Filiale";
-        WENN($R$226="Telefonie";
-            INDEX($AE$10:$AE$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($AC$10:$AC$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Produkt";
-        WENN($R$226="Telefonie";
-            INDEX($AI$10:$AI$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($AG$10:$AG$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Lidl Plus";
-        WENN($R$226="Telefonie";
-            INDEX($AM$10:$AM$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($AK$10:$AK$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    0)))))
-;
+WENN($P$228="Gesamt";
+INDEX(Gesamt!$D:$D;VERGLEICH(B262;Gesamt!$A:$A;0));
+WENN($P$228="Onlineshop";
+INDEX(Gesamt!$L:$L;VERGLEICH(B262;Gesamt!$A:$A;0));
+WENN($P$228="Filiale";
+INDEX(Gesamt!$M:$M;VERGLEICH(B262;Gesamt!$A:$A;0));
+WENN($P$228="Produkt";
+INDEX(Gesamt!$O:$O;VERGLEICH(B262;Gesamt!$A:$A;0));
+WENN($P$228="Lidl Plus";
+INDEX(Gesamt!$N:$N;VERGLEICH(B262;Gesamt!$A:$A;0));
+0)))));
 WENN($N$227="Concentrix";
-    WENN($P$228="Gesamt";
-        WENN($R$226="Telefonie";
-            INDEX($AT$10:$AT$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($AS$10:$AS$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Onlineshop";
-        WENN($R$226="Telefonie";
-            INDEX($AZ$10:$AZ$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($AX$10:$AX$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Filiale";
-        WENN($R$226="Telefonie";
-            INDEX($BD$10:$BD$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($BB$10:$BB$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Produkt";
-        WENN($R$226="Telefonie";
-            INDEX($BH$10:$BH$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($BF$10:$BF$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Lidl Plus";
-        WENN($R$226="Telefonie";
-            INDEX($BL$10:$BL$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($BJ$10:$BJ$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    0)))))
-;
+WENN($P$228="Gesamt";
+INDEX(Webhelp!$D:$D;VERGLEICH(B262;Webhelp!$A:$A;0));
+WENN($P$228="Onlineshop";
+INDEX(Webhelp!$L:$L;VERGLEICH(B262;Webhelp!$A:$A;0));
+WENN($P$228="Filiale";
+INDEX(Webhelp!$M:$M;VERGLEICH(B262;Webhelp!$A:$A;0));
+WENN($P$228="Produkt";
+INDEX(Webhelp!$O:$O;VERGLEICH(B262;Webhelp!$A:$A;0));
+WENN($P$228="Lidl Plus";
+INDEX(Webhelp!$N:$N;VERGLEICH(B262;Webhelp!$A:$A;0));
+0)))));
+WENN($N$227="Teleperformance";
+WENN($P$228="Gesamt";
+INDEX(Teleperformance!$D:$D;VERGLEICH(B262;Teleperformance!$A:$A;0));
+WENN($P$228="Onlineshop";
+INDEX(Teleperformance!$L:$L;VERGLEICH(B262;Teleperformance!$A:$A;0));
+WENN($P$228="Filiale";
+INDEX(Teleperformance!$M:$M;VERGLEICH(B262;Teleperformance!$A:$A;0));
+WENN($P$228="Produkt";
+INDEX(Teleperformance!$O:$O;VERGLEICH(B262;Teleperformance!$A:$A;0));
+WENN($P$228="Lidl Plus";
+INDEX(Teleperformance!$N:$N;VERGLEICH(B262;Teleperformance!$A:$A;0));
+0)))));
 WENN($N$227="LKS";
-    WENN($P$228="Gesamt";
-        WENN($R$226="Telefonie";
-            INDEX($BS$10:$BS$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($BR$10:$BR$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Onlineshop";
-        WENN($R$226="Telefonie";
-            INDEX($BY$10:$BY$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($BW$10:$BW$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Filiale";
-        WENN($R$226="Telefonie";
-            INDEX($CC$10:$CC$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($CA$10:$CA$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Produkt";
-        WENN($R$226="Telefonie";
-            INDEX($CG$10:$CG$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($CE$10:$CE$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    WENN($P$228="Lidl Plus";
-        WENN($R$226="Telefonie";
-            INDEX($CK$10:$CK$40;VERGLEICH(B262;$R$10:$R$40;0));
-        WENN($R$226="Gesamt";
-            INDEX($CI$10:$CI$40;VERGLEICH(B262;$R$10:$R$40;0));
-        0));
-    0)))))
+WENN($P$228="Gesamt";
+INDEX('LKS-1st'!$D:$D;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
+WENN($P$228="Onlineshop";
+INDEX('LKS-1st'!$L:$L;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
+WENN($P$228="Filiale";
+INDEX('LKS-1st'!$M:$M;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
+WENN($P$228="Lidl Plus";
+INDEX('LKS-1st'!$N:$N;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
+0))))))))
