@@ -259,21 +259,24 @@ function findHeaderRowInBlock_(data, startRow, endRow) {
 /**
  * Wertet einen Wochenplan-Block aus.
  *
- * Wichtig:
- * Isth und Vertrag h sind im Monatsbackup Wochenwerte.
- * Deshalb:
- * IST = Tagesdetails ohne Pause
- * SOLL = geplante Tageszeit oder Vertrags-Fallback
- * Ausgleichstag = eigener Fall, nicht über Wochen-Ist erkennen
+ * Monatsbackup Logik:
+ * Isth und Vertrag h sind Wochenwerte.
+ * IST wird aus den Tagesdetails ohne Pausen berechnet.
+ * SOLL wird aus Vertrag h anteilig auf echte Soll-Tage verteilt.
+ * Samstag/Sonntag mit "-" sind keine Ausgleichstage.
+ * Ausgleichstag wird nur werktags erkannt und nur bei echter Wochen-Differenz.
  */
 function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year, records, ctx) {
-  const AUSGLEICHSTAG_ZAEHLT_INS_SOLL = true;
+  const AUSGLEICHSTAG_ZAEHLT_INS_SOLL = false;
 
   const headerRow = data[headerRowIndex];
   const dateColumns = [];
 
   let differenzColIndex = headerRow.findIndex(h => String(h).trim() === "Differenz");
   if (differenzColIndex === -1) differenzColIndex = 10;
+
+  let isthColIndex = headerRow.findIndex(h => String(h).trim() === "Isth");
+  if (isthColIndex === -1) isthColIndex = 12;
 
   let vertragColIndex = headerRow.findIndex(h => String(h).trim() === "Vertrag h");
   if (vertragColIndex === -1) vertragColIndex = 14;
@@ -285,7 +288,10 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
       dateColumns.push({
         colIndex: c,
         date: dateInfo.dateStr,
-        isSaturday: dateInfo.isSaturday
+        dayOfWeek: dateInfo.dayOfWeek,
+        isSaturday: dateInfo.isSaturday,
+        isSunday: dateInfo.isSunday,
+        isWeekend: dateInfo.isWeekend
       });
     }
   }
@@ -317,36 +323,24 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
     }
 
     const differenzVal = parseGermanFloat(data[r][differenzColIndex]);
-
+    const weeklyIstVal = parseGermanFloat(data[r][isthColIndex]);
     const weeklyVertragVal = parseGermanFloat(data[r][vertragColIndex]);
 
-    const dailyContractFallback = calculateDailyContractFallback_(
+    const dayInfos = buildEmployeeDayInfos_(
       data,
       r,
+      blockEndRow,
       dateColumns,
+      weeklyIstVal,
       weeklyVertragVal
     );
 
-    for (const dc of dateColumns) {
-      const dayValueInNameRow = String(data[r][dc.colIndex]).trim();
-      const upperDayVal = dayValueInNameRow.toUpperCase();
-
-      const detailCell = r + 1 < blockEndRow
-        ? String(data[r + 1][dc.colIndex])
-        : "";
-
-      const detailIstHours = calculateWorkHoursFromDetailCell_(detailCell);
-      const dayCellTimeHours = calculateHoursFromAnyTimeRanges_(dayValueInNameRow);
-
-      const hasDetail = detailCell && detailCell.trim() !== "";
-      const hasDetailHours = detailIstHours > 0;
-      const hasDayCellHours = dayCellTimeHours > 0;
-
-      const recKey = `${dc.date}|${kw}|${mappedName}`;
+    for (const info of dayInfos) {
+      const recKey = `${info.date}|${kw}|${mappedName}`;
 
       if (!records[recKey]) {
         records[recKey] = {
-          date: dc.date,
+          date: info.date,
           kw: kw,
           name: mappedName,
           skills: {},
@@ -354,105 +348,65 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
           soll: 0,
           ist: 0,
           isAnw: false,
-          schicht: dayValueInNameRow,
+          schicht: info.dayCell,
           team: assignedTeam || "Unbekannt"
         };
       }
 
-      const isUrlaub = upperDayVal.includes("URLAUB");
-      const isAbw = upperDayVal.includes("ABW");
-      const isUeberstunden = upperDayVal.includes("ÜBERSTUNDEN");
-      const isWunschfrei = upperDayVal.includes("WUNSCHFREI");
+      const rec = records[recKey];
 
-      /**
-       * Ausgleichstag:
-       * Im Monatsbackup reicht weeklyIstVal === 0 nicht.
-       * Ein einzelner Ausgleichstag liegt oft in einer Woche mit sonstiger Arbeitszeit.
-       *
-       * Deshalb:
-       * Tageszelle ist "-"
-       * keine Detailstunden
-       * Vertragsstunden vorhanden
-       */
-      const isAusgleichstag = (
-        upperDayVal === "-" &&
-        weeklyVertragVal > 0 &&
-        !hasDetailHours
-      );
-
-      const isFullDayAbsence = isUrlaub || isAbw || isUeberstunden || isWunschfrei || isAusgleichstag;
-
-      if (isFullDayAbsence) {
+      if (info.isUrlaub || info.isAbw || info.isUeberstunden || info.isWunschfrei || info.isAusgleichstag) {
         let matchedPlanoSkill = "ABW";
 
-        if (isUrlaub) matchedPlanoSkill = "Urlaub";
-        if (isUeberstunden) matchedPlanoSkill = "Überstundenfrei";
-        if (isWunschfrei) matchedPlanoSkill = "Wunschfrei";
-        if (isAusgleichstag) matchedPlanoSkill = "Ausgleichstag";
+        if (info.isUrlaub) matchedPlanoSkill = "Urlaub";
+        if (info.isUeberstunden) matchedPlanoSkill = "Überstundenfrei";
+        if (info.isWunschfrei) matchedPlanoSkill = "Wunschfrei";
+        if (info.isAusgleichstag) matchedPlanoSkill = "Ausgleichstag";
 
         const dbSkill = ctx.skillMap[matchedPlanoSkill] || matchedPlanoSkill;
 
-        if (!ctx.skillMap[matchedPlanoSkill] && !isAusgleichstag) {
+        if (!ctx.skillMap[matchedPlanoSkill] && !info.isAusgleichstag) {
           ctx.unmappedSkills.add(matchedPlanoSkill);
         }
 
-        let absenceHours = 0;
+        let absenceHours = info.dailySollHours;
 
-        if (hasDayCellHours) {
-          absenceHours = dayCellTimeHours;
-        } else if (hasDetailHours) {
-          absenceHours = detailIstHours;
-        } else {
-          absenceHours = dailyContractFallback;
+        if (info.isAusgleichstag && info.ausgleichHours > 0) {
+          absenceHours = info.ausgleichHours;
         }
 
         if (!absenceHours && weeklyVertragVal > 0) {
           absenceHours = weeklyVertragVal / 5;
         }
 
-        records[recKey].skills[dbSkill] = (records[recKey].skills[dbSkill] || 0) + absenceHours;
+        rec.skills[dbSkill] = (rec.skills[dbSkill] || 0) + absenceHours;
 
-        if (isAusgleichstag) {
-          records[recKey].soll = AUSGLEICHSTAG_ZAEHLT_INS_SOLL ? absenceHours : 0;
-          records[recKey].ist = 0;
-        } else if (isUeberstunden || isWunschfrei) {
-          records[recKey].soll = absenceHours;
-          records[recKey].ist = 0;
+        if (info.isAusgleichstag) {
+          rec.soll = AUSGLEICHSTAG_ZAEHLT_INS_SOLL ? absenceHours : 0;
+          rec.ist = 0;
+        } else if (info.isUeberstunden || info.isWunschfrei) {
+          rec.soll = info.dailySollHours;
+          rec.ist = 0;
         } else {
-          records[recKey].soll = absenceHours;
-          records[recKey].ist = absenceHours;
+          rec.soll = info.dailySollHours;
+          rec.ist = info.dailySollHours;
         }
 
         continue;
       }
 
-      if (upperDayVal.includes("ANW") || upperDayVal === "ANW") {
-        records[recKey].isAnw = true;
+      if (info.upperDayCell.includes("ANW") || info.upperDayCell === "ANW") {
+        rec.isAnw = true;
       }
 
-      /**
-       * Normaler Arbeitstag:
-       * IST bleibt echte Detail-Arbeitszeit ohne Pause.
-       * SOLL darf nicht automatisch IST sein.
-       */
-      let plannedSollHours = 0;
+      rec.soll = info.dailySollHours;
+      rec.ist = info.detailIstHours;
 
-      if (hasDayCellHours) {
-        plannedSollHours = dayCellTimeHours;
-      } else if (hasDetailHours) {
-        plannedSollHours = detailIstHours;
-      } else if (upperDayVal && upperDayVal !== "-") {
-        plannedSollHours = dailyContractFallback;
-      }
-
-      records[recKey].soll = plannedSollHours;
-      records[recKey].ist = detailIstHours;
-
-      if (!hasDetail) {
+      if (!info.detailCell || info.detailCell.trim() === "") {
         continue;
       }
 
-      const lines = detailCell.split("\n").map(l => l.trim());
+      const lines = info.detailCell.split("\n").map(l => l.trim());
       let currentTimeRange = null;
 
       for (let i = 0; i < lines.length; i++) {
@@ -490,7 +444,7 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
 
         if (matchedDbSkill) {
           const hrs = calculateHours(currentTimeRange);
-          records[recKey].skills[matchedDbSkill] = (records[recKey].skills[matchedDbSkill] || 0) + hrs;
+          rec.skills[matchedDbSkill] = (rec.skills[matchedDbSkill] || 0) + hrs;
         } else {
           if (line && lineUpper !== "ANW") {
             ctx.unmappedSkills.add(line.trim());
@@ -501,6 +455,163 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
       }
     }
   }
+}
+
+/**
+ * Baut pro Mitarbeiter alle Tagesinfos eines Wochenblocks.
+ * Wichtig:
+ * Vertrag h wird auf echte Soll-Tage verteilt.
+ * Wochenend "-" wird ignoriert.
+ * Werktags "-" wird nur als Ausgleichstag gewertet, wenn Vertrag h > Isth.
+ */
+function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns, weeklyIstVal, weeklyVertragVal) {
+  const infos = [];
+
+  for (const dc of dateColumns) {
+    const dayCell = String(data[employeeRowIndex][dc.colIndex]).trim();
+    const upperDayCell = dayCell.toUpperCase();
+
+    const detailCell = employeeRowIndex + 1 < blockEndRow
+      ? String(data[employeeRowIndex + 1][dc.colIndex])
+      : "";
+
+    const detailIstHours = calculateWorkHoursFromDetailCell_(detailCell);
+    const dayCellTimeHours = calculateHoursFromAnyTimeRanges_(dayCell);
+
+    const isUrlaub = upperDayCell.includes("URLAUB");
+    const isAbw = upperDayCell.includes("ABW");
+    const isUeberstunden = upperDayCell.includes("ÜBERSTUNDEN");
+    const isWunschfrei = upperDayCell.includes("WUNSCHFREI");
+
+    const hasAbsenceLabel = isUrlaub || isAbw || isUeberstunden || isWunschfrei;
+    const hasHours = detailIstHours > 0 || dayCellTimeHours > 0;
+
+    const hasWeeklySollGap = weeklyVertragVal > weeklyIstVal + 0.01;
+
+    const isAusgleichstag =
+      upperDayCell === "-" &&
+      !dc.isWeekend &&
+      !hasHours &&
+      !hasAbsenceLabel &&
+      hasWeeklySollGap;
+
+    const isEmptyFreeDay =
+      upperDayCell === "-" &&
+      !hasHours &&
+      !hasAbsenceLabel &&
+      !isAusgleichstag;
+
+    let baseHours = 0;
+
+    if (hasHours) {
+      baseHours = detailIstHours > 0 ? detailIstHours : dayCellTimeHours;
+    }
+
+    infos.push({
+      colIndex: dc.colIndex,
+      date: dc.date,
+      dayOfWeek: dc.dayOfWeek,
+      isWeekend: dc.isWeekend,
+      dayCell: dayCell,
+      upperDayCell: upperDayCell,
+      detailCell: detailCell,
+      detailIstHours: detailIstHours,
+      dayCellTimeHours: dayCellTimeHours,
+      isUrlaub: isUrlaub,
+      isAbw: isAbw,
+      isUeberstunden: isUeberstunden,
+      isWunschfrei: isWunschfrei,
+      isAusgleichstag: isAusgleichstag,
+      isEmptyFreeDay: isEmptyFreeDay,
+      baseHours: baseHours,
+      sollBase: 0,
+      dailySollHours: 0,
+      ausgleichHours: 0
+    });
+  }
+
+  const normalWorkBases = infos
+    .filter(info =>
+      !info.isWeekend &&
+      !info.isEmptyFreeDay &&
+      !info.isAusgleichstag &&
+      !info.isUrlaub &&
+      !info.isAbw &&
+      !info.isUeberstunden &&
+      !info.isWunschfrei &&
+      info.baseHours > 0
+    )
+    .map(info => info.baseHours);
+
+  const averageWorkBase = normalWorkBases.length > 0
+    ? normalWorkBases.reduce((sum, val) => sum + val, 0) / normalWorkBases.length
+    : 0;
+
+  let fallbackWorkBase = averageWorkBase;
+
+  if (!fallbackWorkBase && weeklyVertragVal > 0) {
+    fallbackWorkBase = weeklyVertragVal / 5;
+  }
+
+  if (!fallbackWorkBase) {
+    fallbackWorkBase = 1;
+  }
+
+  infos.forEach(info => {
+    const countsForSoll =
+      !info.isWeekend &&
+      !info.isEmptyFreeDay &&
+      !info.isAusgleichstag;
+
+    if (!countsForSoll) {
+      info.sollBase = 0;
+      return;
+    }
+
+    if (info.baseHours > 0) {
+      info.sollBase = info.baseHours;
+      return;
+    }
+
+    if (
+      info.isUrlaub ||
+      info.isAbw ||
+      info.isUeberstunden ||
+      info.isWunschfrei ||
+      info.upperDayCell.includes("ANW") ||
+      (info.upperDayCell && info.upperDayCell !== "-")
+    ) {
+      info.sollBase = fallbackWorkBase;
+      return;
+    }
+
+    info.sollBase = 0;
+  });
+
+  const totalSollBase = infos.reduce((sum, info) => sum + info.sollBase, 0);
+
+  if (weeklyVertragVal > 0 && totalSollBase > 0) {
+    infos.forEach(info => {
+      info.dailySollHours = weeklyVertragVal * (info.sollBase / totalSollBase);
+    });
+  } else {
+    infos.forEach(info => {
+      info.dailySollHours = info.sollBase;
+    });
+  }
+
+  const ausgleichInfos = infos.filter(info => info.isAusgleichstag);
+  const ausgleichTotalHours = Math.max(weeklyVertragVal - weeklyIstVal, 0);
+
+  if (ausgleichInfos.length > 0 && ausgleichTotalHours > 0) {
+    const hoursPerAusgleichstag = ausgleichTotalHours / ausgleichInfos.length;
+
+    ausgleichInfos.forEach(info => {
+      info.ausgleichHours = hoursPerAusgleichstag;
+    });
+  }
+
+  return infos;
 }
 
 /**
@@ -526,11 +637,17 @@ function extractDateFromHeaderCell_(cellValue, year) {
   const dateStr = `${day}.${month}.${year}`;
 
   const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
-  const isSaturday = dateObj.getDay() === 6;
+  const dayOfWeek = dateObj.getDay();
+  const isSaturday = dayOfWeek === 6;
+  const isSunday = dayOfWeek === 0;
+  const isWeekend = isSaturday || isSunday;
 
   return {
-    dateStr,
-    isSaturday
+    dateStr: dateStr,
+    dayOfWeek: dayOfWeek,
+    isSaturday: isSaturday,
+    isSunday: isSunday,
+    isWeekend: isWeekend
   };
 }
 
@@ -630,8 +747,6 @@ function normalizeTimeRange_(line) {
 
 /**
  * Fallback für Abwesenheiten.
- * Wenn Plano bei Urlaub / ABW keine Tagesdetails liefert,
- * wird der Wochenvertrag auf die erkennbaren Arbeitstage verteilt.
  */
 function calculateDailyContractFallback_(data, employeeRowIndex, dateColumns, weeklyVertragVal) {
   if (!weeklyVertragVal || weeklyVertragVal <= 0) {
@@ -653,10 +768,9 @@ function calculateDailyContractFallback_(data, employeeRowIndex, dateColumns, we
       upperDayCell.includes("URLAUB") ||
       upperDayCell.includes("ABW") ||
       upperDayCell.includes("ÜBERSTUNDEN") ||
-      upperDayCell.includes("WUNSCHFREI") ||
-      upperDayCell === "-";
+      upperDayCell.includes("WUNSCHFREI");
 
-    if (hasWorkHours || hasAbsence) {
+    if (!dc.isWeekend && (hasWorkHours || hasAbsence)) {
       countedDays++;
     }
   }
