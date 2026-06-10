@@ -45,8 +45,6 @@ function processPlanoBackup_(fileId, importWholeMonth) {
   const externalTeamMap = getEmployeeTeams();
   const unmappedSkills = new Set();
   const unmappedEmployees = new Set();
-  const abwDbName = (skillMap["ABW"] || "ABW").toUpperCase();
-
   const targetSheet = ensureSheetWithBaseHeaders_(ss, targetSheetName, ["Datum", "KW", "Mitarbeitername"]);
   const targetHeaders = ensurePlanoTargetHeaders_(targetSheet, skillMap);
 
@@ -82,13 +80,12 @@ function processPlanoBackup_(fileId, importWholeMonth) {
     });
   });
 
-  const koResult = writeKoSkillRecords_(targetSheet, targetHeaders, records, abwDbName);
+  const koResult = writeKoSkillRecords_(targetSheet, targetHeaders, records);
   const teamResult = writePlanoTeamAggregation_({
     ss,
     sheetName: gesamtSheetName,
     headers: targetHeaders,
     records,
-    abwDbName,
     clearBeforeWrite: importWholeMonth
   });
 
@@ -476,7 +473,7 @@ function parsePlanoDetailCell_(cellValue, recKey, records, skillMap, planoSkills
   });
 }
 
-function writeKoSkillRecords_(targetSheet, targetHeaders, records, abwDbName) {
+function writeKoSkillRecords_(targetSheet, targetHeaders, records) {
   const results = [];
 
   Object.keys(records)
@@ -492,9 +489,7 @@ function writeKoSkillRecords_(targetSheet, targetHeaders, records, abwDbName) {
       for (const dbSkill in rec.skills) {
         const colIndex = targetHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
         if (colIndex !== -1) {
-          rowData[colIndex] = dbSkill.toUpperCase() === abwDbName
-            ? minutesToHHMM(Math.round(rec.skills[dbSkill] * 60))
-            : rec.skills[dbSkill];
+          rowData[colIndex] = rec.skills[dbSkill];
           hasSkillData = true;
         }
       }
@@ -521,7 +516,7 @@ function writeKoSkillRecords_(targetSheet, targetHeaders, records, abwDbName) {
 }
 
 function writePlanoTeamAggregation_(opts) {
-  const { ss, sheetName, headers, records, abwDbName, clearBeforeWrite } = opts;
+  const { ss, sheetName, headers, records, clearBeforeWrite } = opts;
   let gesamtSheet = ss.getSheetByName(sheetName);
   const gesamtHeaders = [...headers];
   gesamtHeaders[2] = "Team";
@@ -604,9 +599,7 @@ function writePlanoTeamAggregation_(opts) {
       for (const dbSkill in tr.skills) {
         const colIndex = gesamtHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
         if (colIndex !== -1) {
-          rowData[colIndex] = dbSkill.toUpperCase() === abwDbName
-            ? minutesToHHMM(Math.round(tr.skills[dbSkill] * 60))
-            : tr.skills[dbSkill];
+          rowData[colIndex] = tr.skills[dbSkill];
         }
       }
 
