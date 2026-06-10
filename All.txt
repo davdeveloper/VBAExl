@@ -1,712 +1,91 @@
-Sub ImportUndTransformierenRohdaten()
-    Dim wsRohdaten As Worksheet
-    Dim letzteZeile As Long, letzteSpalte As Long
-    Dim startZeile As Long
-    Dim dict As Object
-    Dim key As Variant ' Muss Variant sein für For Each
-    Dim Vorgangsnummer As Variant, Datum As Variant
-    Dim i As Long, j As Long, neueSpalte As Long
-    Dim frage As Variant, antwort As String
-    Dim datenDatei As Variant
-    Dim wbQuelle As Workbook
-    Dim dataArray As Variant
-
-    ' Datei-Auswahldialog
-    datenDatei = Application.GetOpenFilename("Excel Dateien (*.xls; *.xlsx), *.xls; *.xlsx", , "Wählen Sie die Rohdaten-Datei aus")
-
-    If datenDatei = False Then
-        MsgBox "Es wurde keine Datei ausgewählt.", vbExclamation
-        Exit Sub
-    End If
-
-    ' Rohdaten-Datei öffnen
-    Set wbQuelle = Workbooks.Open(datenDatei)
-
-    ' Setze das Arbeitsblatt für Rohdaten
-    Set wsRohdaten = ThisWorkbook.Sheets("Rohdaten")
-
-    ' Finde die nächste freie Zeile für den Import
-    startZeile = wsRohdaten.Cells(wsRohdaten.Rows.Count, 1).End(xlUp).Row + 1
-
-    ' Letzte Zeile und Spalte in der Quelldatei finden
-    With wbQuelle.Sheets(1)
-        letzteZeile = .Cells(.Rows.Count, 1).End(xlUp).Row
-        letzteSpalte = .Cells(1, .Columns.Count).End(xlToLeft).Column
-    End With
-
-    ' Daten in ein Array laden
-    dataArray = wbQuelle.Sheets(1).Cells(1, 1).Resize(letzteZeile, letzteSpalte).Value
-
-    ' Quelldatei schließen
-    wbQuelle.Close SaveChanges:=False
-
-    ' Dictionary zur Zusammenführung der Daten
-    Set dict = CreateObject("Scripting.Dictionary")
-
-    ' Rohdaten verarbeiten und in das Dictionary schreiben
-    For i = 2 To UBound(dataArray, 1) ' Überspringe Kopfzeile
-        Vorgangsnummer = dataArray(i, 2)
-        Datum = dataArray(i, 6)
-        frage = dataArray(i, 12)
-        antwort = dataArray(i, 14)
-
-        ' Schlüssel erstellen aus Vorgangsnummer und Datum
-        key = Vorgangsnummer & "|" & Datum
-
-        ' Wenn der Schlüssel noch nicht im Dictionary ist, hinzufügen
-        If Not dict.exists(key) Then
-            dict(key) = Array(Application.Index(dataArray, i, 0), CreateObject("Scripting.Dictionary"))
-        End If
-
-        ' Frage und Antwort hinzufügen, auch wenn leer
-        If Not IsEmpty(frage) Then
-            dict(key)(1)(frage) = IIf(IsEmpty(antwort), "", antwort)
-        End If
-    Next i
-
-    ' Daten im Arbeitsblatt Rohdaten transformieren
-    Dim outputArray() As Variant
-    Dim headerArray() As Variant
-    Dim headerIndex As Object
-
-    Set headerIndex = CreateObject("Scripting.Dictionary")
-
-    ' Kopfzeile initialisieren (lade bestehende Überschriften bei erneutem Import)
-    If startZeile > 2 Then
-        Dim existingHeaders As Range
-        Set existingHeaders = wsRohdaten.Rows(1)
-        For i = 1 To existingHeaders.Columns.Count
-            If Not IsEmpty(existingHeaders.Cells(1, i).Value) Then
-                headerIndex(existingHeaders.Cells(1, i).Value) = i
-            End If
-        Next i
-    Else
-        ' Nur bei erstem Import Kopfzeile erstellen
-        ReDim headerArray(1 To letzteSpalte)
-        For i = 1 To letzteSpalte
-            headerArray(i) = dataArray(1, i)
-        Next i
-
-        ReDim outputArray(1 To dict.Count + 1, 1 To letzteSpalte)
-
-        ' Kopfzeile kopieren
-        For i = LBound(headerArray) To UBound(headerArray)
-            outputArray(1, i) = headerArray(i)
-            headerIndex(headerArray(i)) = i
-        Next i
-    End If
-
-    ' Initialisiere j für Daten
-    If startZeile = 2 Then
-        j = 2
-    Else
-        j = startZeile
-    End If
-
-    ' Daten zusammenführen
-    For Each key In dict.keys
-        Dim rowData As Variant
-        Dim extraData As Object
-        rowData = dict(key)(0)
-
-        ' Sicherstellen, dass extraData ein gültiges Dictionary ist
-        On Error Resume Next
-        Set extraData = dict(key)(1)
-        On Error GoTo 0
-
-        If Not extraData Is Nothing Then
-            ' Füge Basisdaten ein
-            For i = LBound(rowData, 1) To UBound(rowData, 1)
-                wsRohdaten.Cells(j, i).Value = rowData(i)
-            Next i
-
-            ' Füge Fragen und Antworten ein
-            For Each frage In extraData.keys
-                If Not headerIndex.exists("Frage: " & frage) Then
-                    letzteSpalte = letzteSpalte + 1
-                    headerIndex("Frage: " & frage) = letzteSpalte
-                    wsRohdaten.Cells(1, letzteSpalte).Value = "Frage: " & frage
-                End If
-                wsRohdaten.Cells(j, headerIndex("Frage: " & frage)).Value = extraData(frage)
-            Next frage
-        Else
-            MsgBox "Fehler beim Zugriff auf das Dictionary für den Schlüssel: " & key, vbExclamation
-        End If
-
-        j = j + 1
-    Next key
-
-    DatenZuweisung
-
-End Sub
-
-
-Sub DatenZuweisung()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
-    Dim ZielWs As Worksheet
-    Dim wbZuweisungName As Workbook ' Neue Variable für die externe Arbeitsmappe
-    Dim wsZuweisungName As Worksheet ' Arbeitsblatt in der externen Arbeitsmappe
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, lastRowZuweisungName As Long, zielRow As Long
-    Dim i As Long, j As Long, k As Long, headerCol As Long
-    Dim Schluessel As String, ZielBlattName As String
-    Dim Datum As Date, Gestern As Variant
-    Dim Kategorie As String, SuchText As String
-    Dim Kalenderwoche As String, Wochentag As String
-    Dim cell As Range
-    Dim MappingWert As String
-    Dim OriginalWert As String
-    Dim filePath As String
-    Dim appVisibility As Boolean ' Variable zur Speicherung der Sichtbarkeit der Excel-Anwendung
-
-    ' Pfad zur Datei "ZuweisungName.xlsx" im gleichen Projektpfad
-    filePath = "O:\Kundenservice_Berlin\14_QM\01_QM Übersicht\TMA\Zuweisung.xlsx"
-
-    ' Aktuelle Sichtbarkeit der Excel-Anwendung speichern
-    appVisibility = Application.Visible
-
-    ' Excel-Anwendung unsichtbar machen
-    Application.Visible = False
-    
-    Application.ScreenUpdating = False
-
-    ' Externe Arbeitsmappe "ZuweisungName.xlsx" im Hintergrund öffnen und entsperren
-    On Error Resume Next
-    Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87", UpdateLinks:=0, ReadOnly:=True)
-    On Error GoTo 0
-    wbZuweisungName.Windows(1).Visible = False
-
-    If wbZuweisungName Is Nothing Then
-        MsgBox "Die Datei 'ZuweisungName.xlsx' konnte nicht geöffnet werden.", vbExclamation
-        Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
-        Exit Sub
-    End If
-
-    ' Arbeitsblatt "ZuweisungName" in der externen Arbeitsmappe zuweisen
-    Set wsZuweisungName = wbZuweisungName.Worksheets("ZuweisungName")
-
-    ' Arbeitsblätter in der aktuellen Arbeitsmappe zuweisen
-    Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
-    Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
-    Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
-
-    ' Letzte Zeile in "Rohdaten", "Zuweisung", "Kategorien" und "ZuweisungName" finden
-    lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
-    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "B").End(xlUp).Row
-    lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
-    lastRowZuweisungName = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
-
-    ' Durch die Schlüssel in "Zuweisung" iterieren
-    For i = 2 To lastRowZuweisung
-        Schluessel = wsZuweisung.Cells(i, "B").Value
-        ZielBlattName = wsZuweisung.Cells(i, "C").Value
-
-        ' Ziel-Arbeitsblatt prüfen
-        On Error Resume Next
-        Set ZielWs = ThisWorkbook.Worksheets(ZielBlattName)
-        On Error GoTo 0
-
-        If Not ZielWs Is Nothing Then
-            ' Daten aus "Rohdaten" finden
-            For j = 2 To lastRowRoh
-                If wsRohdaten.Cells(j, "A").Value = Schluessel Then
-                    ' Kalenderwoche berechnen
-                    Datum = wsRohdaten.Cells(j, "F").Value
-                    If Datum <> 0 Then
-                        If Weekday(Datum - 1, vbMonday) = 7 Then
-                            Gestern = Datum - 3
-                        Else
-                            Gestern = Datum - 1
-                        End If
-                    Else
-                        Gestern = ""
-                    End If
-
-                    ' Kategorie aus "Kategorien" suchen
-                    Kategorie = wsRohdaten.Cells(j, "C").Value
-                    For k = 2 To lastRowKategorien
-                        If wsKategorien.Cells(k, "A").Value = Kategorie Then
-                            Kategorie = wsKategorien.Cells(k, "B").Value
-                            Exit For
-                        End If
-                    Next k
-
-                    Kalenderwoche = "KW " & Format(Application.WeekNum(Gestern, vbMonday), "00")
-
-                    ' Namen aus Spalte O extrahieren und in "ZuweisungName" suchen
-                    OriginalWert = wsRohdaten.Cells(j, "O").Value
-                    MappingWert = OriginalWert ' Standardwert beibehalten
-                    For k = 2 To lastRowZuweisungName
-                        If wsZuweisungName.Cells(k, "A").Value = OriginalWert Then
-                            MappingWert = wsZuweisungName.Cells(k, "B").Value
-                            Exit For
-                        End If
-                    Next k
-
-                    ' Alle Zellen mit der Kalenderwoche in den ersten 900 Zeilen suchen
-                    For Each cell In ZielWs.Range("A1:A900")
-                        If Trim(cell.Value) = Kalenderwoche Then
-                            zielRow = cell.Row + 9
-
-                            ' Wochentag aus der Variable "Gestern" berechnen
-                            Wochentag = Format(wsRohdaten.Cells(j, "E").Value, "dddd")
-
-                            ' Suche nach dem Wochentag in Spalte Y ab der gefundenen KW-Zeile
-                            Dim foundRow As Long
-                            foundRow = 0
-                            For k = zielRow To 900
-                                If ZielWs.Cells(k, "Y").Value = Wochentag Then
-                                    foundRow = k
-                                    Exit For
-                                End If
-                            Next k
-
-                            If foundRow = 0 Then
-                                MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
-                                Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
-                                Exit Sub
-                            End If
-
-                            ' Ab der gefundenen Wochentagszeile die nächste freie Zeile suchen
-                            zielRow = foundRow
-                            Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                                zielRow = zielRow + 1
-                            Loop
-
-                            ' Text in Zielarbeitsblatt von C12 bis Q12 durchsuchen und Werte aus Rohdaten holen
-                            For headerCol = 3 To 17
-                                SuchText = "Frage: " & ZielWs.Cells(12, headerCol).Value
-
-                                ' Überschrift in Zeile 1 von "Rohdaten" suchen
-                                Dim rohCol As Long
-                                rohCol = 0
-                                For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
-                                    If wsRohdaten.Cells(1, k).Value = SuchText Then
-                                        rohCol = k
-                                        Exit For
-                                    End If
-                                Next k
-
-                                If rohCol > 0 Then
-                                    Dim rohWert As String
-                                    rohWert = wsRohdaten.Cells(j, rohCol).Value
-
-                                    ' Überschreiben der Werte
-                                    Select Case rohWert
-                                        Case "Ja"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "j"
-                                        Case "Nein"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "n"
-                                        Case "Teilweise"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "t"
-                                        Case "N/A"
-                                            ZielWs.Cells(zielRow, headerCol).Value = ""
-                                        Case Else
-                                            ZielWs.Cells(zielRow, headerCol).Value = rohWert
-                                    End Select
-                                End If
-                            Next headerCol
-
-                            ' Daten übertragen
-                            ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
-                            ZielWs.Cells(zielRow, "B").Value = Kategorie
-                            ZielWs.Cells(zielRow, "U").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.")
-                            ZielWs.Cells(zielRow, "V").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.")
-                            ZielWs.Cells(zielRow, "W").Value = wsRohdaten.Cells(j, "G").Value
-                            ZielWs.Cells(zielRow, "X").Value = MappingWert
-                        End If
-                    Next cell
-                End If
-            Next j
-        End If
-    Next i
-
-    ' Externe Arbeitsmappe schließen
-    wbZuweisungName.Close SaveChanges:=False
-
-    ' Sichtbarkeit der Excel-Anwendung wiederherstellen
-    Application.Visible = appVisibility
-
-    Debug.Print "Datenübertragung abgeschlossen!"
-    ForwardingImport
-End Sub
-Sub ForwardingImport()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet
-    Dim ZielWs As Worksheet
-    Dim wbZuweisungName As Workbook ' Neue Variable für die externe Arbeitsmappe
-    Dim wsZuweisungName As Worksheet ' Arbeitsblatt in der externen Arbeitsmappe
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long, lastRowZuweisungName As Long, zielRow As Long
-    Dim i As Long, j As Long, k As Long, headerCol As Long
-    Dim Schluessel As String, ZielBlattName As String
-    Dim Datum As Date, Gestern As Variant
-    Dim Kategorie As String, SuchText As String
-    Dim Kalenderwoche As String, Wochentag As String
-    Dim cell As Range
-    Dim MappingWert As String
-    Dim OriginalWert As String
-    Dim filePath As String
-    Dim appVisibility As Boolean ' Variable zur Speicherung der Sichtbarkeit der Excel-Anwendung
-
-    ' Pfad zur Datei "ZuweisungName.xlsx" im gleichen Projektpfad
-    filePath = "O:\Kundenservice_Berlin\14_QM\01_QM Übersicht\TMA\Zuweisung.xlsx"
-    
-    ' Aktuelle Sichtbarkeit der Excel-Anwendung speichern
-    appVisibility = Application.Visible
-
-    ' Excel-Anwendung unsichtbar machen
-    Application.Visible = False
-
-    ' Externe Arbeitsmappe "ZuweisungName.xlsx" im Hintergrund öffnen und entsperren
-    On Error Resume Next
-    Set wbZuweisungName = Workbooks.Open(filePath, Password:="zary87", UpdateLinks:=0, ReadOnly:=True)
-    On Error GoTo 0
-    wbZuweisungName.Windows(1).Visible = False
-
-    If wbZuweisungName Is Nothing Then
-        MsgBox "Die Datei 'ZuweisungName.xlsx' konnte nicht geöffnet werden.", vbExclamation
-        Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
-        Exit Sub
-    End If
-
-    ' Arbeitsblatt "ZuweisungName" in der externen Arbeitsmappe zuweisen
-    Set wsZuweisungName = wbZuweisungName.Worksheets("ZuweisungName")
-
-    ' Arbeitsblätter in der aktuellen Arbeitsmappe zuweisen
-    Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
-    Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
-    Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
-
-    ' Letzte Zeile in "Rohdaten", "Zuweisung", "Kategorien" und "ZuweisungName" finden
-    lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
-    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "F").End(xlUp).Row
-    lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
-    lastRowZuweisungName = wsZuweisungName.Cells(wsZuweisungName.Rows.Count, "A").End(xlUp).Row
-
-    Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
-    Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
-    Debug.Print "Letzte Zeile in Kategorien: " & lastRowKategorien
-
-    ' Durch die Schlüssel in "Zuweisung" iterieren
-    For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
-        Schluessel = wsZuweisung.Cells(i, "F").Value
-        ZielBlattName = wsZuweisung.Cells(i, "G").Value
-
-        Debug.Print "Verarbeite Schlüssel: " & Schluessel & ", Zielblatt: " & ZielBlattName
-
-        ' Ziel-Arbeitsblatt prüfen
-        On Error Resume Next
-        Set ZielWs = ThisWorkbook.Worksheets(ZielBlattName)
-        On Error GoTo 0
-
-        If Not ZielWs Is Nothing Then
-            Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
-
-            ' Daten aus "Rohdaten" finden
-            For j = 2 To lastRowRoh
-                If wsRohdaten.Cells(j, "A").Value = Schluessel Then
-                    ' Berechne Gestern oder letzten Freitag
-                    Datum = wsRohdaten.Cells(j, "F").Value
-                    If Datum <> 0 Then ' Sicherstellen, dass Datum gültig ist
-                        If Weekday(Datum - 1, vbMonday) = 7 Then ' Wenn Sonntag
-                            Gestern = Datum - 3 ' Letzter Freitag
-                        Else
-                            Gestern = Datum - 1 ' Normaler Vortag
-                        End If
-                    Else
-                        Debug.Print "Ungültiges Datum in Rohdaten: Zeile " & j
-                        Gestern = "" ' Leerer Wert für ungültiges Datum
-                    End If
-
-                    ' Kategorie aus "Kategorien" suchen
-                    Kategorie = wsRohdaten.Cells(j, "C").Value
-                    For k = 2 To lastRowKategorien
-                        If wsKategorien.Cells(k, "A").Value = Kategorie Then
-                            Kategorie = wsKategorien.Cells(k, "B").Value
-                            Exit For
-                        End If
-                    Next k
-
-                    ' Kalenderwoche berechnen
-                    Kalenderwoche = "KW " & Format(Application.WeekNum(Gestern, vbMonday), "00")
-
-                    ' Debugging für Kalenderwoche
-                    Debug.Print "Berechnete KW: " & Kalenderwoche
-
-                    ' Namen aus Spalte O extrahieren und in "ZuweisungName" suchen
-                    OriginalWert = wsRohdaten.Cells(j, "O").Value
-                    MappingWert = OriginalWert ' Standardwert beibehalten
-                    For k = 2 To lastRowZuweisungName
-                        If wsZuweisungName.Cells(k, "A").Value = OriginalWert Then
-                            MappingWert = wsZuweisungName.Cells(k, "B").Value
-                            Exit For
-                        End If
-                    Next k
-
-                    ' Alle Zellen mit der Kalenderwoche in den ersten 500 Zeilen suchen
-                    For Each cell In ZielWs.Range("A1:A500")
-                        If Trim(cell.Value) = Kalenderwoche Then
-                            Debug.Print "Gefundene KW-Zelle im Blatt " & ZielBlattName & ": Zeile " & cell.Row & ", Inhalt: " & cell.Value
-                            zielRow = cell.Row + 7 ' 7 Zeilen unter der gefundenen Zelle beginnen
-
-                            ' Wochentag aus der Variable "Gestern" berechnen
-                            Wochentag = Format(wsRohdaten.Cells(j, "E").Value, "dddd")
-
-                            ' Suche nach dem Wochentag in Spalte M ab der gefundenen KW-Zeile
-                            Dim foundRow As Long
-                            foundRow = 0
-                            For k = zielRow To 500
-                                If ZielWs.Cells(k, "M").Value = Wochentag Then
-                                    foundRow = k
-                                    Exit For
-                                End If
-                            Next k
-
-                            If foundRow = 0 Then
-                                MsgBox "Wochentag nicht gefunden oder kein Platz verfügbar.", vbExclamation
-                                Application.Visible = appVisibility ' Sichtbarkeit wiederherstellen
-                                Exit Sub
-                            End If
-
-                            ' Ab der gefundenen Wochentagszeile die nächste freie Zeile suchen
-                            zielRow = foundRow
-                            Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                                zielRow = zielRow + 1
-                            Loop
-
-                            Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
-
-                            ' Daten übertragen
-                            ZielWs.Cells(zielRow, "A").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
-                            ZielWs.Cells(zielRow, "B").Value = Kategorie ' Angepasste Kategorie
-                            ZielWs.Cells(zielRow, "C").Value = Format(wsRohdaten.Cells(j, "E").Value, "dd.mm.") ' Vorgangsnummer ' Datum von Gestern oder Freitag
-                            ZielWs.Cells(zielRow, "J").Value = Format(wsRohdaten.Cells(j, "F").Value, "dd.mm.") ' Datum
-                            ZielWs.Cells(zielRow, "K").Value = wsRohdaten.Cells(j, "G").Value ' Bemerkung
-                            ZielWs.Cells(zielRow, "L").Value = MappingWert ' Mapping-Wert in Spalte L
-
-                            ' Texte für Fragen suchen und einfügen (Spalten D10 bis F10)
-                            For headerCol = 4 To 6 ' Spalten D bis F im Zielarbeitsblatt
-                                SuchText = "Frage: " & ZielWs.Cells(10, headerCol).Value
-
-                                ' Überschrift in Zeile 1 von "Rohdaten" suchen
-                                Dim rohCol As Long
-                                rohCol = 0
-                                For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
-                                    If wsRohdaten.Cells(1, k).Value = SuchText Then
-                                        rohCol = k
-                                        Exit For
-                                    End If
-                                Next k
-
-                                If rohCol > 0 Then
-                                    Dim rohWert As String
-                                    rohWert = wsRohdaten.Cells(j, rohCol).Value
-
-                                    ' Überschreiben der Werte
-                                    Select Case rohWert
-                                        Case "Ja"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "j"
-                                        Case "Nein"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "n"
-                                        Case "Teilweise"
-                                            ZielWs.Cells(zielRow, headerCol).Value = "t"
-                                        Case "N/A"
-                                            ZielWs.Cells(zielRow, headerCol).Value = ""
-                                        Case Else
-                                            ZielWs.Cells(zielRow, headerCol).Value = rohWert
-                                    End Select
-                                Else
-                                    Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
-                                End If
-                            Next headerCol
-
-                        End If
-                    Next cell
-                End If
-            Next j
-        Else
-            Debug.Print "Das Arbeitsblatt " & ZielBlattName & " existiert nicht."
-        End If
-    Next i
-
-    ' Externe Arbeitsmappe schließen
-    wbZuweisungName.Close SaveChanges:=False
-
-    ' Sichtbarkeit der Excel-Anwendung wiederherstellen
-    Application.Visible = appVisibility
-    Application.ScreenUpdating = True
-
-    Debug.Print "Datenübertragung abgeschlossen!"
-    ServiceImport
-End Sub
-Sub ServiceImport()
-    Dim wsRohdaten As Worksheet, wsZuweisung As Worksheet, wsKategorien As Worksheet, wsDMCockpit As Worksheet
-    Dim ZielWs As Worksheet
-    Dim lastRowRoh As Long, lastRowZuweisung As Long, lastRowKategorien As Long
-    Dim i As Long, j As Long, k As Long
-    Dim Schluessel As String, ZielBlattName As String
-    Dim zielRow As Long
-    Dim cell As Range, headerCol As Long
-    Dim SuchText As String, rohCol As Long
-    Dim Kategorie As String
-    Dim spalteAValue As String
-    Dim datumRohdaten As Date
-    Dim datumErste As Date, datumZweite As Date
-
-    ' Arbeitsblätter zuweisen
-    Set wsRohdaten = ThisWorkbook.Worksheets("Rohdaten")
-    Set wsZuweisung = ThisWorkbook.Worksheets("Zuweisung")
-    Set wsKategorien = ThisWorkbook.Worksheets("Kategorien")
-    Set wsDMCockpit = ThisWorkbook.Worksheets("DMCockpit")
-
-    ' Letzte Zeilein "Rohdaten" "Zuweisung und "Kategorien" finden
-    lastRowRoh = wsRohdaten.Cells(wsRohdaten.Rows.Count, "A").End(xlUp).Row
-    lastRowZuweisung = wsZuweisung.Cells(wsZuweisung.Rows.Count, "L").End(xlUp).Row
-    lastRowKategorien = wsKategorien.Cells(wsKategorien.Rows.Count, "A").End(xlUp).Row
-
-    Debug.Print "Letzte Zeile in Rohdaten: " & lastRowRoh
-    Debug.Print "Letzte Zeile in Zuweisung: " & lastRowZuweisung
-
-    ' Durch die Schlüssel in Zuweisun
-    For i = 2 To lastRowZuweisung ' Starte bei 2, um Kopfzeile zu überspringen
-        Schluessel = wsZuweisung.Cells(i, "L").Value
-        ZielBlattName = wsZuweisung.Cells(i, "M").Value
-
-        Debug.Print "Verarbeite Schlüssel: " & Schluessel & ", Zielblatt: " & ZielBlattName
-
-        ' Ziel-Arbeitsblatt prüfen
-        On Error Resume Next
-        Set ZielWs = ThisWorkbook.Worksheets(ZielBlattName)
-        On Error GoTo 0
-
-        If Not ZielWs Is Nothing Then
-            Debug.Print "Überprüfe Arbeitsblatt: " & ZielBlattName
-
-            ' Festlegenwas in Spalte A eingefügt wird   auf dem Arbeitsblattnamen
-            Select Case ZielBlattName
-                Case "Filiale Calls"
-                    spalteAValue = "Filiale"
-                    datumErste = wsDMCockpit.Range("T21").Value
-                    datumZweite = wsDMCockpit.Range("T22").Value
-                Case "Lidl Plus Calls"
-                    spalteAValue = "Lidl Plus"
-                    datumErste = wsDMCockpit.Range("T30").Value
-                    datumZweite = wsDMCockpit.Range("T31").Value
-                Case "eCom Calls"
-                    spalteAValue = "Onlineshop"
-                    datumErste = wsDMCockpit.Range("T16").Value
-                    datumZweite = wsDMCockpit.Range("T17").Value
-                Case "Produkt Calls"
-                    spalteAValue = "Produkt"
-                    datumErste = wsDMCockpit.Range("T25").Value
-                    datumZweite = wsDMCockpit.Range("T26").Value
-                Case Else
-                    spalteAValue = "Service"
-            End Select
-
-            ' Daten aus "Rohdaten" finden
-            For j = 2 To lastRowRoh
-                If wsRohdaten.Cells(j, "A").Value = Schluessel Then
-
-                    datumRohdaten = wsRohdaten.Cells(j, "D").Value ' Datum aus Spalte D der Rohdaten
-
-                    ' Zielzeile bestimmen basierend auf dem Datum
-                    If datumRohdaten = datumErste Then
-                        ' 1. Call-Aufzeichnung: Ab Zeile 14 die nächste freie Zeile finden
-                        zielRow = 14
-                        Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                            zielRow = zielRow + 1
-                        Loop
-                    ElseIf datumRohdaten = datumZweite Then
-                        ' 2. Call-Aufzeichnung: Suche nach "2. Aufzeichnung" in Spalte S und 7 Zeilen darunter starten
-                        Dim aufzeichnungRow As Range
-                        Set aufzeichnungRow = Nothing
-                        For Each cell In ZielWs.Columns("S").Cells
-                            If Trim(cell.Value) = "2. Aufzeichnung" Then
-                                Set aufzeichnungRow = cell
-                                Exit For
-                            End If
-                        Next cell
-
-                        If Not aufzeichnungRow Is Nothing Then
-                            zielRow = aufzeichnungRow.Row + 7 ' 7 Zeilen unter "2. Aufzeichnung"
-                        Else
-                            MsgBox "2. Aufzeichnung in Spalte S nicht gefunden. Daten können nicht eingefügt werden.", vbExclamation
-                            Exit Sub
-                        End If
-
-                        ' Nächste freie Zeile ab Startpunkt finden
-                        Do While ZielWs.Cells(zielRow, "A").Value <> ""
-                            zielRow = zielRow + 1
-                        Loop
-                    Else
-                        Debug.Print "Datum in Rohdaten stimmt nicht mit den Call-Aufzeichnungen überein."
-                        GoTo NextRow
-                    End If
-
-                    Debug.Print "Füge Daten ein in Zeile: " & zielRow & " des Blatts: " & ZielBlattName
-
-                    ' Kategorie aus "Kategorien" suchen
-                    Kategorie = wsRohdaten.Cells(j, "C").Value
-                    For k = 2 To lastRowKategorien
-                        If wsKategorien.Cells(k, "A").Value = Kategorie Then
-                            Kategorie = wsKategorien.Cells(k, "B").Value
-                            Exit For
-                        End If
-                    Next k
-
-                    ' Daten übertragen
-                    ZielWs.Cells(zielRow, "A").Value = spalteAValue ' Dynamischer Text basierend auf dem Arbeitsblattnamen
-                    ZielWs.Cells(zielRow, "B").Value = wsRohdaten.Cells(j, "B").Value ' Vorgangsnummer
-                    ZielWs.Cells(zielRow, "C").Value = Kategorie ' Übersetzte Kategorie
-
-                    ' Texte für Fragen suchen und einfügen (Spalten C10 bis V10)
-                    For headerCol = 3 To 22 ' Spalten C bis V im Zielarbeitsblatt
-                        SuchText = "Frage: " & ZielWs.Cells(10, headerCol).Value
-
-                        ' Überschrift in Zeile 1 von "Rohdaten" suchen
-                        rohCol = 0
-                        For k = 1 To wsRohdaten.Cells(1, wsRohdaten.Columns.Count).End(xlToLeft).Column
-                            If wsRohdaten.Cells(1, k).Value = SuchText Then
-                                rohCol = k
-                                Exit For
-                            End If
-                        Next k
-
-                        If rohCol > 0 Then
-                            Dim rohWert As String
-                            rohWert = wsRohdaten.Cells(j, rohCol).Value
-
-                            ' Überschreiben der Werte
-                            Select Case rohWert
-                                Case "Ja"
-                                    ZielWs.Cells(zielRow, headerCol).Value = "j"
-                                Case "Nein"
-                                    ZielWs.Cells(zielRow, headerCol).Value = "n"
-                                Case "Teilweise"
-                                    ZielWs.Cells(zielRow, headerCol).Value = "t"
-                                Case "N/A"
-                                    ZielWs.Cells(zielRow, headerCol).Value = ""
-                                Case Else
-                                    ZielWs.Cells(zielRow, headerCol).Value = rohWert
-                            End Select
-                        Else
-                            Debug.Print "Überschrift " & SuchText & " nicht in Rohdaten gefunden."
-                        End If
-                    Next headerCol
-
-                    ' Daten aus Spalte G in Rohdaten in Spalte Z im Zielarbeitsblatt übertragen (im Format TT.MM.)
-                    ZielWs.Cells(zielRow, "Z").Value = Format(wsRohdaten.Cells(j, "G").Value, "dd.mm.")
-
-NextRow:
-                End If
-            Next j
-        Else
-            Debug.Print "Das Arbeitsblatt " & ZielBlattName & " existiert nicht."
-        End If
-    Next i
-
-    ' Lösche alle Zeilen außer der ersten in "Rohdaten"
-    wsRohdaten.Rows("2:" & wsRohdaten.Rows.Count).ClearContents
-    Application.ScreenUpdating = True
-    Debug.Print "Datenübertragung abgeschlossen!"
-    MsgBox "Datenübertragung abgeschlossen!", vbInformation
-End Sub
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: 'Arial', sans-serif; padding: 15px; color: #333; }
+      h3 { color: #0050AA; margin-top: 0; font-size: 18px; }
+      p { font-size: 13px; color: #555; }
+      select { width: 100%; padding: 10px; margin-bottom: 14px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+      button {
+        background-color: #0050AA; color: white; border: none; padding: 12px 20px;
+        font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; border-radius: 4px;
+      }
+      button:hover { background-color: #003d82; }
+      button:disabled { background-color: #ccc; cursor: not-allowed; }
+      .check-row { display: flex; align-items: center; gap: 8px; margin: 0 0 18px 0; font-size: 14px; color: #333; }
+      .check-row input { width: 16px; height: 16px; margin: 0; }
+      #status { margin-top: 15px; font-size: 13px; padding: 10px; border-radius: 4px; display: none; white-space: pre-line; }
+      .loading { background-color: #e8f0fe; color: #0050AA; border: 1px solid #b6d4fe; }
+      .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+      .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+  </head>
+  <body>
+    <h3>Plano-Daten importieren</h3>
+    <p>Waehle eine Datei aus der geteilten Ablage:</p>
+
+    <select id="fileSelect">
+      <option value="">Lade Dateien...</option>
+    </select>
+
+    <label class="check-row">
+      <input id="wholeMonth" type="checkbox">
+      <span>gesamten Monat importieren</span>
+    </label>
+
+    <button id="importBtn" onclick="startImport()" disabled>Auswerten & Importieren</button>
+    <div id="status"></div>
+
+    <script>
+      google.script.run.withSuccessHandler(function(files) {
+        const select = document.getElementById('fileSelect');
+        select.innerHTML = '';
+        if (files.length === 0) {
+          select.innerHTML = '<option value="">Keine Dateien im Ordner gefunden</option>';
+          return;
+        }
+        files.forEach(function(f) {
+          const option = document.createElement('option');
+          option.value = f.id;
+          option.text = f.name;
+          select.appendChild(option);
+        });
+        document.getElementById('importBtn').disabled = false;
+      }).withFailureHandler(function(err) {
+        showStatus("Fehler beim Laden der Dateien: " + err.message, "error");
+      }).getFilesInFolder();
+
+      function startImport() {
+        const select = document.getElementById('fileSelect');
+        const fileId = select.value;
+        const importWholeMonth = document.getElementById('wholeMonth').checked;
+        if (!fileId) return;
+
+        document.getElementById('importBtn').disabled = true;
+        select.disabled = true;
+        document.getElementById('wholeMonth').disabled = true;
+
+        const modeText = importWholeMonth ? "Monat wird" : "Datei wird";
+        showStatus(modeText + " eingelesen und ausgewertet... Bitte warten.", "loading");
+
+        google.script.run.withSuccessHandler(function(res) {
+          showStatus("Erfolgreich! " + res, "success");
+          setTimeout(() => google.script.host.close(), 4000);
+        }).withFailureHandler(function(err) {
+          showStatus("Fehler: " + err.message, "error");
+          document.getElementById('importBtn').disabled = false;
+          select.disabled = false;
+          document.getElementById('wholeMonth').disabled = false;
+        }).processSelectedFile(fileId, importWholeMonth);
+      }
+
+      function showStatus(msg, type) {
+        const el = document.getElementById('status');
+        el.style.display = 'block';
+        el.className = type;
+        el.innerText = msg;
+      }
+    </script>
+  </body>
+</html>
