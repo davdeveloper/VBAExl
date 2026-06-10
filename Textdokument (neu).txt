@@ -1,135 +1,1767 @@
-=WENN($N$227="Gesamt";
-    WENN($P$228="Gesamt";
-        WENN($R$226="Telefonie";
-            INDEX(Gesamt!$I:$I;VERGLEICH(B262;Gesamt!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Gesamt!$D:$D;VERGLEICH(B262;Gesamt!$A:$A;0));
-        0));
-    WENN($P$228="Onlineshop";
-        WENN($R$226="Telefonie";
-            INDEX(Gesamt!$AV:$AV;VERGLEICH(B262;Gesamt!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Gesamt!$L:$L;VERGLEICH(B262;Gesamt!$A:$A;0));
-        0));
-    WENN($P$228="Filiale";
-        WENN($R$226="Telefonie";
-            INDEX(Gesamt!$BD:$BD;VERGLEICH(B262;Gesamt!$A:$A;0))+
-            INDEX(Gesamt!$BL:$BL;VERGLEICH(B262;Gesamt!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Gesamt!$M:$M;VERGLEICH(B262;Gesamt!$A:$A;0));
-        0));
-    WENN($P$228="Produkt";
-        WENN($R$226="Telefonie";
-            INDEX(Gesamt!$BT:$BT;VERGLEICH(B262;Gesamt!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Gesamt!$O:$O;VERGLEICH(B262;Gesamt!$A:$A;0));
-        0));
-    WENN($P$228="Lidl Plus";
-        WENN($R$226="Telefonie";
-            INDEX(Gesamt!$CB:$CB;VERGLEICH(B262;Gesamt!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Gesamt!$N:$N;VERGLEICH(B262;Gesamt!$A:$A;0));
-        0));
-    0)))))
-;
-WENN($N$227="Teleperformance";
-    WENN($P$228="Gesamt";
-        WENN($R$226="Telefonie";
-            INDEX(Teleperformance!$I:$I;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Teleperformance!$D:$D;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        0));
-    WENN($P$228="Onlineshop";
-        WENN($R$226="Telefonie";
-            INDEX(Teleperformance!$AN:$AN;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Teleperformance!$L:$L;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        0));
-    WENN($P$228="Filiale";
-        WENN($R$226="Telefonie";
-            INDEX(Teleperformance!$AV:$AV;VERGLEICH(B262;Teleperformance!$A:$A;0))+
-            INDEX(Teleperformance!$BD:$BD;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Teleperformance!$M:$M;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        0));
-    WENN($P$228="Produkt";
-        WENN($R$226="Telefonie";
-            INDEX(Teleperformance!$BL:$BL;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Teleperformance!$O:$O;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        0));
-    WENN($P$228="Lidl Plus";
-        WENN($R$226="Telefonie";
-            INDEX(Teleperformance!$BT:$BT;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Teleperformance!$N:$N;VERGLEICH(B262;Teleperformance!$A:$A;0));
-        0));
-    0)))))
-;
-WENN($N$227="Concentrix";
-    WENN($P$228="Gesamt";
-        WENN($R$226="Telefonie";
-            INDEX(Webhelp!$I:$I;VERGLEICH(B262;Webhelp!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Webhelp!$D:$D;VERGLEICH(B262;Webhelp!$A:$A;0));
-        0));
-    WENN($P$228="Onlineshop";
-        WENN($R$226="Telefonie";
-            INDEX(Webhelp!$AN:$AN;VERGLEICH(B262;Webhelp!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Webhelp!$L:$L;VERGLEICH(B262;Webhelp!$A:$A;0));
-        0));
-    WENN($P$228="Filiale";
-        WENN($R$226="Telefonie";
-            INDEX(Webhelp!$AV:$AV;VERGLEICH(B262;Webhelp!$A:$A;0))+
-            INDEX(Webhelp!$BD:$BD;VERGLEICH(B262;Webhelp!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Webhelp!$M:$M;VERGLEICH(B262;Webhelp!$A:$A;0));
-        0));
-    WENN($P$228="Produkt";
-        WENN($R$226="Telefonie";
-            INDEX(Webhelp!$BL:$BL;VERGLEICH(B262;Webhelp!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Webhelp!$O:$O;VERGLEICH(B262;Webhelp!$A:$A;0));
-        0));
-    WENN($P$228="Lidl Plus";
-        WENN($R$226="Telefonie";
-            INDEX(Webhelp!$BT:$BT;VERGLEICH(B262;Webhelp!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX(Webhelp!$N:$N;VERGLEICH(B262;Webhelp!$A:$A;0));
-        0));
-    0)))))
-;
-WENN($N$227="LKS";
-    WENN($P$228="Gesamt";
-        WENN($R$226="Telefonie";
-            INDEX('LKS-1st'!$I:$I;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX('LKS-1st'!$D:$D;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        0));
-    WENN($P$228="Onlineshop";
-        WENN($R$226="Telefonie";
-            INDEX('LKS-1st'!$AN:$AN;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX('LKS-1st'!$L:$L;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        0));
-    WENN($P$228="Filiale";
-        WENN($R$226="Telefonie";
-            INDEX('LKS-1st'!$AV:$AV;VERGLEICH(B262;'LKS-1st'!$A:$A;0))+
-            INDEX('LKS-1st'!$BD:$BD;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX('LKS-1st'!$M:$M;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        0));
-    WENN($P$228="Produkt";
-        WENN($R$226="Telefonie";
-            INDEX('LKS-1st'!$BL:$BL;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX('LKS-1st'!$O:$O;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        0));
-    WENN($P$228="Lidl Plus";
-        WENN($R$226="Telefonie";
-            INDEX('LKS-1st'!$BT:$BT;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        WENN($R$226="Gesamt";
-            INDEX('LKS-1st'!$N:$N;VERGLEICH(B262;'LKS-1st'!$A:$A;0));
-        0));
-    0)))))
+ich habe hier eine google sheet datei appscript die ein Plano Backup ausließt und demnach verarbeitet und in die Stundenerfassung einträgt
+
+Hier ist der Code.gs
+
+const FOLDER_ID = "1_QprTCTCssYNpB58WcM6An0yO8FmRxF8";
+
+/**
+ * Erstellt beim Öffnen der Tabelle das benutzerdefinierte Menü.
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('Lidl Auswertung')
+    .addItem('1). Plano Backup importieren', 'showImportDialog')
+    .addItem('2). Stundenerfassung übermitteln', 'showUebermittelnDialog')
+    .addToUi();
+}
+
+/**
+ * Öffnet den Dialog zur Dateiauswahl aus der separaten HTML-Datei (Plano Import).
+ */
+function showImportDialog() {
+  const htmlOutput = HtmlService.createHtmlOutputFromFile('dialog')
+    .setWidth(450)
+    .setHeight(320);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Lidl Kundenservice - Plano');
+}
+
+/**
+ * Öffnet den Dialog für die Stundenerfassung-Übermittlung.
+ */
+function showUebermittelnDialog() {
+  const htmlOutput = HtmlService.createHtmlOutputFromFile('dialog_uebermitteln')
+    .setWidth(500)
+    .setHeight(350);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Stundenerfassung übermitteln');
+}
+
+/**
+ * Backend-Funktion: Liest alle Dateien aus der Ablage aus.
+ */
+function getFilesInFolder() {
+  const fileList = [];
+  try {
+    const folder = DriveApp.getFolderById(FOLDER_ID);
+    const files = folder.getFiles();
+    
+    while (files.hasNext()) {
+      const file = files.next();
+      fileList.push({ id: file.getId(), name: file.getName() });
+    }
+  } catch (e) {
+    throw new Error("Konnte nicht auf den Ordner zugreifen. Hast du Berechtigungen für die geteilte Ablage? " + e.message);
+  }
+  
+  fileList.sort((a, b) => a.name.localeCompare(b.name));
+  return fileList;
+}
+
+/**
+ * Holt das Mapping für die Skills/Tätigkeiten aus dem "Mapping"-Reiter.
+ */
+function getMapping(ss) {
+  const mappingSheetName = "Mapping";
+  let mappingSheet = ss.getSheetByName(mappingSheetName);
+  
+  if (!mappingSheet) {
+    throw new Error("Das Arbeitsblatt 'Mapping' wurde nicht gefunden! Bitte lege es an und trage Spalte A (Plano) und Spalte B (Datenbank) ein.");
+  }
+  
+  const mappingData = mappingSheet.getDataRange().getValues();
+  const skillMap = {};
+  for (let i = 0; i < mappingData.length; i++) {
+    const planoSkill = normalizeStr(mappingData[i][0]);
+    const dbSkill = String(mappingData[i][1]).trim();
+    if (planoSkill && dbSkill && !planoSkill.toLowerCase().includes("plano tätigkeit")) {
+      skillMap[planoSkill] = dbSkill;
+    }
+  }
+  return skillMap;
+}
+
+/**
+ * Holt das Mapping für die Namen aus dem "Name_Mapping"-Reiter.
+ */
+function getNameMapping(ss) {
+  const nameMappingSheetName = "Name_Mapping";
+  let nameSheet = ss.getSheetByName(nameMappingSheetName);
+  
+  if (!nameSheet) {
+    nameSheet = ss.insertSheet(nameMappingSheetName);
+    nameSheet.appendRow(["Name in Plano", "Name in Datenbank (für Team-Abgleich)"]);
+    nameSheet.getRange("A1:B1").setFontWeight("bold");
+    nameSheet.autoResizeColumns(1, 2);
+    return {};
+  }
+  
+  const data = nameSheet.getDataRange().getValues();
+  const nameMap = {};
+  for (let i = 0; i < data.length; i++) {
+    const planoName = normalizeStr(data[i][0]);
+    const dbName = normalizeStr(data[i][1]);
+    if (planoName && dbName && !planoName.toLowerCase().includes("name in plano")) {
+      nameMap[planoName] = dbName;
+    }
+  }
+  return nameMap;
+}
+
+/**
+ * Holt das lokale Team-Mapping aus dem "Team_Mapping"-Reiter (Überschreibt externe DB).
+ */
+function getTeamMapping(ss) {
+  const teamMappingSheetName = "Team_Mapping";
+  let teamSheet = ss.getSheetByName(teamMappingSheetName);
+  
+  if (!teamSheet) {
+    teamSheet = ss.insertSheet(teamMappingSheetName);
+    teamSheet.appendRow(["Mitarbeiter Name", "Team (z.B. One)"]);
+    teamSheet.getRange("A1:B1").setFontWeight("bold");
+    teamSheet.autoResizeColumns(1, 2);
+    return {};
+  }
+  
+  const data = teamSheet.getDataRange().getValues();
+  const localTeamMap = {};
+  for (let i = 0; i < data.length; i++) {
+    const empName = normalizeStr(data[i][0]);
+    const teamName = String(data[i][1]).trim();
+    if (empName && teamName && !empName.toLowerCase().includes("mitarbeiter name")) {
+      localTeamMap[empName] = teamName;
+    }
+  }
+  return localTeamMap;
+}
+
+/**
+ * Holt die Liste der zu ignorierenden Mitarbeiter aus dem "Ignore_Mapping"-Reiter.
+ */
+function getIgnoreMapping(ss) {
+  const ignoreSheetName = "Ignore_Mapping";
+  let ignoreSheet = ss.getSheetByName(ignoreSheetName);
+  
+  if (!ignoreSheet) {
+    ignoreSheet = ss.insertSheet(ignoreSheetName);
+    ignoreSheet.appendRow(["Zu ignorierende Namen (wie in Plano)"]);
+    ignoreSheet.getRange("A1").setFontWeight("bold");
+    ignoreSheet.autoResizeColumns(1, 1);
+    return new Set();
+  }
+  
+  const data = ignoreSheet.getDataRange().getValues();
+  const ignoreSet = new Set();
+  for (let i = 0; i < data.length; i++) {
+    const name = normalizeStr(data[i][0]);
+    if (name && !name.toLowerCase().includes("zu ignorierende")) {
+      ignoreSet.add(name);
+    }
+  }
+  return ignoreSet;
+}
+
+/**
+ * Holt die Teams aus der externen Datenbank (Data_DB).
+ */
+function getEmployeeTeams() {
+  const externalDbId = "1efHpCLtIw1F5WZ0eAK-I0XBYDE9-M3FthoBQcRwSybI";
+  const teamMap = {};
+  try {
+    const extSs = SpreadsheetApp.openById(externalDbId);
+    const dataDbSheet = extSs.getSheetByName("Data_DB");
+    
+    if (dataDbSheet) {
+      const data = dataDbSheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        const nachname = String(data[i][0]).trim();
+        const vorname = String(data[i][1]).trim(); 
+        const team = String(data[i][4]).trim();    
+        
+        if (nachname && vorname) {
+          const fullName = normalizeStr(`${nachname}, ${vorname}`);
+          teamMap[fullName] = team;
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Konnte externe Team-Datenbank nicht laden: " + e.message);
+  }
+  return teamMap;
+}
+
+/**
+ * Backend-Funktion: Zieht die Datei, wertet sie aus und schreibt sie ins Sheet.
+ */
+function processSelectedFile(fileId) {
+  const targetSheetName = "Datenbank_KO_SKILL";
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // --- MAPPINGS & TEAMS LADEN ---
+  const skillMap = getMapping(ss);
+  const planoSkillsSorted = Object.keys(skillMap).sort((a, b) => b.length - a.length);
+  const nameMap = getNameMapping(ss);
+  const localTeamMap = getTeamMapping(ss); 
+  const ignoreSet = getIgnoreMapping(ss); 
+  const teamMap = getEmployeeTeams();
+  
+  // Sets zum Tracken fehlender Zuordnungen
+  const unmappedSkills = new Set();
+  const unmappedEmployees = new Set();
+  
+  // Bestimme, unter welchem Namen ABW in der Datenbank gespeichert wird
+  const abwDbName = (skillMap["ABW"] || "ABW").toUpperCase();
+  
+  // --- ZIEL-BLATT PRÜFEN/ERSTELLEN ---
+  let targetSheet = ss.getSheetByName(targetSheetName);
+  if (!targetSheet) {
+    targetSheet = ss.insertSheet(targetSheetName);
+    targetSheet.appendRow(["Datum", "KW", "Mitarbeitername"]);
+    targetSheet.getRange("A1:C1").setFontWeight("bold");
+  }
+
+  // --- ZIEL-SPALTEN ERMITTELN & NEUE ERGÄNZEN ---
+  const lastTargetCol = Math.max(targetSheet.getLastColumn(), 3);
+  let targetHeaders = targetSheet.getRange(1, 1, 1, lastTargetCol).getValues()[0];
+  
+  const uniqueDbSkills = [...new Set(Object.values(skillMap))];
+  
+  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "DIFFERENZ")) uniqueDbSkills.push("Differenz");
+  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "TEAM")) uniqueDbSkills.push("Team");
+  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "SCHICHT")) uniqueDbSkills.push("Schicht");
+  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "SOLL")) uniqueDbSkills.push("Soll");
+  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "IST")) uniqueDbSkills.push("Ist");
+  
+  // NEU: Ausgleichstag Spalte ergänzen, falls nicht vorhanden
+  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "AUSGLEICHSTAG")) uniqueDbSkills.push("Ausgleichstag");
+
+  uniqueDbSkills.forEach(dbSkill => {
+    let exists = targetHeaders.some(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
+    if (!exists) {
+      targetHeaders.push(dbSkill);
+      targetSheet.getRange(1, targetHeaders.length).setValue(dbSkill);
+      targetSheet.getRange(1, targetHeaders.length).setFontWeight("bold");
+    }
+  });
+
+  const file = DriveApp.getFileById(fileId);
+  const mimeType = file.getMimeType();
+  let data = [];
+
+  // --- DATEI EINLESEN & EXCEL-KONVERTIERUNG (Drive API v3) ---
+  try {
+    if (mimeType === MimeType.GOOGLE_SHEETS) {
+      data = SpreadsheetApp.openById(fileId).getSheets()[0].getDataRange().getValues();
+    } else {
+      const blob = file.getBlob();
+      const textData = blob.getDataAsString("UTF-8");
+      
+      if (textData.includes("PK\x03\x04")) {
+        try {
+          const resource = { name: "Temp_" + file.getName(), mimeType: MimeType.GOOGLE_SHEETS };
+          let tempFile;
+          if (typeof Drive !== 'undefined') {
+             tempFile = Drive.Files.create(resource, blob, {supportsAllDrives: true});
+             const tempDoc = SpreadsheetApp.openById(tempFile.id);
+             data = tempDoc.getSheets()[0].getDataRange().getValues();
+             Drive.Files.remove(tempFile.id); 
+          } else {
+             throw new Error("Drive API nicht aktiviert.");
+          }
+        } catch(convertErr) {
+          throw new Error("Fehler bei der Excel-Konvertierung! Detail: " + convertErr.message);
+        }
+      } else {
+        if (textData.includes(";") && textData.split(";").length > textData.split(",").length) {
+          data = Utilities.parseCsv(textData, ';');
+        } else {
+          data = Utilities.parseCsv(textData);
+        }
+      }
+    }
+  } catch (e) {
+    throw new Error("Fehler beim Lesen der Datei: " + e.message);
+  }
+
+  if (!data || data.length < 4) throw new Error("Die Datei enthält nicht genug Daten.");
+
+  // --- AUSWERTUNGS LOGIK ---
+  let titleStr = "";
+  let headerRowIndex = -1;
+  
+  for (let i = 0; i < Math.min(data.length, 30); i++) {
+    const rowStr = data[i].join(" ");
+    if (rowStr.includes("Wochenplan KW")) titleStr = rowStr;
+    if (String(data[i][0]).trim() === "Name" || rowStr.includes("Dienstag,") || rowStr.includes("Montag,")) {
+      headerRowIndex = i;
+      break; 
+    }
+  }
+  
+  if (headerRowIndex === -1) throw new Error("Konnte die Datum-Kopfzeile in der Datei nicht finden.");
+
+  const kwMatch = titleStr.match(/KW\s+(\d+)/);
+  const yearMatch = titleStr.match(/\/\s+(\d{4})/);
+  
+  const kw = kwMatch ? kwMatch[1] : "";
+  const year = yearMatch ? yearMatch[1] : new Date().getFullYear();
+
+  const headerRow = data[headerRowIndex];
+  const dateColumns = [];
+  
+  let differenzColIndex = headerRow.findIndex(h => String(h).trim() === 'Differenz');
+  if (differenzColIndex === -1) differenzColIndex = 10; 
+  
+  let isthColIndex = headerRow.findIndex(h => String(h).trim() === 'Isth');
+  if (isthColIndex === -1) isthColIndex = 12; 
+  
+  let vertragColIndex = headerRow.findIndex(h => String(h).trim() === 'Vertrag h');
+  if (vertragColIndex === -1) vertragColIndex = 14; 
+
+  for (let c = 0; c < headerRow.length; c++) {
+    let val = headerRow[c];
+    let valStr = (val instanceof Date) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "dd.MM.yyyy") : String(val);
+
+    if (valStr.match(/\d{2}\.\d{2}\./)) {
+      const dateMatch = valStr.match(/(\d{2}\.\d{2}\.)/);
+      if (dateMatch) {
+        let dStr = dateMatch[1] + year;
+        
+        let parts = dStr.split('.');
+        let dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+        let isSaturday = (dateObj.getDay() === 6);
+
+        dateColumns.push({ colIndex: c, date: dStr, isSaturday: isSaturday });
+      }
+    }
+  }
+
+  const records = {}; 
+
+  let startRow = headerRowIndex + 2;
+  for (let r = startRow; r < data.length; r++) {
+    const nameCell = String(data[r][0]);
+    
+    if (nameCell.includes("Lidl Kundenservice DE")) {
+      const planoCleanName = normalizeStr(nameCell.split('\n')[0]);
+      
+      // Wenn der Kollege im Ignore_Mapping steht, überspringen wir ihn komplett
+      if (ignoreSet.has(planoCleanName)) {
+        continue;
+      }
+      
+      const mappedName = nameMap[planoCleanName] || planoCleanName;
+      const assignedTeam = localTeamMap[mappedName] || localTeamMap[planoCleanName] || teamMap[mappedName];
+      
+      if (!assignedTeam) {
+        unmappedEmployees.add(planoCleanName);
+      }
+      
+      let differenzVal = parseGermanFloat(data[r][differenzColIndex]);
+      let isthVal = parseGermanFloat(data[r][isthColIndex]);
+      let vertragHVal = parseGermanFloat(data[r][vertragColIndex]);
+      
+      for (let dc of dateColumns) {
+        const dayValueInNameRow = String(data[r][dc.colIndex]).trim();
+        const upperDayVal = dayValueInNameRow.toUpperCase();
+        
+        const recKey = `${dc.date}|${kw}|${mappedName}`;
+        
+        let currentSollVal = dc.isSaturday ? isthVal : vertragHVal;
+        
+        if (!records[recKey]) {
+          records[recKey] = { 
+            date: dc.date, kw: kw, name: mappedName, skills: {}, 
+            differenz: differenzVal, soll: currentSollVal, ist: 0, 
+            urlaub: 0, abw: 0, isAnw: false, 
+            schicht: dayValueInNameRow, team: assignedTeam || "Unbekannt"
+          };
+        }
+        
+        let isFullDayAbsence = false;
+
+        // NEU: Prüfung auf Ausgleichstag (- im Plan, aber >0 Vertrag-Stunden und 0 Ist-Stunden)
+        let isAusgleichstag = (upperDayVal === "-" && vertragHVal > 0 && isthVal === 0);
+
+        // Logik für Urlaub, ABW, Überstunden, Wunschfrei UND Ausgleichstag
+        if (upperDayVal.includes("URLAUB") || upperDayVal.includes("ABW") || upperDayVal.includes("ÜBERSTUNDEN") || upperDayVal.includes("WUNSCHFREI") || isAusgleichstag) {
+          let isUrlaub = upperDayVal.includes("URLAUB");
+          let isUeberstunden = upperDayVal.includes("ÜBERSTUNDEN");
+          let isWunschfrei = upperDayVal.includes("WUNSCHFREI");
+          
+          let matchedPlanoSkill = "ABW";
+          if (isUrlaub) matchedPlanoSkill = "Urlaub";
+          if (isUeberstunden) matchedPlanoSkill = "Überstundenfrei";
+          if (isWunschfrei) matchedPlanoSkill = "Wunschfrei";
+          if (isAusgleichstag) matchedPlanoSkill = "Ausgleichstag";
+          
+          let dbSkill = skillMap[matchedPlanoSkill] || matchedPlanoSkill; 
+          
+          if (!skillMap[matchedPlanoSkill] && !isAusgleichstag) {
+            unmappedSkills.add(matchedPlanoSkill);
+          }
+          
+          let hoursToUse = ((isUrlaub || isUeberstunden || isWunschfrei) && !dc.isSaturday) ? vertragHVal : isthVal;
+          if (isAusgleichstag) {
+            hoursToUse = vertragHVal; // Beim Ausgleichstag immer die Vertragsstunden gutschreiben
+            records[recKey].soll = 0; // FIX: Das SOLL für diesen Tag auf 0 setzen, damit es das Team-SOLL nicht verändert!
+          }
+          
+          records[recKey].skills[dbSkill] = (records[recKey].skills[dbSkill] || 0) + hoursToUse;
+          
+          isFullDayAbsence = true;
+          
+          // Überstundenfrei, Wunschfrei UND Ausgleichstag generieren KEINE Ist-Stunden (0). Urlaub & ABW behalten die Ist-Stunden.
+          if (isUeberstunden || isWunschfrei || isAusgleichstag) {
+            records[recKey].ist = 0;
+          } else {
+            records[recKey].ist = isthVal; 
+          }
+        } else {
+          records[recKey].ist = isthVal; 
+        }
+        
+        if (upperDayVal.includes("ANW") || upperDayVal === "ANW") {
+          records[recKey].isAnw = true;
+        }
+
+        if (!isFullDayAbsence && r + 1 < data.length) {
+          const detailRow = data[r + 1];
+          const detailCell = String(detailRow[dc.colIndex]);
+          if (!detailCell || detailCell.trim() === "") continue;
+          
+          const lines = detailCell.split('\n').map(l => l.trim());
+          let currentTimeRange = null;
+          
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.match(/^\d{2}:\d{2}-\d{2}:\d{2}/)) {
+              currentTimeRange = line.split(' ')[0]; 
+            } else if (currentTimeRange) {
+              let matchedDbSkill = null;
+              for (const planoSkill of planoSkillsSorted) {
+                if (normalizeStr(line).includes(planoSkill)) {
+                  matchedDbSkill = skillMap[planoSkill];
+                  break; 
+                }
+              }
+              if (matchedDbSkill) {
+                const hrs = calculateHours(currentTimeRange);
+                records[recKey].skills[matchedDbSkill] = (records[recKey].skills[matchedDbSkill] || 0) + hrs;
+              } else {
+                if (line && line.trim().toUpperCase() !== "PAUSE" && !line.toUpperCase().includes("PAUSE") && line.trim().toUpperCase() !== "ANW") {
+                  unmappedSkills.add(line.trim());
+                }
+              }
+              currentTimeRange = null; 
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // --- WANDELN FÜR KO_SKILL ---
+  const results = [];
+  let addedRowsCount = 0;
+  for (const key in records) {
+    const rec = records[key];
+    let rowData = new Array(targetHeaders.length).fill("");
+    rowData[0] = rec.date; rowData[1] = rec.kw; rowData[2] = rec.name; 
+    
+    let hasSkillData = false;
+    for (const dbSkill in rec.skills) {
+      const colIndex = targetHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
+      if (colIndex !== -1) { 
+        // ABW in KO_SKILL auf exakte Minuten umrechnen und formatieren
+        if (dbSkill.toUpperCase() === abwDbName) {
+            let totalMins = Math.round(rec.skills[dbSkill] * 60);
+            rowData[colIndex] = minutesToHHMM(totalMins);
+        } else {
+            rowData[colIndex] = rec.skills[dbSkill]; 
+        }
+        hasSkillData = true; 
+      }
+    }
+    
+    if (hasSkillData || rec.isAnw) {
+      const setVal = (headerName, val) => {
+        const idx = targetHeaders.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
+        if (idx !== -1) rowData[idx] = val;
+      };
+      
+      setVal("DIFFERENZ", rec.differenz); 
+      // SOLL in KO_SKILL auf exakte Minuten umrechnen
+      setVal("SOLL", minutesToHHMM(Math.round(rec.soll * 60))); 
+      setVal("IST", rec.ist);
+      setVal("TEAM", rec.team); 
+      setVal("SCHICHT", rec.schicht);
+
+      results.push(rowData);
+      addedRowsCount++;
+    }
+  }
+
+  const lastRow = targetSheet.getLastRow();
+  if (lastRow > 1) targetSheet.getRange(2, 1, lastRow - 1, targetSheet.getLastColumn()).clearContent();
+  if (results.length > 0) targetSheet.getRange(2, 1, results.length, results[0].length).setValues(results);
+
+  // --- TEAM AGGREGATION FÜR DATENBANK_GESAMT ---
+  const gesamtSheetName = "Datenbank_Gesamt";
+  let gesamtSheet = ss.getSheetByName(gesamtSheetName);
+  const gesamtHeaders = [...targetHeaders];
+  gesamtHeaders[2] = "Team"; 
+  
+  if (!gesamtSheet) {
+    gesamtSheet = ss.insertSheet(gesamtSheetName);
+    gesamtSheet.appendRow(gesamtHeaders);
+    gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setFontWeight("bold");
+  } else {
+    if (gesamtSheet.getLastColumn() < gesamtHeaders.length) {
+      gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setValues([gesamtHeaders]);
+      gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setFontWeight("bold");
+    }
+  }
+
+  const existingGesamtData = gesamtSheet.getDataRange().getValues();
+  const existingKeys = new Set();
+  for (let i = 1; i < existingGesamtData.length; i++) {
+    let d = existingGesamtData[i][0];
+    let dStr = (d instanceof Date) ? Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy") : String(d);
+    existingKeys.add(`${dStr}|${String(existingGesamtData[i][2]).trim()}`);
+  }
+
+  // DUPLIKAT-PRÜFUNG & OVERWRITE DIALOG
+  let overlapDates = new Set();
+  for (const key in records) {
+      let tName = teamMap[records[key].name] || "Ohne Team";
+      if (existingKeys.has(`${records[key].date}|${tName}`)) {
+          overlapDates.add(records[key].date);
+      }
+  }
+
+  let overwrite = false;
+  if (overlapDates.size > 0) {
+      const ui = SpreadsheetApp.getUi();
+      const datesStr = Array.from(overlapDates).join(", ");
+      const res = ui.alert(
+        "Duplikate gefunden", 
+        `Für das/die Datum(e) ${datesStr} existieren bereits Einträge in 'Datenbank_Gesamt'.\n\nSollen die vorhandenen Einträge für diese Tage überschrieben und neu importiert werden?`, 
+        ui.ButtonSet.YES_NO
+      );
+      overwrite = (res === ui.Button.YES);
+      
+      if (overwrite) {
+          for (let i = existingGesamtData.length - 1; i >= 1; i--) {
+              let d = existingGesamtData[i][0];
+              let dStr = (d instanceof Date) ? Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy") : String(d);
+              if (overlapDates.has(dStr)) {
+                  gesamtSheet.deleteRow(i + 1);
+              }
+          }
+          for (let key of existingKeys) {
+              if (overlapDates.has(key.split('|')[0])) existingKeys.delete(key);
+          }
+      }
+  }
+
+  // Datensätze aggregieren (Mit präziser Minuten-Summierung)
+  const teamRecords = {};
+  for (const key in records) {
+    const rec = records[key];
+    const teamName = rec.team || "Ohne Team";
+    const teamKey = `${rec.date}|${rec.kw}|${teamName}`;
+    
+    if (Object.keys(rec.skills).length === 0 && !rec.isAnw) continue;
+
+    if (!teamRecords[teamKey]) {
+      teamRecords[teamKey] = { date: rec.date, kw: rec.kw, team: teamName, skills: {}, differenz: 0, sollMins: 0, ist: 0 };
+    }
+    
+    for (const dbSkill in rec.skills) {
+      teamRecords[teamKey].skills[dbSkill] = (teamRecords[teamKey].skills[dbSkill] || 0) + rec.skills[dbSkill];
+    }
+    teamRecords[teamKey].differenz += (rec.differenz || 0);
+    
+    // Die Dezimalzahl jedes Mitarbeiters wird SOFORT in exakte Minuten umgewandelt und addiert.
+    let employeeSollMins = Math.round((rec.soll || 0) * 60);
+    teamRecords[teamKey].sollMins += employeeSollMins;
+    
+    teamRecords[teamKey].ist += (rec.ist || 0);
+  }
+
+  const teamResults = [];
+  let addedTeamRowsCount = 0;
+
+  for (const teamKey in teamRecords) {
+    const tr = teamRecords[teamKey];
+    if (existingKeys.has(`${tr.date}|${tr.team}`)) continue; 
+    
+    let rowData = new Array(gesamtHeaders.length).fill("");
+    rowData[0] = tr.date; rowData[1] = tr.kw; rowData[2] = tr.team;
+    
+    for (const dbSkill in tr.skills) {
+      const colIndex = gesamtHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
+      if (colIndex !== -1) {
+          // GANZ WICHTIG: ABW jetzt ebenfalls in HH:MM formatieren statt als Dezimalzahl!
+          if (dbSkill.toUpperCase() === abwDbName) {
+              let totalMins = Math.round(tr.skills[dbSkill] * 60);
+              rowData[colIndex] = minutesToHHMM(totalMins);
+          } else {
+              rowData[colIndex] = tr.skills[dbSkill];
+          }
+      }
+    }
+    
+    const setTeamVal = (headerName, val) => {
+      const idx = gesamtHeaders.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
+      if (idx !== -1) rowData[idx] = val;
+    };
+    
+    setTeamVal("DIFFERENZ", tr.differenz);
+    setTeamVal("SOLL", minutesToHHMM(tr.sollMins)); 
+    setTeamVal("IST", tr.ist);
+
+    teamResults.push(rowData);
+    addedTeamRowsCount++;
+  }
+
+  if (teamResults.length > 0) {
+    const lastGesamtRow = Math.max(gesamtSheet.getLastRow(), 1);
+    gesamtSheet.getRange(lastGesamtRow + 1, 1, teamResults.length, teamResults[0].length).setValues(teamResults);
+  }
+
+  // --- NEU: DASHBOARD DATUM AUS DATEINAMEN AKTUALISIEREN ---
+  let dashboardDate = "";
+  const fileName = file.getName();
+  // Sucht nach einem Datum im Format TT.MM.JJJJ oder TT.MM.JJ im Dateinamen
+  const dateMatch = fileName.match(/\d{2}\.\d{2}\.\d{2,4}/); 
+  
+  if (dateMatch) {
+    dashboardDate = dateMatch[0]; // Nimmt das Datum aus dem Dateinamen
+  } else if (dateColumns.length > 0) {
+    dashboardDate = dateColumns[0].date; // Fallback: Nimmt das erste Datum aus den Spalten
+  }
+
+  if (dashboardDate) {
+    let dashboardSheet = ss.getSheetByName("Dashboard");
+    if (dashboardSheet) {
+      // Bisherige Daten
+      dashboardSheet.getRange("B2").setValue(dashboardDate);
+      dashboardSheet.getRange("C13").setValue(dashboardDate); 
+      
+      // NEU: Zusätzliche Tag-Felder
+      dashboardSheet.getRange("C113").setValue(dashboardDate);
+      
+      // NEU: Kalenderwoche (KW) aus der Variable eintragen
+      if (kw) {
+        dashboardSheet.getRange("C30").setValue(kw);
+        dashboardSheet.getRange("C130").setValue(kw);
+      }
+      
+      // NEU: Monatsersten berechnen (z.B. aus 26.05.2026 wird 01.05.2026)
+      let parts = dashboardDate.split(".");
+      if (parts.length === 3) {
+        let monthDate = "01." + parts[1] + "." + parts[2];
+        dashboardSheet.getRange("C48").setValue(monthDate);
+        dashboardSheet.getRange("C147").setValue(monthDate);
+      }
+    }
+  }
+
+  // --- FEHLENDE ZUORDNUNGEN PROTOKOLLIEREN ---
+  const errorSheetName = "Fehlende_Zuordnungen";
+  let errorSheet = ss.getSheetByName(errorSheetName);
+  
+  if (!errorSheet) {
+    errorSheet = ss.insertSheet(errorSheetName);
+  }
+  errorSheet.clear();
+  
+  const errorData = [["Typ", "Fehlender Eintrag (Name / Tätigkeit)"]];
+  
+  unmappedEmployees.forEach(emp => errorData.push(["Mitarbeiter ohne Team", emp]));
+  unmappedSkills.forEach(skill => errorData.push(["Unbekannte Tätigkeit (Plano)", skill]));
+  
+  if (errorData.length > 1) {
+    errorSheet.getRange(1, 1, errorData.length, 2).setValues(errorData);
+    errorSheet.getRange(1, 1, 1, 2).setFontWeight("bold");
+    errorSheet.autoResizeColumns(1, 2);
+    
+    return `Erfolg! ${addedRowsCount} Mitarbeiter aktualisiert und ${addedTeamRowsCount} neue Teamsätze geschrieben.\n\n⚠️ WICHTIG: Es fehlen ${unmappedEmployees.size} Team-Zuordnungen und ${unmappedSkills.size} Tätigkeiten! Bitte prüfe den Reiter '${errorSheetName}'.`;
+  } else {
+    errorSheet.appendRow(["Perfekt! Alle Mitarbeiter und Tätigkeiten konnten erfolgreich zugeordnet werden."]);
+    return `Erfolg! ${addedRowsCount} Mitarbeiter aktualisiert und ${addedTeamRowsCount} neue Teamsätze in Datenbank_Gesamt geschrieben. Alles wurde sauber gemappt!`;
+  }
+}
+
+/**
+ * Hilfsfunktion zur Normalisierung von Strings (entfernt überflüssige Leerzeichen).
+ */
+function normalizeStr(str) {
+  if (!str) return "";
+  return String(str).trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Hilfsfunktion zur Berechnung der Dezimalstunden aus einem String wie "07:00-09:15"
+ */
+function calculateHours(timeRange) {
+  try {
+    const [start, end] = timeRange.split('-');
+    const [h1, m1] = start.split(':').map(Number);
+    const [h2, m2] = end.split(':').map(Number);
+    
+    let diffMinutes = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diffMinutes < 0) diffMinutes += 24 * 60;
+    
+    return diffMinutes / 60; 
+  } catch (e) {
+    return 0;
+  }
+}
+
+/**
+ * Hilfsfunktion zum Umwandeln von Zahlen-Strings in Float-Zahlen
+ */
+function parseGermanFloat(str) {
+  if (!str) return 0;
+  let s = String(str).trim().replace(',', '.');
+  let f = parseFloat(s);
+  return isNaN(f) ? 0 : f;
+}
+
+/**
+ * Hilfsfunktion zum Umwandeln von Dezimalstunden in das Format HH:MM (z.B. aus 7.4 wird "7:24")
+ */
+function toHHMM(decimalHours) {
+  if (!decimalHours) return "0:00";
+  let sign = decimalHours < 0 ? "-" : "";
+  let absDec = Math.abs(decimalHours);
+  
+  let h = Math.floor(absDec);
+  let m = Math.round((absDec - h) * 60);
+  
+  if (m >= 60) {
+    h += 1;
+    m -= 60;
+  }
+  
+  let mStr = m < 10 ? "0" + m : m;
+  
+  return sign + h + ":" + mStr;
+}
+
+/**
+ * Hilfsfunktion, die addierte, exakte Minuten für Datenbank_Gesamt in das Format HH:MM umwandelt
+ */
+function minutesToHHMM(totalMinutes) {
+  if (!totalMinutes) return "0:00";
+  let sign = totalMinutes < 0 ? "-" : "";
+  let absMins = Math.abs(totalMinutes);
+  
+  let h = Math.floor(absMins / 60);
+  let m = Math.round(absMins % 60);
+  
+  let mStr = m < 10 ? "0" + m : m;
+  
+  return sign + h + ":" + mStr;
+}
+
+hier Dialog.html
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: 'Arial', sans-serif; padding: 15px; color: #333; }
+      h3 { color: #0050AA; margin-top: 0; font-size: 18px; }
+      p { font-size: 13px; color: #555; }
+      select { width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+      button { 
+        background-color: #0050AA; color: white; border: none; padding: 12px 20px; 
+        font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; border-radius: 4px; 
+      }
+      button:hover { background-color: #003d82; }
+      button:disabled { background-color: #ccc; cursor: not-allowed; }
+      #status { margin-top: 15px; font-size: 13px; padding: 10px; border-radius: 4px; display: none; }
+      .loading { background-color: #e8f0fe; color: #0050AA; border: 1px solid #b6d4fe; }
+      .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+      .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+  </head>
+  <body>
+    <h3>Plano-Daten importieren</h3>
+    <p>Wähle eine Datei aus der geteilten Ablage:</p>
+    
+    <select id="fileSelect">
+      <option value="">Lade Dateien...</option>
+    </select>
+    
+    <button id="importBtn" onclick="startImport()" disabled>Auswerten & Importieren</button>
+    <div id="status"></div>
+    
+    <script>
+      // Dateien aus dem Drive Ordner laden
+      google.script.run.withSuccessHandler(function(files) {
+        const select = document.getElementById('fileSelect');
+        select.innerHTML = '';
+        if(files.length === 0) {
+          select.innerHTML = '<option value="">Keine Dateien im Ordner gefunden</option>';
+          return;
+        }
+        files.forEach(function(f) {
+          const option = document.createElement('option');
+          option.value = f.id;
+          option.text = f.name;
+          select.appendChild(option);
+        });
+        document.getElementById('importBtn').disabled = false;
+      }).withFailureHandler(function(err) {
+        showStatus("Fehler beim Laden der Dateien: " + err.message, "error");
+      }).getFilesInFolder();
+      
+      // Import-Prozess starten
+      function startImport() {
+        const select = document.getElementById('fileSelect');
+        const fileId = select.value;
+        if(!fileId) return;
+        
+        document.getElementById('importBtn').disabled = true;
+        select.disabled = true;
+        showStatus("Datei wird eingelesen und ausgewertet... Bitte warten.", "loading");
+        
+        google.script.run.withSuccessHandler(function(res) {
+          showStatus("Erfolgreich! " + res, "success");
+          setTimeout(() => google.script.host.close(), 4000); // Schließt das Fenster nach 4 Sek
+        }).withFailureHandler(function(err) {
+          showStatus("Fehler: " + err.message, "error");
+          document.getElementById('importBtn').disabled = false;
+          select.disabled = false;
+        }).processSelectedFile(fileId);
+      }
+
+      function showStatus(msg, type) {
+        const el = document.getElementById('status');
+        el.style.display = 'block';
+        el.className = type;
+        el.innerText = msg;
+      }
+    </script>
+  </body>
+</html>
+
+hier dialog_uebermitteln.html
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: 'Arial', sans-serif; padding: 15px; color: #333; }
+      h3 { color: #0050AA; margin-top: 0; font-size: 18px; }
+      p { font-size: 13px; color: #555; margin-bottom: 15px; line-height: 1.4; }
+      .warning-box { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 10px; border-radius: 4px; font-weight: bold; margin-bottom: 20px;}
+      input[type="date"] { width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; box-sizing: border-box;}
+      button { 
+        background-color: #0050AA; color: white; border: none; padding: 12px 20px; 
+        font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; border-radius: 4px; 
+      }
+      button:hover { background-color: #003d82; }
+      
+      .delete-btn { background-color: #dc3545; margin-top: 10px; }
+      .delete-btn:hover { background-color: #c82333; }
+      
+      .sync-btn { background-color: #28a745; margin-top: 10px; }
+      .sync-btn:hover { background-color: #218838; }
+      
+      button:disabled { background-color: #ccc; cursor: not-allowed; }
+      #status { margin-top: 15px; font-size: 13px; padding: 10px; border-radius: 4px; display: none; }
+      .loading { background-color: #e8f0fe; color: #0050AA; border: 1px solid #b6d4fe; }
+      .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+      .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+  </head>
+  <body>
+    <h3>Stundenerfassung übermitteln</h3>
+    
+    <div style="background-color: #f1f8ff; border: 1px solid #cce5ff; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
+      <span style="font-size: 12px; color: #555;">Aktuelle Zieldatei (aus Einstellungen):</span><br>
+      <strong id="fileNameDisplay" style="color: #0050AA; font-size: 14px;">Wird geladen...</strong>
+    </div>
+    
+    <div class="warning-box">
+      WICHTIG: Übermittle die Daten immer als "HEUTE für HEUTE" oder "GESTERN für GESTERN"! Nicht "heute für gestern".
+    </div>
+    
+    <p>Bitte wähle das Datum für die Übermittlung aus:</p>
+    
+    <input type="date" id="dateInput">
+    
+    <button id="importBtn" onclick="startTransfer()">Übermittlung starten</button>
+    <button id="deleteBtn" class="delete-btn" onclick="startDelete()">Tag aus Stundenerfassung löschen</button>
+    <button id="syncBtn" class="sync-btn" onclick="startSync()">Ganzen Monat synchronisieren (Backup)</button>
+    
+    <div id="status"></div>
+    
+    <script>
+      // Lädt sofort beim Öffnen des Fensters den Dateinamen aus den Einstellungen
+      document.addEventListener('DOMContentLoaded', function() {
+        google.script.run.withSuccessHandler(function(name) {
+          document.getElementById('fileNameDisplay').innerText = name;
+        }).withFailureHandler(function(err) {
+          document.getElementById('fileNameDisplay').innerText = "Fehler beim Laden";
+        }).getStundenerfassungFileName();
+      });
+
+      function toggleButtons(disabled) {
+        document.getElementById('importBtn').disabled = disabled;
+        document.getElementById('deleteBtn').disabled = disabled;
+        document.getElementById('syncBtn').disabled = disabled;
+        document.getElementById('dateInput').disabled = disabled;
+      }
+
+      function startTransfer() {
+        const dateVal = document.getElementById('dateInput').value;
+        if(!dateVal) {
+          showStatus("Bitte wähle ein Datum aus.", "error");
+          return;
+        }
+        
+        toggleButtons(true);
+        showStatus("Übermittlung läuft... Dies kann einige Sekunden dauern. Bitte Fenster geöffnet lassen.", "loading");
+        
+        google.script.run.withSuccessHandler(function(res) {
+          showStatus("Erfolgreich! " + res, "success");
+          setTimeout(() => google.script.host.close(), 5000); 
+        }).withFailureHandler(function(err) {
+          showStatus("FEHLER: " + err.message, "error");
+          toggleButtons(false);
+        }).processStundenerfassung(dateVal);
+      }
+
+      function startDelete() {
+        const dateVal = document.getElementById('dateInput').value;
+        if(!dateVal) {
+          showStatus("Bitte wähle ein Datum aus, das gelöscht werden soll.", "error");
+          return;
+        }
+        
+        const confirmDelete = confirm("Möchtest du wirklich alle eingetragenen Zeiten für dieses Datum in der Stundenerfassung löschen?");
+        if(!confirmDelete) return;
+
+        toggleButtons(true);
+        showStatus("Daten für den Tag werden gelöscht... Bitte warten.", "loading");
+        
+        google.script.run.withSuccessHandler(function(res) {
+          showStatus("Gelöscht: " + res, "success");
+          setTimeout(() => google.script.host.close(), 5000); 
+        }).withFailureHandler(function(err) {
+          showStatus("FEHLER: " + err.message, "error");
+          toggleButtons(false);
+        }).deleteStundenerfassung(dateVal);
+      }
+
+      function startSync() {
+        const dateVal = document.getElementById('dateInput').value;
+        if(!dateVal) {
+          showStatus("Bitte wähle irgendein Datum aus dem Monat, der synchronisiert werden soll.", "error");
+          return;
+        }
+
+        toggleButtons(true);
+        showStatus("Der Monat wird aus der externen Datei geladen und synchronisiert... Bitte warten.", "loading");
+        
+        google.script.run.withSuccessHandler(function(res) {
+          showStatus("Erfolgreich! " + res, "success");
+          setTimeout(() => google.script.host.close(), 5000); 
+        }).withFailureHandler(function(err) {
+          showStatus("FEHLER: " + err.message, "error");
+          toggleButtons(false);
+        }).syncStundenerfassung(dateVal);
+      }
+
+      function showStatus(msg, type) {
+        const el = document.getElementById('status');
+        el.style.display = 'block';
+        el.className = type;
+        el.innerText = msg;
+      }
+    </script>
+  </body>
+</html>
+
+hier die Stundenerfassung_uebermitteln:
+
+/**
+ * Hauptfunktion für die Übermittlung in die Stundenerfassung.
+ * Wird aus der HTML-Oberfläche (dialog_uebermitteln.html) aufgerufen.
+ */
+function processStundenerfassung(dateStr) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // --- 1. DATUMS-FORMATIERUNGEN VORBEREITEN ---
+  const dateObj = new Date(dateStr);
+  const dateDDMMYYYY = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  const dateYYYYMM = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "yyyyMM"); 
+  const yearFull = dateObj.getFullYear().toString();
+  const yearShort = yearFull.slice(-2);
+  
+  const monthsFull = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const monthNameFull = monthsFull[dateObj.getMonth()];
+  
+  // Namen der Arbeitsblätter in den diversen Dateien
+  const sheetNameTarget = monthNameFull + " " + yearFull;     
+  const sheetNameSocial = yearFull;                           
+  const sheetNameBot = monthNameFull + yearFull;              
+  const sheetNameFW = monthNameFull + yearShort;              
+  const sheetNameQM = monthNameFull + "_" + yearShort;        
+  
+  // Ein Array mit allen möglichen Schreibweisen für das Datum (für die Sonderzeitenlisten)
+  const dateVariations = [
+    dateDDMMYYYY, 
+    dateObj.getDate() + "." + (dateObj.getMonth() + 1) + ".", 
+    dateObj.getDate() + "." + (dateObj.getMonth() + 1), 
+    ("0" + dateObj.getDate()).slice(-2) + "." + ("0" + (dateObj.getMonth() + 1)).slice(-2) + ".", 
+    ("0" + dateObj.getDate()).slice(-2) + "." + ("0" + (dateObj.getMonth() + 1)).slice(-2) 
+  ];
+
+  
+  // --- 2. VALIDIERUNG: DATUM IN DATENBANK_GESAMT? ---
+  const dbGesamtSheet = ss.getSheetByName("Datenbank_Gesamt");
+  if (!dbGesamtSheet) throw new Error("Arbeitsblatt 'Datenbank_Gesamt' nicht gefunden.");
+  
+  const dbGesamtRange = dbGesamtSheet.getDataRange();
+  const dbData = dbGesamtRange.getValues();
+  const dbDisplayData = dbGesamtRange.getDisplayValues(); 
+  
+  let dateFoundInDb = false;
+  for (let i = 1; i < dbData.length; i++) {
+    if (normalizeDateSearch(dbData[i][0]) === dateDDMMYYYY) {
+      dateFoundInDb = true; break;
+    }
+  }
+  if (!dateFoundInDb) {
+    throw new Error(`Das Datum ${dateDDMMYYYY} ist in Datenbank_Gesamt nicht vorhanden. Bitte importiere zuerst das Plano Backup!`);
+  }
+
+  
+  // --- 3. EINSTELLUNGEN LADEN & STUNDENERFASSUNG ÖFFNEN ---
+  const einstellungenSheet = ss.getSheetByName("Einstellungen");
+  if (!einstellungenSheet) throw new Error("Reiter 'Einstellungen' nicht gefunden!");
+  const settingsData = einstellungenSheet.getDataRange().getValues();
+  const settingsMap = {};
+  for (let i = 0; i < settingsData.length; i++) {
+    settingsMap[String(settingsData[i][0]).trim()] = String(settingsData[i][1]).trim();
+  }
+  
+  const stundenerfassungFileName = settingsMap["Dateiname Stundenerfassung"];
+  if (!stundenerfassungFileName) throw new Error("Kein Dateiname für die Stundenerfassung in den Einstellungen hinterlegt!");
+  
+  const targetFolderId = "1L8IlmV1tJkFJfIQY4m4r7owTGFZlYM5k";
+  const targetFilesIter = DriveApp.getFolderById(targetFolderId).searchFiles(`title = "${stundenerfassungFileName}"`);
+  if (!targetFilesIter.hasNext()) throw new Error(`Die Datei "${stundenerfassungFileName}" wurde im Zielordner nicht gefunden!`);
+  
+  const targetSs = SpreadsheetApp.openById(targetFilesIter.next().getId());
+  
+  
+  // --- 4. ZIEL-ARBEITSBLATT PRÜFEN / ANLEGEN ---
+  let targetSheet = targetSs.getSheetByName(sheetNameTarget);
+  if (!targetSheet) {
+    let vorlageSheet = targetSs.getSheetByName("VORLAGE für Monat");
+    if (!vorlageSheet) throw new Error("Das Arbeitsblatt 'VORLAGE für Monat' fehlt in der Stundenerfassung.");
+    targetSheet = vorlageSheet.copyTo(targetSs);
+    targetSheet.setName(sheetNameTarget);
+  }
+  
+  
+  // --- 5. ZIEL-ZEILE SUCHEN & VORHANDENE DATEN PRÜFEN ---
+  const targetDisplayData = targetSheet.getRange("A1:I" + (targetSheet.getLastRow() || 50)).getDisplayValues();
+  let targetRowIndex = -1;
+  
+  for (let i = 5; i < targetDisplayData.length; i++) {
+    if (normalizeDateSearch(targetDisplayData[i][0]) === dateDDMMYYYY) {
+      targetRowIndex = i + 1; 
+      
+      const c = String(targetDisplayData[i][2]).trim(); 
+      const e = String(targetDisplayData[i][4]).trim(); 
+      const f = String(targetDisplayData[i][5]).trim();
+      const g = String(targetDisplayData[i][6]).trim(); 
+      const h = String(targetDisplayData[i][7]).trim(); 
+      const i_col = String(targetDisplayData[i][8]).trim();
+      
+      if (c !== "" || e !== "" || f !== "" || g !== "" || h !== "" || i_col !== "") {
+        throw new Error(`FEHLER: Für den ${dateDDMMYYYY} sind in der Stundenerfassung bereits Daten vorhanden. Falls du neu importieren willst, lösche den Tag bitte vorher über den Löschen-Button.`);
+      }
+      break;
+    }
+  }
+  if (targetRowIndex === -1) throw new Error(`Das Datum ${dateDDMMYYYY} konnte in der Stundenerfassung ab Zeile A6 nicht gefunden werden.`);
+
+  
+  // --- OBJEKT ZUM SAMMELN ALLER UPDATES ---
+  let updates = {};
+  ['C', 'E', 'F', 'G', 'H', 'I', 'AQ', 'DI', 'DJ'].forEach(col => updates[col] = 0);
+
+  function addUpdate(colLetter, val) {
+    if (val === undefined || val === null || val === "") return;
+    let num = parseFloat(String(val).replace(',', '.'));
+    if (!isNaN(num)) {
+      updates[colLetter] = (updates[colLetter] || 0) + num;
+    }
+  }
+  
+  
+  // --- 6. STEUERUNGSREPORT AUSLESEN ---
+  const srFolderId = "1cWmHGm1RGWe9OQ7ObIffD85wFqiKCjFY";
+  const srFileName = `${dateYYYYMM}_Steuerungsreport_Salesforce`;
+  const srFilesIter = DriveApp.getFolderById(srFolderId).searchFiles(`title = "${srFileName}"`);
+  
+  if (srFilesIter.hasNext()) {
+    const srSs = SpreadsheetApp.openById(srFilesIter.next().getId());
+    
+    let lks1Sheet = srSs.getSheetByName("LKS-1st");
+    if (lks1Sheet) {
+      let d1 = lks1Sheet.getDataRange().getValues();
+      for(let r = 3; r < d1.length; r++) {
+        if (normalizeDateSearch(d1[r][0]) === dateDDMMYYYY) {
+          addUpdate('E', d1[r][43]); 
+          addUpdate('F', d1[r][51]); 
+          addUpdate('H', d1[r][67]); 
+          addUpdate('I', d1[r][35]); 
+          break;
+        }
+      }
+    }
+    
+    let lks2Sheet = srSs.getSheetByName("LKS-2nd");
+    if (lks2Sheet) {
+      let d2 = lks2Sheet.getDataRange().getValues();
+      for(let r = 3; r < d2.length; r++) {
+        if (normalizeDateSearch(d2[r][0]) === dateDDMMYYYY) {
+          addUpdate('G', d2[r][24]); 
+          break;
+        }
+      }
+    }
+    
+    let lksSheet = srSs.getSheetByName("LKS");
+    if (lksSheet) {
+      let d3 = lksSheet.getDataRange().getValues();
+      for(let r = 3; r < d3.length; r++) {
+        if (normalizeDateSearch(d3[r][0]) === dateDDMMYYYY) {
+          addUpdate('C', d3[r][10]); 
+          addUpdate('AQ', d3[r][2]); // NEU: Wert aus Spalte C (Index 2) in Ziel-Spalte AQ schreiben
+          break;
+        }
+      }
+    }
+  } else {
+    console.warn(`Steuerungsreport ${srFileName} nicht gefunden, fahre fort...`);
+  }
+
+  
+  // --- 7. DASHBOARD AKTUALISIEREN ---
+  let dashboardSheet = ss.getSheetByName("Dashboard");
+  if (dashboardSheet) {
+    dashboardSheet.getRange("B2").setValue(dateDDMMYYYY);
+  }
+
+  
+  // --- 8. MAPPING STUNDENERFASSUNG (Datenbank_Gesamt auslesen) ---
+  let mappingStundenSheet = ss.getSheetByName("Mapping_Stundenerfassung");
+  if (mappingStundenSheet) {
+    let mapData = mappingStundenSheet.getDataRange().getValues();
+    let dbHeaders = dbData[0];
+    
+    for (let i = 1; i < mapData.length; i++) {
+      let keyword = String(mapData[i][0]).trim();
+      let targetColLetter = String(mapData[i][1]).trim();
+      
+      if (keyword && targetColLetter) {
+        if (updates[targetColLetter] === undefined) updates[targetColLetter] = 0;
+
+        let kwColIdx = dbHeaders.findIndex(h => String(h).trim().toUpperCase() === keyword.toUpperCase());
+        if (kwColIdx !== -1) {
+          let sumVal = 0;
+          for (let r = 1; r < dbData.length; r++) {
+            if (normalizeDateSearch(dbData[r][0]) === dateDDMMYYYY) {
+              let val = parseToDecimalHours(dbDisplayData[r][kwColIdx]);
+              sumVal += val;
+            }
+          }
+          addUpdate(targetColLetter, sumVal);
+        }
+      }
+    }
+  }
+  
+  
+  // --- 8b. MAPPING ABWESENHEIT (Datenbank_Gesamt auslesen) ---
+  let mappingAbwSheet = ss.getSheetByName("Mapping_Abwesenheit");
+  if (mappingAbwSheet) {
+    let mapAbwData = mappingAbwSheet.getDataRange().getValues();
+    let dbHeaders = dbData[0];
+    
+    for (let i = 1; i < mapAbwData.length; i++) {
+      let teamName = String(mapAbwData[i][0]).trim();        
+      let sourceColName = String(mapAbwData[i][1]).trim();   
+      let targetColLetter = String(mapAbwData[i][2]).trim(); 
+      
+      if (teamName && sourceColName && targetColLetter) {
+        if (updates[targetColLetter] === undefined) updates[targetColLetter] = 0;
+
+        let srcColIdx = dbHeaders.findIndex(h => String(h).trim().toUpperCase() === sourceColName.toUpperCase());
+        if (srcColIdx !== -1) {
+          let sumVal = 0;
+          for (let r = 1; r < dbData.length; r++) {
+            if (normalizeDateSearch(dbData[r][0]) === dateDDMMYYYY && String(dbData[r][2]).trim().toUpperCase() === teamName.toUpperCase()) {
+              let val = parseToDecimalHours(dbDisplayData[r][srcColIdx]);
+              sumVal += val;
+            }
+          }
+          addUpdate(targetColLetter, sumVal);
+        }
+      }
+    }
+  }
+
+
+  // --- 9. MAPPING SONDERZEITEN VORBEREITEN ---
+  let mappingSonderzeitenSheet = ss.getSheetByName("Mapping_Sonderzeiten");
+  let szMap = {}; 
+  if (mappingSonderzeitenSheet) {
+    let szData = mappingSonderzeitenSheet.getDataRange().getValues();
+    for(let i=0; i<szData.length; i++) {
+      let keyw = String(szData[i][0]).trim();
+      let targetColLetter = String(szData[i][1]).trim();
+      
+      if(keyw && targetColLetter) {
+        szMap[keyw.toUpperCase()] = targetColLetter;
+        if (updates[targetColLetter] === undefined) updates[targetColLetter] = 0;
+      }
+    }
+  }
+  
+  function processSonderliste(url, sheetName, dateVariationsArray, dateRowIdx, headerRowIdx, valuesRowIdx, keyMappings) {
+    if(!url) return;
+    try {
+      let extSs = SpreadsheetApp.openByUrl(url);
+      let extSheet = extSs.getSheetByName(sheetName);
+      if(!extSheet) return;
+      
+      let data = extSheet.getDataRange().getValues();
+      if(data.length <= Math.max(valuesRowIdx, headerRowIdx, dateRowIdx)) return;
+      
+      let dateRow = data[dateRowIdx];
+      let startColIdx = -1;
+      
+      for(let c=0; c<dateRow.length; c++) {
+        let cellVal = normalizeDateSearch(dateRow[c]);
+        let rawVal = String(dateRow[c]).trim();
+        
+        if (dateVariationsArray.includes(cellVal) || dateVariationsArray.includes(rawVal)) {
+          startColIdx = c; 
+          break;
+        }
+      }
+      
+      if(startColIdx !== -1) {
+        let endColIdx = dateRow.length;
+        for(let c = startColIdx + 1; c < dateRow.length; c++) {
+          if (String(dateRow[c]).trim() !== "") { endColIdx = c; break; }
+        }
+        
+        let headers = data[headerRowIdx];
+        let values = data[valuesRowIdx];
+        
+        for(let c = startColIdx; c < endColIdx; c++) {
+          let hName = String(headers[c]).trim().toUpperCase();
+          for(let objKey in keyMappings) {
+            if(hName === objKey) {
+              let mapKey = keyMappings[objKey].toUpperCase();
+              let targetColLetter = szMap[mapKey];
+              if(targetColLetter) {
+                addUpdate(targetColLetter, values[c]);
+              }
+            }
+          }
+        }
+      }
+    } catch(e) {
+      console.error("Fehler beim Verarbeiten von Sonderliste " + sheetName + ": " + e.message);
+    }
+  }
+
+  // --- Sonderzeitenliste Social ---
+  processSonderliste(settingsMap["Sonderzeitenliste Social"], sheetNameSocial, dateVariations, 0, 1, 24, {
+    "FIL 1ST": "SOCIAL 1ST FILIALE",
+    "FIL 2ND": "SOCIAL FIL 2ND",
+    "OS 1ST": "SOCIAL OS 1ST",
+    "OS 2ND": "SOCIAL OS 2ND"
+  });
+
+  // --- Sonderzeitenliste Bot ---
+  processSonderliste(settingsMap["Sonderzeitenliste Bot"], sheetNameBot, dateVariations, 0, 1, 12, {
+    "FILIALE 1ST": "BOT FILIALE 1ST",
+    "ECOM 1ST": "BOT ECOM 1ST",
+    "ECOM 2ND": "BOT ECOM 2ND",
+    "LIDL PLUS": "BOT LIDL PLUS"
+  });
+
+  // --- Sonderzeitenliste Floorwalker ---
+  const urlFW = settingsMap["Sonderzeitenliste FW"];
+  processSonderliste(urlFW, sheetNameFW, dateVariations, 0, 2, 15, {
+    "1ST": "FW OS 1ST", "2ND": "FW OS 2ND", "LIDL+": "FW OS LIDL+"
+  });
+  processSonderliste(urlFW, sheetNameFW, dateVariations, 0, 17, 26, {
+    "1ST": "FW FIL 1ST", "2ND": "FW FIL 2ND", "LIDL+": "FW FIL LIDL+"
+  });
+
+  // --- Sonderzeitenliste QM ---
+  processSonderliste(settingsMap["Sonderzeitenliste QM"], sheetNameQM, dateVariations, 5, 6, 22, {
+    "FILIALE 1ST": "QM FILIALE 1ST", "FILIALE 2ND": "QM FILIALE 2ND",
+    "ECOM 1ST": "QM ECOM 1ST", "ECOM 2ND": "QM ECOM 2ND", "LIDL PLUS 1ST": "QM LIDL PLUS 1ST"
+  });
+
+
+  // --- 9e. DIENSTPLAN AUSWERTEN ---
+  const urlDienstplan = settingsMap["Dienstplan"];
+  if (urlDienstplan) {
+    try {
+      let dpSs = SpreadsheetApp.openByUrl(urlDienstplan);
+      let dpSheets = dpSs.getSheets();
+      let foundDpRow = false;
+      
+      for (let s = 0; s < dpSheets.length; s++) {
+        let dpData = dpSheets[s].getDataRange().getValues();
+        
+        for (let r = 0; r < dpData.length; r++) {
+          if (normalizeDateSearch(dpData[r][1]) === dateDDMMYYYY) {
+            let countFB_SB_F_S = 0;
+            let countDP = 0;
+            
+            for (let c = 2; c < dpData[r].length; c++) {
+              let cellVal = String(dpData[r][c]).trim().toUpperCase();
+              if (cellVal === "FB" || cellVal === "SB" || cellVal === "F" || cellVal === "S") {
+                countFB_SB_F_S++;
+              } else if (cellVal === "DP") {
+                countDP++;
+              }
+            }
+            
+            if (updates['DI'] === undefined) updates['DI'] = 0;
+            if (updates['DJ'] === undefined) updates['DJ'] = 0;
+            
+            addUpdate('DI', countFB_SB_F_S);
+            addUpdate('DJ', countDP);
+            
+            foundDpRow = true;
+            break;
+          }
+        }
+        if (foundDpRow) break;
+      }
+    } catch (e) {
+      console.error("Fehler beim Auswerten des Dienstplans: " + e.message);
+    }
+  }
+
+
+  // --- 10. WERTE IN DIE STUNDENERFASSUNG SCHREIBEN ---
+  let lastTargetCol = targetSheet.getLastColumn() || 1;
+  let finalTargetDisplayData = targetSheet.getRange(targetRowIndex, 1, 1, lastTargetCol).getDisplayValues()[0];
+  
+  let changed = false;
+  for (let colLetter in updates) {
+    let colIndex = colLetterToIndex(colLetter);
+    
+    let existingValStr = (colIndex < finalTargetDisplayData.length) ? finalTargetDisplayData[colIndex] : "0";
+    let existingVal = parseToDecimalHours(existingValStr);
+    
+    let newVal = existingVal + updates[colLetter];
+    
+    let targetCell = targetSheet.getRange(targetRowIndex, colIndex + 1);
+    let cellFormat = targetCell.getNumberFormat();
+    
+    if (cellFormat.includes(':') || cellFormat.toLowerCase().includes('h')) {
+        targetCell.setValue(newVal / 24);
+    } else {
+        targetCell.setValue(Math.round(newVal * 10000) / 10000); 
+    }
+    
+    changed = true;
+  }
+  
+  // --- 11. NEU: BACKUP DER ZEILE IN LOKALES ARBEITSBLATT (1:1 KOPIE) ---
+  if (changed) {
+    const backupSheetName = "Datenbank_Stundenerfassung";
+    let backupSheet = ss.getSheetByName(backupSheetName);
+    
+    // Backup-Reiter erstellen, falls er nicht existiert, und Überschriften (Zeile 5) kopieren
+    if (!backupSheet) {
+      backupSheet = ss.insertSheet(backupSheetName);
+      let headerRange = targetSheet.getRange(5, 1, 1, lastTargetCol);
+      backupSheet.appendRow(headerRange.getValues()[0]);
+      backupSheet.getRange(1, 1, 1, lastTargetCol).setFontWeight("bold");
+    }
+    
+    // Die finale, fertig geschriebene Zeile aus der Stundenerfassung 1:1 kopieren
+    let finalSourceRange = targetSheet.getRange(targetRowIndex, 1, 1, lastTargetCol);
+    let finalValues = finalSourceRange.getValues();
+    let finalFormats = finalSourceRange.getNumberFormats(); // Formate (z.B. Uhrzeit) mitkopieren!
+    
+    // Prüfen ob das Datum im Backup schon existiert
+    let backupData = backupSheet.getDataRange().getValues();
+    let backupRowIndex = -1;
+    for (let i = 1; i < backupData.length; i++) {
+      if (normalizeDateSearch(backupData[i][0]) === dateDDMMYYYY) {
+        backupRowIndex = i + 1;
+        break;
+      }
+    }
+    
+    // Einfügen oder Überschreiben inkl. der exakten Formatierung
+    if (backupRowIndex !== -1) {
+      let destRange = backupSheet.getRange(backupRowIndex, 1, 1, lastTargetCol);
+      destRange.setValues(finalValues);
+      destRange.setNumberFormats(finalFormats);
+    } else {
+      let newRowIdx = backupSheet.getLastRow() + 1;
+      let destRange = backupSheet.getRange(newRowIdx, 1, 1, lastTargetCol);
+      destRange.setValues(finalValues);
+      destRange.setNumberFormats(finalFormats);
+    }
+
+    return `Übermittlung für den ${dateDDMMYYYY} erfolgreich! Alle Daten wurden übermittelt und sicher in 'Datenbank_Stundenerfassung' als Backup gespeichert.`;
+  } else {
+    return `Übermittlung durchgeführt, aber es wurden keine passenden Werte in den Quellen gefunden.`;
+  }
+}
+
+/**
+ * LÖSCHFUNKTION: Leert gezielt nur die Spalten für einen Tag, die vom Skript geschrieben wurden.
+ * NEU: Leert diese Spalten auch automatisch im Backup-Sheet!
+ */
+function deleteStundenerfassung(dateStr) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const dateObj = new Date(dateStr);
+  const dateDDMMYYYY = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  const yearFull = dateObj.getFullYear().toString();
+  const monthsFull = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const monthNameFull = monthsFull[dateObj.getMonth()];
+  const sheetNameTarget = monthNameFull + " " + yearFull;
+
+  const einstellungenSheet = ss.getSheetByName("Einstellungen");
+  if (!einstellungenSheet) throw new Error("Reiter 'Einstellungen' nicht gefunden!");
+  const settingsData = einstellungenSheet.getDataRange().getValues();
+  const settingsMap = {};
+  for (let i = 0; i < settingsData.length; i++) {
+    settingsMap[String(settingsData[i][0]).trim()] = String(settingsData[i][1]).trim();
+  }
+  
+  const stundenerfassungFileName = settingsMap["Dateiname Stundenerfassung"];
+  if (!stundenerfassungFileName) throw new Error("Kein Dateiname für die Stundenerfassung in den Einstellungen hinterlegt!");
+  
+  const targetFolderId = "1L8IlmV1tJkFJfIQY4m4r7owTGFZlYM5k";
+  const targetFilesIter = DriveApp.getFolderById(targetFolderId).searchFiles(`title = "${stundenerfassungFileName}"`);
+  if (!targetFilesIter.hasNext()) throw new Error(`Die Datei "${stundenerfassungFileName}" wurde nicht gefunden!`);
+  
+  const targetSs = SpreadsheetApp.openById(targetFilesIter.next().getId());
+  let targetSheet = targetSs.getSheetByName(sheetNameTarget);
+  
+  if (!targetSheet) {
+    throw new Error(`Das Arbeitsblatt "${sheetNameTarget}" existiert noch gar nicht. Es gibt also nichts zu löschen.`);
+  }
+
+  const targetData = targetSheet.getRange("A1:A" + (targetSheet.getLastRow() || 50)).getValues();
+  let targetRowIndex = -1;
+  
+  for (let i = 5; i < targetData.length; i++) {
+    if (normalizeDateSearch(targetData[i][0]) === dateDDMMYYYY) {
+      targetRowIndex = i + 1; 
+      break;
+    }
+  }
+  
+  if (targetRowIndex === -1) {
+    throw new Error(`Das Datum ${dateDDMMYYYY} konnte in der Stundenerfassung nicht gefunden werden.`);
+  }
+
+  let colsToClear = new Set();
+  
+  ['C', 'E', 'F', 'G', 'H', 'I', 'AQ', 'DI', 'DJ'].forEach(col => colsToClear.add(colLetterToIndex(col)));
+
+  let mappingStundenSheet = ss.getSheetByName("Mapping_Stundenerfassung");
+  if (mappingStundenSheet) {
+    let mapData = mappingStundenSheet.getDataRange().getValues();
+    for (let i = 1; i < mapData.length; i++) {
+      let colLtr = String(mapData[i][1]).trim();
+      if (colLtr) colsToClear.add(colLetterToIndex(colLtr));
+    }
+  }
+  
+  let mappingAbwSheet = ss.getSheetByName("Mapping_Abwesenheit");
+  if (mappingAbwSheet) {
+    let mapAbwData = mappingAbwSheet.getDataRange().getValues();
+    for (let i = 1; i < mapAbwData.length; i++) {
+      let colLtr = String(mapAbwData[i][2]).trim(); 
+      if (colLtr) colsToClear.add(colLetterToIndex(colLtr));
+    }
+  }
+
+  let mappingSonderzeitenSheet = ss.getSheetByName("Mapping_Sonderzeiten");
+  if (mappingSonderzeitenSheet) {
+    let szData = mappingSonderzeitenSheet.getDataRange().getValues();
+    for(let i = 0; i < szData.length; i++) {
+      let colLtr = String(szData[i][1]).trim();
+      if (colLtr) colsToClear.add(colLetterToIndex(colLtr));
+    }
+  }
+
+  // Löschen im Ziel-Dokument
+  colsToClear.forEach(colIdx => {
+    targetSheet.getRange(targetRowIndex, colIdx + 1).clearContent();
+  });
+  
+  // NEU: Löschen auch synchron im Backup-Dokument durchführen!
+  let backupSheet = ss.getSheetByName("Datenbank_Stundenerfassung");
+  if (backupSheet) {
+    let backupData = backupSheet.getDataRange().getValues();
+    let backupRowIndex = -1;
+    for (let i = 1; i < backupData.length; i++) {
+      if (normalizeDateSearch(backupData[i][0]) === dateDDMMYYYY) {
+        backupRowIndex = i + 1;
+        break;
+      }
+    }
+    if (backupRowIndex !== -1) {
+      colsToClear.forEach(colIdx => {
+        backupSheet.getRange(backupRowIndex, colIdx + 1).clearContent();
+      });
+    }
+  }
+
+  return `Alle via Skript eingetragenen Zeiten für den ${dateDDMMYYYY} wurden im Ziel und im Backup erfolgreich geleert!`;
+}
+
+/**
+ * NEU: SYNCHRONISIERUNG: Holt den gesamten Monat aus der Stundenerfassung 
+ * und kopiert/überschreibt die Tage im lokalen Backup (Datenbank_Stundenerfassung).
+ * INKLUSIVE ZEITZONEN-FIX für exakte Zeiten.
+ */
+function syncStundenerfassung(dateStr) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const dateObj = new Date(dateStr);
+  const yearFull = dateObj.getFullYear().toString();
+  const monthsFull = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const monthNameFull = monthsFull[dateObj.getMonth()];
+  const sheetNameTarget = monthNameFull + " " + yearFull;
+
+  const einstellungenSheet = ss.getSheetByName("Einstellungen");
+  if (!einstellungenSheet) throw new Error("Reiter 'Einstellungen' nicht gefunden!");
+  const settingsData = einstellungenSheet.getDataRange().getValues();
+  const settingsMap = {};
+  for (let i = 0; i < settingsData.length; i++) {
+    settingsMap[String(settingsData[i][0]).trim()] = String(settingsData[i][1]).trim();
+  }
+  
+  const stundenerfassungFileName = settingsMap["Dateiname Stundenerfassung"];
+  if (!stundenerfassungFileName) throw new Error("Kein Dateiname für die Stundenerfassung in den Einstellungen hinterlegt!");
+  
+  const targetFolderId = "1L8IlmV1tJkFJfIQY4m4r7owTGFZlYM5k";
+  const targetFilesIter = DriveApp.getFolderById(targetFolderId).searchFiles(`title = "${stundenerfassungFileName}"`);
+  if (!targetFilesIter.hasNext()) throw new Error(`Die Datei "${stundenerfassungFileName}" wurde nicht gefunden!`);
+  
+  const targetSs = SpreadsheetApp.openById(targetFilesIter.next().getId());
+  const targetSheet = targetSs.getSheetByName(sheetNameTarget);
+  
+  if (!targetSheet) {
+    throw new Error(`Der Monat "${sheetNameTarget}" existiert in der Stundenerfassung noch nicht.`);
+  }
+
+  const lastTargetCol = targetSheet.getLastColumn() || 1;
+  const targetLastRow = targetSheet.getLastRow();
+  
+  if (targetLastRow < 6) return "Keine Daten im Ziel-Monat gefunden.";
+
+  const backupSheetName = "Datenbank_Stundenerfassung";
+  let backupSheet = ss.getSheetByName(backupSheetName);
+  
+  if (!backupSheet) {
+    backupSheet = ss.insertSheet(backupSheetName);
+    let headerRange = targetSheet.getRange(5, 1, 1, lastTargetCol);
+    backupSheet.appendRow(headerRange.getValues()[0]);
+    backupSheet.getRange(1, 1, 1, lastTargetCol).setFontWeight("bold");
+  }
+
+  const extRange = targetSheet.getRange(6, 1, targetLastRow - 5, lastTargetCol);
+  
+  // FIX: Wir laden die Hintergrund-Werte UND genau das, was auf dem Bildschirm steht (DisplayValues)
+  const extValues = extRange.getValues();
+  const extDisplayValues = extRange.getDisplayValues();
+  const extFormats = extRange.getNumberFormats();
+
+  const localData = backupSheet.getDataRange().getValues();
+  const localDateMap = {};
+  for (let i = 1; i < localData.length; i++) {
+    let dStr = normalizeDateSearch(localData[i][0]);
+    if (dStr) localDateMap[dStr] = i + 1; // 1-basiert, da Zeilen ab 1 beginnen
+  }
+
+  let syncedCount = 0;
+  let newCount = 0;
+
+  const limitDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()).getTime();
+
+  for (let i = 0; i < extValues.length; i++) {
+    let extDateVal = extValues[i][0];
+    if (!extDateVal) continue; // Leere Zeilen überspringen
+
+    if (String(extDateVal).trim().toUpperCase().includes("GESAMT")) {
+        continue;
+    }
+
+    let rowDateObj;
+    if (extDateVal instanceof Date) {
+        rowDateObj = extDateVal;
+    } else {
+        let parts = String(extDateVal).trim().split('.');
+        if (parts.length === 3) {
+            rowDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+    }
+
+    if (rowDateObj) {
+        let currentRowTime = new Date(rowDateObj.getFullYear(), rowDateObj.getMonth(), rowDateObj.getDate()).getTime();
+        if (currentRowTime > limitDate) {
+            continue; 
+        }
+    }
+
+    let extDateStr = normalizeDateSearch(extDateVal);
+    if (!extDateStr) continue; 
+    
+    // FIX: Die Zeilenwerte zusammenbauen (Zeitzonen-Bug umgehen)
+    let finalRowValues = [];
+    for (let c = 0; c < extValues[i].length; c++) {
+        let format = String(extFormats[i][c]).toLowerCase();
+        
+        // Wenn es eine Uhrzeit/Dauer ist (enthält ":" oder "h"), nutzen wir exakt den angezeigten Text
+        if (format.includes(':') || format.includes('h')) {
+            finalRowValues.push(extDisplayValues[i][c] === "" ? "" : extDisplayValues[i][c]);
+        } else {
+            // Normale Zahlen oder reiner Text
+            finalRowValues.push(extValues[i][c]);
+        }
+    }
+
+    let rowValuesArray = [finalRowValues];
+    let rowFormatsArray = [extFormats[i]];
+
+    if (localDateMap[extDateStr]) {
+       let destRange = backupSheet.getRange(localDateMap[extDateStr], 1, 1, lastTargetCol);
+       destRange.setValues(rowValuesArray);
+       destRange.setNumberFormats(rowFormatsArray);
+       syncedCount++;
+    } else {
+       let newRowIdx = backupSheet.getLastRow() + 1;
+       let destRange = backupSheet.getRange(newRowIdx, 1, 1, lastTargetCol);
+       destRange.setValues(rowValuesArray);
+       destRange.setNumberFormats(rowFormatsArray);
+       localDateMap[extDateStr] = newRowIdx; 
+       newCount++;
+    }
+  }
+
+  return `Synchronisation abgeschlossen! ${syncedCount} vorhandene Tage aktualisiert und ${newCount} Tage neu hinzugefügt.`;
+}
+
+/**
+ * Liest den Dateinamen für das Anzeige-Fenster (Frontend) aus den Einstellungen.
+ */
+function getStundenerfassungFileName() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const einstellungenSheet = ss.getSheetByName("Einstellungen");
+    if (!einstellungenSheet) return "Fehler: Reiter 'Einstellungen' fehlt!";
+    
+    const data = einstellungenSheet.getDataRange().getValues();
+    for (let i = 0; i < data.length; i++) {
+      if (String(data[i][0]).trim() === "Dateiname Stundenerfassung") {
+        const fileName = String(data[i][1]).trim();
+        return fileName ? fileName : "Kein Name eingetragen";
+      }
+    }
+    return "Eintrag 'Dateiname Stundenerfassung' fehlt";
+  } catch (e) {
+    return "Fehler beim Auslesen";
+  }
+}
+
+/**
+ * Hilfsfunktion: Wandelt Strings wie "07:24", "104,60" oder "14.5" sauber in Dezimalstunden um.
+ */
+function parseToDecimalHours(str) {
+  if (!str) return 0;
+  let s = String(str).trim();
+  
+  if (s.includes(':')) {
+    let parts = s.split(':');
+    let h = parseInt(parts[0], 10) || 0;
+    let m = parseInt(parts[1], 10) || 0;
+    let sec = parseInt(parts[2], 10) || 0;
+    
+    let sign = 1;
+    if (s.startsWith('-')) {
+      sign = -1;
+      h = Math.abs(h);
+    }
+    return sign * (h + (m / 60) + (sec / 3600));
+  }
+  
+  s = s.replace(',', '.');
+  let f = parseFloat(s);
+  return isNaN(f) ? 0 : f;
+}
+
+/**
+ * Hilfsfunktion: Wandelt ein Sheets-Datum oder einen String verlässlich in dd.MM.yyyy um
+ */
+function normalizeDateSearch(cellVal) {
+  if (!cellVal) return "";
+  if (cellVal instanceof Date) {
+    return Utilities.formatDate(cellVal, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  }
+  return String(cellVal).trim();
+}
+
+/**
+ * Hilfsfunktion: Wandelt Spaltenbuchstaben (z.B. "E" oder "DI") in den 0-basierten Index um
+ */
+function colLetterToIndex(letter) {
+  let col = 0;
+  let len = letter.length;
+  for (let i = 0; i < len; i++) {
+    col += (letter.toUpperCase().charCodeAt(i) - 64) * Math.pow(26, len - i - 1);
+  }
+  return col - 1; 
+}
+
+Baue mir bei Plano Backup importieren ein Kontrollkästchen ein wo steht gesamten Monat importieren
+
+ ich will nun ein weiteres neues script was dann quasi diesen Plano Backup ausließt, du musst hier dann einiges beachten, gehe logisch vor, was sich ändert wenn man nun einen kompletten monat importiert statt nur einen Tag.
+
+Außerdem siehst du, dass die tage nicht logisch angeordnet sind aber immer grundsätzlich die gleiche Struktur behalten.
+
+Zum testen bitte die Datenbank_Gesamt_Test füllen als neues Arbeitsblatt
+
+Wichtig ist auch deine Logik für Datenbank_KO_SKILL 
+
+
+
+Es ist also quasi so, dass beispielsweise als Titel nun immer in spalte A Wochenplan KW 19 / 2026 das ist quasi die Übersicht wo wir uns befinden, das ist quasi wie damals, zeile 1 im einzeltag auswertung impoert
+
+
+
+Spalte A ist dennoch immer die Namen,
+
+du siehst die Tage ändern sich nur und sind je nach dem nach unten und dann beginnt ein neuer Tag
