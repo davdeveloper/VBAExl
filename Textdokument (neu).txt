@@ -259,12 +259,11 @@ function findHeaderRowInBlock_(data, startRow, endRow) {
 /**
  * Wertet einen Wochenplan-Block aus.
  *
- * Monatsbackup Logik:
- * Isth und Vertrag h sind Wochenwerte.
- * IST wird aus den Tagesdetails ohne Pausen berechnet.
- * SOLL wird aus Vertrag h anteilig auf echte Soll-Tage verteilt.
- * Samstag/Sonntag mit "-" sind keine Ausgleichstage.
- * Ausgleichstag wird nur werktags erkannt und nur bei echter Wochen-Differenz.
+ * Ziel:
+ * IST bleibt wie im funktionierenden Stand aus den Tagesdetails.
+ * SOLL wird aus Vertrag h gleichmäßig auf echte Soll-Tage verteilt.
+ *
+ * Dadurch wird nicht mehr nach Tageslänge gewichtet.
  */
 function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year, records, ctx) {
   const AUSGLEICHSTAG_ZAEHLT_INS_SOLL = false;
@@ -376,7 +375,7 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
         }
 
         if (!absenceHours && weeklyVertragVal > 0) {
-          absenceHours = weeklyVertragVal / 5;
+          absenceHours = weeklyVertragVal / Math.max(info.sollDayCount || 5, 1);
         }
 
         rec.skills[dbSkill] = (rec.skills[dbSkill] || 0) + absenceHours;
@@ -459,10 +458,23 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
 
 /**
  * Baut pro Mitarbeiter alle Tagesinfos eines Wochenblocks.
- * Wichtig:
- * Vertrag h wird auf echte Soll-Tage verteilt.
- * Wochenend "-" wird ignoriert.
- * Werktags "-" wird nur als Ausgleichstag gewertet, wenn Vertrag h > Isth.
+ *
+ * Neue Soll-Logik:
+ * Vertrag h wird gleichmäßig auf Soll-Tage verteilt.
+ * Es wird nicht mehr nach geplanter Tageslänge gewichtet.
+ *
+ * Soll-Tage sind:
+ * normale Arbeitstage mit Stunden
+ * Urlaub
+ * ABW
+ * Überstundenfrei
+ * Wunschfrei
+ * Samstage/Sonntage nur wenn dort echte Arbeitszeit oder eine echte Abwesenheit steht
+ *
+ * Keine Soll-Tage sind:
+ * "-" ohne Arbeitszeit
+ * freie Wochenendtage
+ * Ausgleichstag, wenn als Ausgleich erkannt
  */
 function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns, weeklyIstVal, weeklyVertragVal) {
   const infos = [];
@@ -501,10 +513,20 @@ function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns
       !hasAbsenceLabel &&
       !isAusgleichstag;
 
-    let baseHours = 0;
+    let countsForSoll = false;
 
-    if (hasHours) {
-      baseHours = detailIstHours > 0 ? detailIstHours : dayCellTimeHours;
+    if (isAusgleichstag) {
+      countsForSoll = false;
+    } else if (isEmptyFreeDay) {
+      countsForSoll = false;
+    } else if (hasHours) {
+      countsForSoll = true;
+    } else if (hasAbsenceLabel) {
+      countsForSoll = true;
+    } else if (!dc.isWeekend && upperDayCell && upperDayCell !== "-") {
+      countsForSoll = true;
+    } else {
+      countsForSoll = false;
     }
 
     infos.push({
@@ -512,6 +534,8 @@ function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns
       date: dc.date,
       dayOfWeek: dc.dayOfWeek,
       isWeekend: dc.isWeekend,
+      isSaturday: dc.isSaturday,
+      isSunday: dc.isSunday,
       dayCell: dayCell,
       upperDayCell: upperDayCell,
       detailCell: detailCell,
@@ -523,82 +547,32 @@ function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns
       isWunschfrei: isWunschfrei,
       isAusgleichstag: isAusgleichstag,
       isEmptyFreeDay: isEmptyFreeDay,
-      baseHours: baseHours,
-      sollBase: 0,
+      hasHours: hasHours,
+      hasAbsenceLabel: hasAbsenceLabel,
+      countsForSoll: countsForSoll,
       dailySollHours: 0,
-      ausgleichHours: 0
+      ausgleichHours: 0,
+      sollDayCount: 0
     });
   }
 
-  const normalWorkBases = infos
-    .filter(info =>
-      !info.isWeekend &&
-      !info.isEmptyFreeDay &&
-      !info.isAusgleichstag &&
-      !info.isUrlaub &&
-      !info.isAbw &&
-      !info.isUeberstunden &&
-      !info.isWunschfrei &&
-      info.baseHours > 0
-    )
-    .map(info => info.baseHours);
+  const sollDayCount = infos.filter(info => info.countsForSoll).length;
 
-  const averageWorkBase = normalWorkBases.length > 0
-    ? normalWorkBases.reduce((sum, val) => sum + val, 0) / normalWorkBases.length
-    : 0;
+  let dailySollHours = 0;
 
-  let fallbackWorkBase = averageWorkBase;
-
-  if (!fallbackWorkBase && weeklyVertragVal > 0) {
-    fallbackWorkBase = weeklyVertragVal / 5;
-  }
-
-  if (!fallbackWorkBase) {
-    fallbackWorkBase = 1;
+  if (weeklyVertragVal > 0 && sollDayCount > 0) {
+    dailySollHours = weeklyVertragVal / sollDayCount;
   }
 
   infos.forEach(info => {
-    const countsForSoll =
-      !info.isWeekend &&
-      !info.isEmptyFreeDay &&
-      !info.isAusgleichstag;
+    info.sollDayCount = sollDayCount;
 
-    if (!countsForSoll) {
-      info.sollBase = 0;
-      return;
+    if (info.countsForSoll) {
+      info.dailySollHours = dailySollHours;
+    } else {
+      info.dailySollHours = 0;
     }
-
-    if (info.baseHours > 0) {
-      info.sollBase = info.baseHours;
-      return;
-    }
-
-    if (
-      info.isUrlaub ||
-      info.isAbw ||
-      info.isUeberstunden ||
-      info.isWunschfrei ||
-      info.upperDayCell.includes("ANW") ||
-      (info.upperDayCell && info.upperDayCell !== "-")
-    ) {
-      info.sollBase = fallbackWorkBase;
-      return;
-    }
-
-    info.sollBase = 0;
   });
-
-  const totalSollBase = infos.reduce((sum, info) => sum + info.sollBase, 0);
-
-  if (weeklyVertragVal > 0 && totalSollBase > 0) {
-    infos.forEach(info => {
-      info.dailySollHours = weeklyVertragVal * (info.sollBase / totalSollBase);
-    });
-  } else {
-    infos.forEach(info => {
-      info.dailySollHours = info.sollBase;
-    });
-  }
 
   const ausgleichInfos = infos.filter(info => info.isAusgleichstag);
   const ausgleichTotalHours = Math.max(weeklyVertragVal - weeklyIstVal, 0);
