@@ -259,11 +259,19 @@ function findHeaderRowInBlock_(data, startRow, endRow) {
 /**
  * Wertet einen Wochenplan-Block aus.
  *
- * Ziel:
- * IST bleibt wie im funktionierenden Stand aus den Tagesdetails.
- * SOLL wird aus Vertrag h gleichmäßig auf echte Soll-Tage verteilt.
+ * Monatsbackup:
+ * Isth und Vertrag h sind Wochenwerte.
  *
- * Dadurch wird nicht mehr nach Tageslänge gewichtet.
+ * IST:
+ * Wird aus den echten Tagesdetails ohne Pause berechnet.
+ *
+ * SOLL:
+ * Wird aus Vertrag h auf Minutenbasis auf Vertragstage verteilt.
+ * Das verhindert Rundungsfehler wie 195:14 statt 195:08.
+ *
+ * Ausgleichstag:
+ * Wird als Vertragstag mitgerechnet, bekommt aber Soll = 0.
+ * Die Stunden landen in der Ausgleichstag-Spalte.
  */
 function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year, records, ctx) {
   const AUSGLEICHSTAG_ZAEHLT_INS_SOLL = false;
@@ -368,15 +376,17 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
           ctx.unmappedSkills.add(matchedPlanoSkill);
         }
 
-        let absenceHours = info.dailySollHours;
+        let absenceMinutes = info.dailyContractMinutes;
 
-        if (info.isAusgleichstag && info.ausgleichHours > 0) {
-          absenceHours = info.ausgleichHours;
+        if (!absenceMinutes && info.detailIstMinutes > 0) {
+          absenceMinutes = info.detailIstMinutes;
         }
 
-        if (!absenceHours && weeklyVertragVal > 0) {
-          absenceHours = weeklyVertragVal / Math.max(info.sollDayCount || 5, 1);
+        if (!absenceMinutes && weeklyVertragVal > 0 && info.contractDayCount > 0) {
+          absenceMinutes = Math.round((weeklyVertragVal * 60) / info.contractDayCount);
         }
+
+        const absenceHours = absenceMinutes / 60;
 
         rec.skills[dbSkill] = (rec.skills[dbSkill] || 0) + absenceHours;
 
@@ -384,11 +394,11 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
           rec.soll = AUSGLEICHSTAG_ZAEHLT_INS_SOLL ? absenceHours : 0;
           rec.ist = 0;
         } else if (info.isUeberstunden || info.isWunschfrei) {
-          rec.soll = info.dailySollHours;
+          rec.soll = absenceHours;
           rec.ist = 0;
         } else {
-          rec.soll = info.dailySollHours;
-          rec.ist = info.dailySollHours;
+          rec.soll = absenceHours;
+          rec.ist = absenceHours;
         }
 
         continue;
@@ -398,8 +408,13 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
         rec.isAnw = true;
       }
 
-      rec.soll = info.dailySollHours;
-      rec.ist = info.detailIstHours;
+      if (info.isWeekend && info.detailIstMinutes > 0 && info.dailyContractMinutes === 0) {
+        rec.soll = info.detailIstMinutes / 60;
+      } else {
+        rec.soll = info.dailyContractMinutes / 60;
+      }
+
+      rec.ist = info.detailIstMinutes / 60;
 
       if (!info.detailCell || info.detailCell.trim() === "") {
         continue;
@@ -459,22 +474,25 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
 /**
  * Baut pro Mitarbeiter alle Tagesinfos eines Wochenblocks.
  *
- * Neue Soll-Logik:
- * Vertrag h wird gleichmäßig auf Soll-Tage verteilt.
- * Es wird nicht mehr nach geplanter Tageslänge gewichtet.
+ * Vertrag h wird zuerst in exakte Minuten umgewandelt.
+ * Diese Minuten werden dann auf Vertragstage verteilt.
  *
- * Soll-Tage sind:
- * normale Arbeitstage mit Stunden
+ * Vertragstage sind:
+ * Arbeitstage mit Stunden
  * Urlaub
  * ABW
  * Überstundenfrei
  * Wunschfrei
- * Samstage/Sonntage nur wenn dort echte Arbeitszeit oder eine echte Abwesenheit steht
+ * Ausgleichstage
+ * sonstige Wochentage mit Plantext
  *
- * Keine Soll-Tage sind:
- * "-" ohne Arbeitszeit
- * freie Wochenendtage
- * Ausgleichstag, wenn als Ausgleich erkannt
+ * Keine Vertragstage sind:
+ * Wochenende ohne Arbeitszeit
+ * Wochenende mit "-"
+ * komplett freie "-" Tage am Wochenende
+ *
+ * Ausgleichstage zählen für die Verteilung mit,
+ * bekommen später aber Soll = 0.
  */
 function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns, weeklyIstVal, weeklyVertragVal) {
   const infos = [];
@@ -487,8 +505,8 @@ function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns
       ? String(data[employeeRowIndex + 1][dc.colIndex])
       : "";
 
-    const detailIstHours = calculateWorkHoursFromDetailCell_(detailCell);
-    const dayCellTimeHours = calculateHoursFromAnyTimeRanges_(dayCell);
+    const detailIstMinutes = calculateWorkMinutesFromDetailCell_(detailCell);
+    const dayCellTimeMinutes = calculateMinutesFromAnyTimeRanges_(dayCell);
 
     const isUrlaub = upperDayCell.includes("URLAUB");
     const isAbw = upperDayCell.includes("ABW");
@@ -496,16 +514,17 @@ function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns
     const isWunschfrei = upperDayCell.includes("WUNSCHFREI");
 
     const hasAbsenceLabel = isUrlaub || isAbw || isUeberstunden || isWunschfrei;
-    const hasHours = detailIstHours > 0 || dayCellTimeHours > 0;
+    const hasHours = detailIstMinutes > 0 || dayCellTimeMinutes > 0;
+    const hasPlanText = upperDayCell !== "" && upperDayCell !== "-";
 
-    const hasWeeklySollGap = weeklyVertragVal > weeklyIstVal + 0.01;
+    const isWeekendFreeDash = dc.isWeekend && upperDayCell === "-" && !hasHours && !hasAbsenceLabel;
 
     const isAusgleichstag =
       upperDayCell === "-" &&
       !dc.isWeekend &&
       !hasHours &&
       !hasAbsenceLabel &&
-      hasWeeklySollGap;
+      weeklyVertragVal > 0;
 
     const isEmptyFreeDay =
       upperDayCell === "-" &&
@@ -513,20 +532,20 @@ function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns
       !hasAbsenceLabel &&
       !isAusgleichstag;
 
-    let countsForSoll = false;
+    let countsForContractDistribution = false;
 
-    if (isAusgleichstag) {
-      countsForSoll = false;
-    } else if (isEmptyFreeDay) {
-      countsForSoll = false;
+    if (isWeekendFreeDash) {
+      countsForContractDistribution = false;
+    } else if (isEmptyFreeDay && !isAusgleichstag) {
+      countsForContractDistribution = false;
+    } else if (isAusgleichstag) {
+      countsForContractDistribution = true;
     } else if (hasHours) {
-      countsForSoll = true;
+      countsForContractDistribution = !dc.isWeekend;
     } else if (hasAbsenceLabel) {
-      countsForSoll = true;
-    } else if (!dc.isWeekend && upperDayCell && upperDayCell !== "-") {
-      countsForSoll = true;
-    } else {
-      countsForSoll = false;
+      countsForContractDistribution = !dc.isWeekend;
+    } else if (!dc.isWeekend && hasPlanText) {
+      countsForContractDistribution = true;
     }
 
     infos.push({
@@ -539,8 +558,10 @@ function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns
       dayCell: dayCell,
       upperDayCell: upperDayCell,
       detailCell: detailCell,
-      detailIstHours: detailIstHours,
-      dayCellTimeHours: dayCellTimeHours,
+      detailIstMinutes: detailIstMinutes,
+      detailIstHours: detailIstMinutes / 60,
+      dayCellTimeMinutes: dayCellTimeMinutes,
+      dayCellTimeHours: dayCellTimeMinutes / 60,
       isUrlaub: isUrlaub,
       isAbw: isAbw,
       isUeberstunden: isUeberstunden,
@@ -549,41 +570,35 @@ function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns
       isEmptyFreeDay: isEmptyFreeDay,
       hasHours: hasHours,
       hasAbsenceLabel: hasAbsenceLabel,
-      countsForSoll: countsForSoll,
-      dailySollHours: 0,
-      ausgleichHours: 0,
-      sollDayCount: 0
+      hasPlanText: hasPlanText,
+      countsForContractDistribution: countsForContractDistribution,
+      dailyContractMinutes: 0,
+      contractDayCount: 0
     });
   }
 
-  const sollDayCount = infos.filter(info => info.countsForSoll).length;
+  const contractInfos = infos.filter(info => info.countsForContractDistribution);
+  const contractDayCount = contractInfos.length;
 
-  let dailySollHours = 0;
+  const weeklyContractMinutes = Math.round((weeklyVertragVal || 0) * 60);
 
-  if (weeklyVertragVal > 0 && sollDayCount > 0) {
-    dailySollHours = weeklyVertragVal / sollDayCount;
+  if (weeklyContractMinutes > 0 && contractDayCount > 0) {
+    const baseMinutes = Math.floor(weeklyContractMinutes / contractDayCount);
+    let restMinutes = weeklyContractMinutes - (baseMinutes * contractDayCount);
+
+    contractInfos.forEach(info => {
+      info.dailyContractMinutes = baseMinutes;
+
+      if (restMinutes > 0) {
+        info.dailyContractMinutes += 1;
+        restMinutes--;
+      }
+    });
   }
 
   infos.forEach(info => {
-    info.sollDayCount = sollDayCount;
-
-    if (info.countsForSoll) {
-      info.dailySollHours = dailySollHours;
-    } else {
-      info.dailySollHours = 0;
-    }
+    info.contractDayCount = contractDayCount;
   });
-
-  const ausgleichInfos = infos.filter(info => info.isAusgleichstag);
-  const ausgleichTotalHours = Math.max(weeklyVertragVal - weeklyIstVal, 0);
-
-  if (ausgleichInfos.length > 0 && ausgleichTotalHours > 0) {
-    const hoursPerAusgleichstag = ausgleichTotalHours / ausgleichInfos.length;
-
-    ausgleichInfos.forEach(info => {
-      info.ausgleichHours = hoursPerAusgleichstag;
-    });
-  }
 
   return infos;
 }
@@ -629,33 +644,41 @@ function extractDateFromHeaderCell_(cellValue, year) {
  * Berechnet die täglichen Arbeitsstunden aus Detailzelle oder Tageszelle.
  */
 function calculateDailyWorkHoursFromPlanoDay_(dayCell, detailCell) {
-  const detailHours = calculateWorkHoursFromDetailCell_(detailCell);
+  const detailMinutes = calculateWorkMinutesFromDetailCell_(detailCell);
 
-  if (detailHours > 0) {
-    return detailHours;
+  if (detailMinutes > 0) {
+    return detailMinutes / 60;
   }
 
-  const dayCellHours = calculateHoursFromAnyTimeRanges_(dayCell);
+  const dayCellMinutes = calculateMinutesFromAnyTimeRanges_(dayCell);
 
-  if (dayCellHours > 0) {
-    return dayCellHours;
+  if (dayCellMinutes > 0) {
+    return dayCellMinutes / 60;
   }
 
   return 0;
 }
 
 /**
- * Summiert alle Arbeitszeitblöcke aus der Detailzelle.
+ * Summiert alle Arbeitszeitblöcke aus der Detailzelle in Stunden.
  * Pausen werden nicht gezählt.
  */
 function calculateWorkHoursFromDetailCell_(detailCell) {
+  return calculateWorkMinutesFromDetailCell_(detailCell) / 60;
+}
+
+/**
+ * Summiert alle Arbeitszeitblöcke aus der Detailzelle in Minuten.
+ * Pausen werden nicht gezählt.
+ */
+function calculateWorkMinutesFromDetailCell_(detailCell) {
   if (!detailCell) {
     return 0;
   }
 
   const lines = String(detailCell).split("\n").map(l => l.trim());
   let currentTimeRange = null;
-  let totalHours = 0;
+  let totalMinutes = 0;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -676,19 +699,26 @@ function calculateWorkHoursFromDetailCell_(detailCell) {
       lineUpper !== "PAUSE" &&
       !lineUpper.includes("PAUSE")
     ) {
-      totalHours += calculateHours(currentTimeRange);
+      totalMinutes += calculateMinutes(currentTimeRange);
     }
 
     currentTimeRange = null;
   }
 
-  return totalHours;
+  return totalMinutes;
 }
 
 /**
- * Erkennt Zeiträume in beliebigem Text.
+ * Erkennt Zeiträume in beliebigem Text und gibt Stunden zurück.
  */
 function calculateHoursFromAnyTimeRanges_(text) {
+  return calculateMinutesFromAnyTimeRanges_(text) / 60;
+}
+
+/**
+ * Erkennt Zeiträume in beliebigem Text und gibt Minuten zurück.
+ */
+function calculateMinutesFromAnyTimeRanges_(text) {
   if (!text) {
     return 0;
   }
@@ -697,13 +727,13 @@ function calculateHoursFromAnyTimeRanges_(text) {
   const regex = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g;
 
   let match;
-  let totalHours = 0;
+  let totalMinutes = 0;
 
   while ((match = regex.exec(str)) !== null) {
-    totalHours += calculateHours(`${match[1]}-${match[2]}`);
+    totalMinutes += calculateMinutes(`${match[1]}-${match[2]}`);
   }
 
-  return totalHours;
+  return totalMinutes;
 }
 
 /**
@@ -717,6 +747,27 @@ function normalizeTimeRange_(line) {
   }
 
   return `${match[1]}-${match[2]}`;
+}
+
+/**
+ * Berechnet Minuten aus einem String wie "07:00-09:15".
+ */
+function calculateMinutes(timeRange) {
+  try {
+    const [start, end] = timeRange.split("-");
+    const [h1, m1] = start.split(":").map(Number);
+    const [h2, m2] = end.split(":").map(Number);
+
+    let diffMinutes = (h2 * 60 + m2) - (h1 * 60 + m1);
+
+    if (diffMinutes < 0) {
+      diffMinutes += 24 * 60;
+    }
+
+    return diffMinutes;
+  } catch (e) {
+    return 0;
+  }
 }
 
 /**
@@ -777,7 +828,7 @@ function buildKoSkillRows_(records, headers, abwDbName) {
       const colIndex = headers.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
 
       if (colIndex !== -1) {
-        if (dbSkill.toUpperCase() === abwDbName) {
+        if (shouldFormatSkillAsHHMM_(dbSkill, abwDbName)) {
           rowData[colIndex] = minutesToHHMM(Math.round(rec.skills[dbSkill] * 60));
         } else {
           rowData[colIndex] = rec.skills[dbSkill];
@@ -853,7 +904,7 @@ function buildGesamtTeamRows_(records, headers, abwDbName) {
       const colIndex = headers.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
 
       if (colIndex !== -1) {
-        if (dbSkill.toUpperCase() === abwDbName) {
+        if (shouldFormatSkillAsHHMM_(dbSkill, abwDbName)) {
           rowData[colIndex] = minutesToHHMM(Math.round(tr.skills[dbSkill] * 60));
         } else {
           rowData[colIndex] = tr.skills[dbSkill];
@@ -869,6 +920,18 @@ function buildGesamtTeamRows_(records, headers, abwDbName) {
   });
 
   return results;
+}
+
+/**
+ * Formatiert bestimmte Stundenfelder als HH:MM.
+ */
+function shouldFormatSkillAsHHMM_(dbSkill, abwDbName) {
+  const upper = String(dbSkill).trim().toUpperCase();
+
+  return (
+    upper === String(abwDbName).trim().toUpperCase() ||
+    upper === "AUSGLEICHSTAG"
+  );
 }
 
 /**
