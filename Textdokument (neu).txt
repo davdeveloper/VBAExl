@@ -28,7 +28,7 @@ function processSelectedMonthFile(fileId) {
     throw new Error("Die Datei enthält nicht genug Daten.");
   }
 
-  const targetHeaders = prepareKoSkillHeaders_(ss, koSkillSheetName, skillMap);
+  const koHeaders = prepareKoSkillHeaders_(ss, koSkillSheetName, skillMap);
 
   const records = parsePlanoMonthRecords_(data, {
     skillMap,
@@ -47,14 +47,13 @@ function processSelectedMonthFile(fileId) {
     throw new Error("Es wurden keine verwertbaren Monatsdaten gefunden. Prüfe, ob die Datei wirklich Monatsblöcke mit 'Wochenplan KW xx / Jahr' enthält.");
   }
 
-  const koRows = buildKoSkillRows_(records, targetHeaders, abwDbName);
-  writeRowsToSheet_(ss, koSkillSheetName, targetHeaders, koRows);
+  const koRows = buildKoSkillRows_(records, koHeaders, abwDbName);
+  writeRowsToSheet_(ss, koSkillSheetName, koHeaders, koRows);
 
-  const gesamtHeaders = [...targetHeaders];
-  gesamtHeaders[2] = "Team";
+  const gesamtHeaders = getExistingHeadersOrCreateGesamtHeaders_(ss, gesamtSheetName, koHeaders);
 
   const teamRows = buildGesamtTeamRows_(records, gesamtHeaders, abwDbName);
-  writeRowsToSheet_(ss, gesamtSheetName, gesamtHeaders, teamRows);
+  writeRowsToExistingHeaderSheet_(ss, gesamtSheetName, gesamtHeaders, teamRows);
 
   writeMonthImportErrors_(ss, errorSheetName, unmappedEmployees, unmappedSkills);
 
@@ -752,6 +751,7 @@ function buildGesamtTeamRows_(records, headers, abwDbName) {
 
 /**
  * Schreibt ein Sheet komplett neu.
+ * Diese Funktion wird für Datenbank_KO_SKILL_Test genutzt.
  */
 function writeRowsToSheet_(ss, sheetName, headers, rows) {
   let sheet = ss.getSheetByName(sheetName);
@@ -770,6 +770,79 @@ function writeRowsToSheet_(ss, sheetName, headers, rows) {
   }
 
   sheet.autoResizeColumns(1, Math.min(headers.length, 20));
+}
+
+/**
+ * Nutzt bei Datenbank_Gesamt_Test die bereits vorhandene Kopfzeile.
+ * Nur wenn das Sheet leer ist, wird eine Kopfzeile aus KO_SKILL abgeleitet.
+ */
+function getExistingHeadersOrCreateGesamtHeaders_(ss, sheetName, fallbackKoHeaders) {
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+
+    const fallbackHeaders = [...fallbackKoHeaders];
+    fallbackHeaders[2] = "Team";
+
+    sheet.getRange(1, 1, 1, fallbackHeaders.length).setValues([fallbackHeaders]);
+    sheet.getRange(1, 1, 1, fallbackHeaders.length).setFontWeight("bold");
+
+    return fallbackHeaders;
+  }
+
+  const lastCol = sheet.getLastColumn();
+
+  if (lastCol < 1) {
+    const fallbackHeaders = [...fallbackKoHeaders];
+    fallbackHeaders[2] = "Team";
+
+    sheet.getRange(1, 1, 1, fallbackHeaders.length).setValues([fallbackHeaders]);
+    sheet.getRange(1, 1, 1, fallbackHeaders.length).setFontWeight("bold");
+
+    return fallbackHeaders;
+  }
+
+  const existingHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const hasUsableHeaders = existingHeaders.some(h => String(h).trim() !== "");
+
+  if (!hasUsableHeaders) {
+    const fallbackHeaders = [...fallbackKoHeaders];
+    fallbackHeaders[2] = "Team";
+
+    sheet.getRange(1, 1, 1, fallbackHeaders.length).setValues([fallbackHeaders]);
+    sheet.getRange(1, 1, 1, fallbackHeaders.length).setFontWeight("bold");
+
+    return fallbackHeaders;
+  }
+
+  return existingHeaders;
+}
+
+/**
+ * Schreibt nur Daten ab Zeile 2.
+ * Zeile 1 bleibt komplett unverändert.
+ * Diese Funktion wird für Datenbank_Gesamt_Test genutzt.
+ */
+function writeRowsToExistingHeaderSheet_(ss, sheetName, headers, rows) {
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+  }
+
+  const lastRow = sheet.getLastRow();
+  const lastCol = Math.max(sheet.getLastColumn(), headers.length);
+
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
 }
 
 /**
