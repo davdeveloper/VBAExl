@@ -1,223 +1,14 @@
-const FOLDER_ID = "1_QprTCTCssYNpB58WcM6An0yO8FmRxF8";
-
 /**
- * Erstellt beim Öffnen der Tabelle das benutzerdefinierte Menü.
+ * Monatsimport für Plano Backup.
+ * Liest mehrere Wochenplan-Blöcke aus einer Datei.
+ * Schreibt testweise nach Datenbank_KO_SKILL_Test und Datenbank_Gesamt_Test.
  */
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('Lidl Auswertung')
-    .addItem('1). Plano Backup importieren', 'showImportDialog')
-    .addItem('2). Stundenerfassung übermitteln', 'showUebermittelnDialog')
-    .addToUi();
-}
-
-/**
- * Öffnet den Dialog zur Dateiauswahl aus der separaten HTML-Datei (Plano Import).
- */
-function showImportDialog() {
-  const htmlOutput = HtmlService.createHtmlOutputFromFile('dialog')
-    .setWidth(450)
-    .setHeight(380);
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Lidl Kundenservice - Plano');
-}
-
-/**
- * Steuert den Plano Import.
- * Ohne Haken läuft der bisherige Tagesimport.
- * Mit Haken läuft der neue Monatsimport in die Testdatenbank.
- */
-function processPlanoImport(fileId, importFullMonth) {
-  if (importFullMonth === true) {
-    return processSelectedMonthFile(fileId);
-  }
-
-  return processSelectedFile(fileId);
-}
-
-/**
- * Öffnet den Dialog für die Stundenerfassung-Übermittlung.
- */
-function showUebermittelnDialog() {
-  const htmlOutput = HtmlService.createHtmlOutputFromFile('dialog_uebermitteln')
-    .setWidth(500)
-    .setHeight(350);
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Stundenerfassung übermitteln');
-}
-
-/**
- * Backend-Funktion: Liest alle Dateien aus der Ablage aus.
- */
-function getFilesInFolder() {
-  const fileList = [];
-  try {
-    const folder = DriveApp.getFolderById(FOLDER_ID);
-    const files = folder.getFiles();
-
-    while (files.hasNext()) {
-      const file = files.next();
-      fileList.push({ id: file.getId(), name: file.getName() });
-    }
-  } catch (e) {
-    throw new Error("Konnte nicht auf den Ordner zugreifen. Hast du Berechtigungen für die geteilte Ablage? " + e.message);
-  }
-
-  fileList.sort((a, b) => a.name.localeCompare(b.name));
-  return fileList;
-}
-
-/**
- * Holt das Mapping für die Skills/Tätigkeiten aus dem "Mapping"-Reiter.
- */
-function getMapping(ss) {
-  const mappingSheetName = "Mapping";
-  let mappingSheet = ss.getSheetByName(mappingSheetName);
-
-  if (!mappingSheet) {
-    throw new Error("Das Arbeitsblatt 'Mapping' wurde nicht gefunden! Bitte lege es an und trage Spalte A (Plano) und Spalte B (Datenbank) ein.");
-  }
-
-  const mappingData = mappingSheet.getDataRange().getValues();
-  const skillMap = {};
-
-  for (let i = 0; i < mappingData.length; i++) {
-    const planoSkill = normalizeStr(mappingData[i][0]);
-    const dbSkill = String(mappingData[i][1]).trim();
-
-    if (planoSkill && dbSkill && !planoSkill.toLowerCase().includes("plano tätigkeit")) {
-      skillMap[planoSkill] = dbSkill;
-    }
-  }
-
-  return skillMap;
-}
-
-/**
- * Holt das Mapping für die Namen aus dem "Name_Mapping"-Reiter.
- */
-function getNameMapping(ss) {
-  const nameMappingSheetName = "Name_Mapping";
-  let nameSheet = ss.getSheetByName(nameMappingSheetName);
-
-  if (!nameSheet) {
-    nameSheet = ss.insertSheet(nameMappingSheetName);
-    nameSheet.appendRow(["Name in Plano", "Name in Datenbank (für Team-Abgleich)"]);
-    nameSheet.getRange("A1:B1").setFontWeight("bold");
-    nameSheet.autoResizeColumns(1, 2);
-    return {};
-  }
-
-  const data = nameSheet.getDataRange().getValues();
-  const nameMap = {};
-
-  for (let i = 0; i < data.length; i++) {
-    const planoName = normalizeStr(data[i][0]);
-    const dbName = normalizeStr(data[i][1]);
-
-    if (planoName && dbName && !planoName.toLowerCase().includes("name in plano")) {
-      nameMap[planoName] = dbName;
-    }
-  }
-
-  return nameMap;
-}
-
-/**
- * Holt das lokale Team-Mapping aus dem "Team_Mapping"-Reiter.
- */
-function getTeamMapping(ss) {
-  const teamMappingSheetName = "Team_Mapping";
-  let teamSheet = ss.getSheetByName(teamMappingSheetName);
-
-  if (!teamSheet) {
-    teamSheet = ss.insertSheet(teamMappingSheetName);
-    teamSheet.appendRow(["Mitarbeiter Name", "Team (z.B. One)"]);
-    teamSheet.getRange("A1:B1").setFontWeight("bold");
-    teamSheet.autoResizeColumns(1, 2);
-    return {};
-  }
-
-  const data = teamSheet.getDataRange().getValues();
-  const localTeamMap = {};
-
-  for (let i = 0; i < data.length; i++) {
-    const empName = normalizeStr(data[i][0]);
-    const teamName = String(data[i][1]).trim();
-
-    if (empName && teamName && !empName.toLowerCase().includes("mitarbeiter name")) {
-      localTeamMap[empName] = teamName;
-    }
-  }
-
-  return localTeamMap;
-}
-
-/**
- * Holt die Liste der zu ignorierenden Mitarbeiter aus dem "Ignore_Mapping"-Reiter.
- */
-function getIgnoreMapping(ss) {
-  const ignoreSheetName = "Ignore_Mapping";
-  let ignoreSheet = ss.getSheetByName(ignoreSheetName);
-
-  if (!ignoreSheet) {
-    ignoreSheet = ss.insertSheet(ignoreSheetName);
-    ignoreSheet.appendRow(["Zu ignorierende Namen (wie in Plano)"]);
-    ignoreSheet.getRange("A1").setFontWeight("bold");
-    ignoreSheet.autoResizeColumns(1, 1);
-    return new Set();
-  }
-
-  const data = ignoreSheet.getDataRange().getValues();
-  const ignoreSet = new Set();
-
-  for (let i = 0; i < data.length; i++) {
-    const name = normalizeStr(data[i][0]);
-
-    if (name && !name.toLowerCase().includes("zu ignorierende")) {
-      ignoreSet.add(name);
-    }
-  }
-
-  return ignoreSet;
-}
-
-/**
- * Holt die Teams aus der externen Datenbank (Data_DB).
- */
-function getEmployeeTeams() {
-  const externalDbId = "1efHpCLtIw1F5WZ0eAK-I0XBYDE9-M3FthoBQcRwSybI";
-  const teamMap = {};
-
-  try {
-    const extSs = SpreadsheetApp.openById(externalDbId);
-    const dataDbSheet = extSs.getSheetByName("Data_DB");
-
-    if (dataDbSheet) {
-      const data = dataDbSheet.getDataRange().getValues();
-
-      for (let i = 1; i < data.length; i++) {
-        const nachname = String(data[i][0]).trim();
-        const vorname = String(data[i][1]).trim();
-        const team = String(data[i][4]).trim();
-
-        if (nachname && vorname) {
-          const fullName = normalizeStr(`${nachname}, ${vorname}`);
-          teamMap[fullName] = team;
-        }
-      }
-    }
-  } catch (e) {
-    console.error("Konnte externe Team-Datenbank nicht laden: " + e.message);
-  }
-
-  return teamMap;
-}
-
-/**
- * Backend-Funktion: Zieht die Datei, wertet sie aus und schreibt sie ins Sheet.
- */
-function processSelectedFile(fileId) {
-  const targetSheetName = "Datenbank_KO_SKILL";
+function processSelectedMonthFile(fileId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const koSkillSheetName = "Datenbank_KO_SKILL_Test";
+  const gesamtSheetName = "Datenbank_Gesamt_Test";
+  const errorSheetName = "Fehlende_Zuordnungen_Monatsimport";
 
   const skillMap = getMapping(ss);
   const planoSkillsSorted = Object.keys(skillMap).sort((a, b) => b.length - a.length);
@@ -231,36 +22,67 @@ function processSelectedFile(fileId) {
 
   const abwDbName = (skillMap["ABW"] || "ABW").toUpperCase();
 
-  let targetSheet = ss.getSheetByName(targetSheetName);
+  const data = readPlanoBackupFile_(fileId);
 
-  if (!targetSheet) {
-    targetSheet = ss.insertSheet(targetSheetName);
-    targetSheet.appendRow(["Datum", "KW", "Mitarbeitername"]);
-    targetSheet.getRange("A1:C1").setFontWeight("bold");
+  if (!data || data.length < 4) {
+    throw new Error("Die Datei enthält nicht genug Daten.");
   }
 
-  const lastTargetCol = Math.max(targetSheet.getLastColumn(), 3);
-  let targetHeaders = targetSheet.getRange(1, 1, 1, lastTargetCol).getValues()[0];
+  const targetHeaders = prepareKoSkillHeaders_(ss, koSkillSheetName, skillMap);
 
-  const uniqueDbSkills = [...new Set(Object.values(skillMap))];
-
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "DIFFERENZ")) uniqueDbSkills.push("Differenz");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "TEAM")) uniqueDbSkills.push("Team");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "SCHICHT")) uniqueDbSkills.push("Schicht");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "SOLL")) uniqueDbSkills.push("Soll");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "IST")) uniqueDbSkills.push("Ist");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "AUSGLEICHSTAG")) uniqueDbSkills.push("Ausgleichstag");
-
-  uniqueDbSkills.forEach(dbSkill => {
-    let exists = targetHeaders.some(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
-
-    if (!exists) {
-      targetHeaders.push(dbSkill);
-      targetSheet.getRange(1, targetHeaders.length).setValue(dbSkill);
-      targetSheet.getRange(1, targetHeaders.length).setFontWeight("bold");
-    }
+  const records = parsePlanoMonthRecords_(data, {
+    skillMap,
+    planoSkillsSorted,
+    nameMap,
+    localTeamMap,
+    teamMap,
+    ignoreSet,
+    unmappedSkills,
+    unmappedEmployees
   });
 
+  const recordKeys = Object.keys(records);
+
+  if (recordKeys.length === 0) {
+    throw new Error("Es wurden keine verwertbaren Monatsdaten gefunden. Prüfe, ob die Datei wirklich Monatsblöcke mit 'Wochenplan KW xx / Jahr' enthält.");
+  }
+
+  const koRows = buildKoSkillRows_(records, targetHeaders, abwDbName);
+  writeRowsToSheet_(ss, koSkillSheetName, targetHeaders, koRows);
+
+  const gesamtHeaders = [...targetHeaders];
+  gesamtHeaders[2] = "Team";
+
+  const teamRows = buildGesamtTeamRows_(records, gesamtHeaders, abwDbName);
+  writeRowsToSheet_(ss, gesamtSheetName, gesamtHeaders, teamRows);
+
+  writeMonthImportErrors_(ss, errorSheetName, unmappedEmployees, unmappedSkills);
+
+  const foundDates = new Set();
+
+  recordKeys.forEach(key => {
+    foundDates.add(records[key].date);
+  });
+
+  const foundWeeks = new Set();
+
+  recordKeys.forEach(key => {
+    foundWeeks.add(records[key].kw);
+  });
+
+  return `Monatsimport abgeschlossen.
+${koRows.length} Mitarbeiter-Tagesdatensätze nach '${koSkillSheetName}' geschrieben.
+${teamRows.length} Team-Tagesdatensätze nach '${gesamtSheetName}' geschrieben.
+Gefundene Tage: ${foundDates.size}
+Gefundene Kalenderwochen: ${Array.from(foundWeeks).filter(Boolean).join(", ")}
+Fehlende Team-Zuordnungen: ${unmappedEmployees.size}
+Fehlende Tätigkeiten: ${unmappedSkills.size}`;
+}
+
+/**
+ * Liest Google Sheet, Excel oder CSV wie im bestehenden Tagesimport.
+ */
+function readPlanoBackupFile_(fileId) {
   const file = DriveApp.getFileById(fileId);
   const mimeType = file.getMimeType();
 
@@ -282,10 +104,12 @@ function processSelectedFile(fileId) {
 
           let tempFile;
 
-          if (typeof Drive !== 'undefined') {
+          if (typeof Drive !== "undefined") {
             tempFile = Drive.Files.create(resource, blob, { supportsAllDrives: true });
+
             const tempDoc = SpreadsheetApp.openById(tempFile.id);
             data = tempDoc.getSheets()[0].getDataRange().getValues();
+
             Drive.Files.remove(tempFile.id);
           } else {
             throw new Error("Drive API nicht aktiviert.");
@@ -295,7 +119,7 @@ function processSelectedFile(fileId) {
         }
       } else {
         if (textData.includes(";") && textData.split(";").length > textData.split(",").length) {
-          data = Utilities.parseCsv(textData, ';');
+          data = Utilities.parseCsv(textData, ";");
         } else {
           data = Utilities.parseCsv(textData);
         }
@@ -305,230 +129,523 @@ function processSelectedFile(fileId) {
     throw new Error("Fehler beim Lesen der Datei: " + e.message);
   }
 
-  if (!data || data.length < 4) {
-    throw new Error("Die Datei enthält nicht genug Daten.");
+  return data;
+}
+
+/**
+ * Erstellt die Zielspalten analog zum bestehenden KO_SKILL Aufbau.
+ */
+function prepareKoSkillHeaders_(ss, sheetName, skillMap) {
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(["Datum", "KW", "Mitarbeitername"]);
+    sheet.getRange("A1:C1").setFontWeight("bold");
   }
 
-  let titleStr = "";
-  let headerRowIndex = -1;
+  const lastCol = Math.max(sheet.getLastColumn(), 3);
+  let headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
 
-  for (let i = 0; i < Math.min(data.length, 30); i++) {
+  const requiredHeaders = [...new Set(Object.values(skillMap))];
+
+  ["Differenz", "Team", "Schicht", "Soll", "Ist", "Ausgleichstag"].forEach(headerName => {
+    if (!requiredHeaders.some(x => String(x).trim().toUpperCase() === headerName.toUpperCase())) {
+      requiredHeaders.push(headerName);
+    }
+  });
+
+  requiredHeaders.forEach(headerName => {
+    const exists = headers.some(h => String(h).trim().toUpperCase() === String(headerName).trim().toUpperCase());
+
+    if (!exists) {
+      headers.push(headerName);
+      sheet.getRange(1, headers.length).setValue(headerName);
+      sheet.getRange(1, headers.length).setFontWeight("bold");
+    }
+  });
+
+  return headers;
+}
+
+/**
+ * Erkennt alle Wochenplan-Blöcke untereinander.
+ * Jeder Block startet mit "Wochenplan KW xx / yyyy".
+ */
+function parsePlanoMonthRecords_(data, ctx) {
+  const records = {};
+
+  let r = 0;
+
+  while (r < data.length) {
+    const rowStr = data[r].join(" ");
+
+    if (!rowStr.includes("Wochenplan KW")) {
+      r++;
+      continue;
+    }
+
+    const titleStr = rowStr;
+
+    const kwMatch = titleStr.match(/KW\s+(\d+)/i);
+    const yearMatch = titleStr.match(/\/\s*(\d{4})/);
+
+    const kw = kwMatch ? kwMatch[1] : "";
+    const year = yearMatch ? yearMatch[1] : new Date().getFullYear().toString();
+
+    const nextBlockRow = findNextPlanoBlockRow_(data, r + 1);
+    const blockEndRow = nextBlockRow === -1 ? data.length : nextBlockRow;
+
+    const headerRowIndex = findHeaderRowInBlock_(data, r + 1, blockEndRow);
+
+    if (headerRowIndex === -1) {
+      r = blockEndRow;
+      continue;
+    }
+
+    parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year, records, ctx);
+
+    r = blockEndRow;
+  }
+
+  return records;
+}
+
+/**
+ * Findet den nächsten Wochenplan-Block.
+ */
+function findNextPlanoBlockRow_(data, startRow) {
+  for (let i = startRow; i < data.length; i++) {
     const rowStr = data[i].join(" ");
 
     if (rowStr.includes("Wochenplan KW")) {
-      titleStr = rowStr;
-    }
-
-    if (String(data[i][0]).trim() === "Name" || rowStr.includes("Dienstag,") || rowStr.includes("Montag,")) {
-      headerRowIndex = i;
-      break;
+      return i;
     }
   }
 
-  if (headerRowIndex === -1) {
-    throw new Error("Konnte die Datum-Kopfzeile in der Datei nicht finden.");
+  return -1;
+}
+
+/**
+ * Findet die Kopfzeile innerhalb eines Blocks.
+ */
+function findHeaderRowInBlock_(data, startRow, endRow) {
+  for (let i = startRow; i < Math.min(endRow, startRow + 20); i++) {
+    const rowStr = data[i].join(" ");
+    const firstCell = String(data[i][0]).trim();
+
+    const hasNameHeader = firstCell === "Name" || rowStr.includes("Name");
+    const hasDate = rowStr.match(/\d{1,2}\.\d{1,2}\./);
+
+    if (hasNameHeader && hasDate) {
+      return i;
+    }
+
+    if (
+      rowStr.includes("Montag,") ||
+      rowStr.includes("Dienstag,") ||
+      rowStr.includes("Mittwoch,") ||
+      rowStr.includes("Donnerstag,") ||
+      rowStr.includes("Freitag,") ||
+      rowStr.includes("Samstag,") ||
+      rowStr.includes("Sonntag,")
+    ) {
+      return i;
+    }
   }
 
-  const kwMatch = titleStr.match(/KW\s+(\d+)/);
-  const yearMatch = titleStr.match(/\/\s+(\d{4})/);
+  return -1;
+}
 
-  const kw = kwMatch ? kwMatch[1] : "";
-  const year = yearMatch ? yearMatch[1] : new Date().getFullYear();
-
+/**
+ * Wertet einen Wochenplan-Block aus.
+ * Wichtig für Monatsimport:
+ * Isth und Vertrag h sind im Monatsbackup Wochenwerte.
+ * Deshalb werden Soll und Ist pro Tag aus Tageszelle und Detailzelle berechnet.
+ */
+function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year, records, ctx) {
   const headerRow = data[headerRowIndex];
+
   const dateColumns = [];
 
-  let differenzColIndex = headerRow.findIndex(h => String(h).trim() === 'Differenz');
+  let differenzColIndex = headerRow.findIndex(h => String(h).trim() === "Differenz");
   if (differenzColIndex === -1) differenzColIndex = 10;
 
-  let isthColIndex = headerRow.findIndex(h => String(h).trim() === 'Isth');
+  let isthColIndex = headerRow.findIndex(h => String(h).trim() === "Isth");
   if (isthColIndex === -1) isthColIndex = 12;
 
-  let vertragColIndex = headerRow.findIndex(h => String(h).trim() === 'Vertrag h');
+  let vertragColIndex = headerRow.findIndex(h => String(h).trim() === "Vertrag h");
   if (vertragColIndex === -1) vertragColIndex = 14;
 
   for (let c = 0; c < headerRow.length; c++) {
-    let val = headerRow[c];
-    let valStr = (val instanceof Date)
-      ? Utilities.formatDate(val, Session.getScriptTimeZone(), "dd.MM.yyyy")
-      : String(val);
+    const dateInfo = extractDateFromHeaderCell_(headerRow[c], year);
 
-    if (valStr.match(/\d{2}\.\d{2}\./)) {
-      const dateMatch = valStr.match(/(\d{2}\.\d{2}\.)/);
-
-      if (dateMatch) {
-        let dStr = dateMatch[1] + year;
-
-        let parts = dStr.split('.');
-        let dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-        let isSaturday = dateObj.getDay() === 6;
-
-        dateColumns.push({
-          colIndex: c,
-          date: dStr,
-          isSaturday: isSaturday
-        });
-      }
+    if (dateInfo) {
+      dateColumns.push({
+        colIndex: c,
+        date: dateInfo.dateStr,
+        isSaturday: dateInfo.isSaturday
+      });
     }
   }
 
-  const records = {};
+  if (dateColumns.length === 0) {
+    return;
+  }
 
-  let startRow = headerRowIndex + 2;
+  const startRow = headerRowIndex + 2;
 
-  for (let r = startRow; r < data.length; r++) {
+  for (let r = startRow; r < blockEndRow; r++) {
     const nameCell = String(data[r][0]);
 
-    if (nameCell.includes("Lidl Kundenservice DE")) {
-      const planoCleanName = normalizeStr(nameCell.split('\n')[0]);
+    if (!nameCell.includes("Lidl Kundenservice DE")) {
+      continue;
+    }
 
-      if (ignoreSet.has(planoCleanName)) {
+    const planoCleanName = normalizeStr(nameCell.split("\n")[0]);
+
+    if (ctx.ignoreSet.has(planoCleanName)) {
+      continue;
+    }
+
+    const mappedName = ctx.nameMap[planoCleanName] || planoCleanName;
+    const assignedTeam = ctx.localTeamMap[mappedName] || ctx.localTeamMap[planoCleanName] || ctx.teamMap[mappedName];
+
+    if (!assignedTeam) {
+      ctx.unmappedEmployees.add(planoCleanName);
+    }
+
+    const differenzVal = parseGermanFloat(data[r][differenzColIndex]);
+
+    const weeklyIstVal = parseGermanFloat(data[r][isthColIndex]);
+    const weeklyVertragVal = parseGermanFloat(data[r][vertragColIndex]);
+
+    const dailyContractFallback = calculateDailyContractFallback_(
+      data,
+      r,
+      dateColumns,
+      weeklyVertragVal
+    );
+
+    for (const dc of dateColumns) {
+      const dayValueInNameRow = String(data[r][dc.colIndex]).trim();
+      const upperDayVal = dayValueInNameRow.toUpperCase();
+
+      const detailCell = r + 1 < blockEndRow
+        ? String(data[r + 1][dc.colIndex])
+        : "";
+
+      const dailyWorkHours = calculateDailyWorkHoursFromPlanoDay_(
+        dayValueInNameRow,
+        detailCell
+      );
+
+      const recKey = `${dc.date}|${kw}|${mappedName}`;
+
+      if (!records[recKey]) {
+        records[recKey] = {
+          date: dc.date,
+          kw: kw,
+          name: mappedName,
+          skills: {},
+          differenz: differenzVal,
+          soll: 0,
+          ist: 0,
+          isAnw: false,
+          schicht: dayValueInNameRow,
+          team: assignedTeam || "Unbekannt"
+        };
+      }
+
+      const isUrlaub = upperDayVal.includes("URLAUB");
+      const isAbw = upperDayVal.includes("ABW");
+      const isUeberstunden = upperDayVal.includes("ÜBERSTUNDEN");
+      const isWunschfrei = upperDayVal.includes("WUNSCHFREI");
+
+      const isAusgleichstag = (
+        upperDayVal === "-" &&
+        weeklyVertragVal > 0 &&
+        weeklyIstVal === 0
+      );
+
+      const isFullDayAbsence = isUrlaub || isAbw || isUeberstunden || isWunschfrei || isAusgleichstag;
+
+      if (isFullDayAbsence) {
+        let matchedPlanoSkill = "ABW";
+
+        if (isUrlaub) matchedPlanoSkill = "Urlaub";
+        if (isUeberstunden) matchedPlanoSkill = "Überstundenfrei";
+        if (isWunschfrei) matchedPlanoSkill = "Wunschfrei";
+        if (isAusgleichstag) matchedPlanoSkill = "Ausgleichstag";
+
+        const dbSkill = ctx.skillMap[matchedPlanoSkill] || matchedPlanoSkill;
+
+        if (!ctx.skillMap[matchedPlanoSkill] && !isAusgleichstag) {
+          ctx.unmappedSkills.add(matchedPlanoSkill);
+        }
+
+        let absenceHours = dailyWorkHours > 0
+          ? dailyWorkHours
+          : dailyContractFallback;
+
+        if (!absenceHours && weeklyVertragVal > 0) {
+          absenceHours = weeklyVertragVal / 5;
+        }
+
+        records[recKey].skills[dbSkill] = (records[recKey].skills[dbSkill] || 0) + absenceHours;
+
+        if (isAusgleichstag) {
+          records[recKey].soll = 0;
+        } else {
+          records[recKey].soll = absenceHours;
+        }
+
+        if (isUeberstunden || isWunschfrei || isAusgleichstag) {
+          records[recKey].ist = 0;
+        } else {
+          records[recKey].ist = absenceHours;
+        }
+
         continue;
       }
 
-      const mappedName = nameMap[planoCleanName] || planoCleanName;
-      const assignedTeam = localTeamMap[mappedName] || localTeamMap[planoCleanName] || teamMap[mappedName];
-
-      if (!assignedTeam) {
-        unmappedEmployees.add(planoCleanName);
+      if (upperDayVal.includes("ANW") || upperDayVal === "ANW") {
+        records[recKey].isAnw = true;
       }
 
-      let differenzVal = parseGermanFloat(data[r][differenzColIndex]);
-      let isthVal = parseGermanFloat(data[r][isthColIndex]);
-      let vertragHVal = parseGermanFloat(data[r][vertragColIndex]);
+      records[recKey].soll = dailyWorkHours;
+      records[recKey].ist = dailyWorkHours;
 
-      for (let dc of dateColumns) {
-        const dayValueInNameRow = String(data[r][dc.colIndex]).trim();
-        const upperDayVal = dayValueInNameRow.toUpperCase();
+      if (!detailCell || detailCell.trim() === "") {
+        continue;
+      }
 
-        const recKey = `${dc.date}|${kw}|${mappedName}`;
+      const lines = detailCell.split("\n").map(l => l.trim());
+      let currentTimeRange = null;
 
-        let currentSollVal = dc.isSaturday ? isthVal : vertragHVal;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
 
-        if (!records[recKey]) {
-          records[recKey] = {
-            date: dc.date,
-            kw: kw,
-            name: mappedName,
-            skills: {},
-            differenz: differenzVal,
-            soll: currentSollVal,
-            ist: 0,
-            urlaub: 0,
-            abw: 0,
-            isAnw: false,
-            schicht: dayValueInNameRow,
-            team: assignedTeam || "Unbekannt"
-          };
+        if (line.match(/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/)) {
+          currentTimeRange = normalizeTimeRange_(line);
+          continue;
         }
 
-        let isFullDayAbsence = false;
+        if (!currentTimeRange) {
+          continue;
+        }
 
-        let isAusgleichstag = (upperDayVal === "-" && vertragHVal > 0 && isthVal === 0);
+        const lineUpper = line.toUpperCase();
 
         if (
-          upperDayVal.includes("URLAUB") ||
-          upperDayVal.includes("ABW") ||
-          upperDayVal.includes("ÜBERSTUNDEN") ||
-          upperDayVal.includes("WUNSCHFREI") ||
-          isAusgleichstag
+          !line ||
+          lineUpper === "PAUSE" ||
+          lineUpper.includes("PAUSE")
         ) {
-          let isUrlaub = upperDayVal.includes("URLAUB");
-          let isUeberstunden = upperDayVal.includes("ÜBERSTUNDEN");
-          let isWunschfrei = upperDayVal.includes("WUNSCHFREI");
+          currentTimeRange = null;
+          continue;
+        }
 
-          let matchedPlanoSkill = "ABW";
+        let matchedDbSkill = null;
+        const normalizedLineUpper = normalizeStr(line).toUpperCase();
 
-          if (isUrlaub) matchedPlanoSkill = "Urlaub";
-          if (isUeberstunden) matchedPlanoSkill = "Überstundenfrei";
-          if (isWunschfrei) matchedPlanoSkill = "Wunschfrei";
-          if (isAusgleichstag) matchedPlanoSkill = "Ausgleichstag";
-
-          let dbSkill = skillMap[matchedPlanoSkill] || matchedPlanoSkill;
-
-          if (!skillMap[matchedPlanoSkill] && !isAusgleichstag) {
-            unmappedSkills.add(matchedPlanoSkill);
+        for (const planoSkill of ctx.planoSkillsSorted) {
+          if (normalizedLineUpper.includes(planoSkill.toUpperCase())) {
+            matchedDbSkill = ctx.skillMap[planoSkill];
+            break;
           }
+        }
 
-          let hoursToUse = ((isUrlaub || isUeberstunden || isWunschfrei) && !dc.isSaturday) ? vertragHVal : isthVal;
-
-          if (isAusgleichstag) {
-            hoursToUse = vertragHVal;
-            records[recKey].soll = 0;
-          }
-
-          records[recKey].skills[dbSkill] = (records[recKey].skills[dbSkill] || 0) + hoursToUse;
-
-          isFullDayAbsence = true;
-
-          if (isUeberstunden || isWunschfrei || isAusgleichstag) {
-            records[recKey].ist = 0;
-          } else {
-            records[recKey].ist = isthVal;
-          }
+        if (matchedDbSkill) {
+          const hrs = calculateHours(currentTimeRange);
+          records[recKey].skills[matchedDbSkill] = (records[recKey].skills[matchedDbSkill] || 0) + hrs;
         } else {
-          records[recKey].ist = isthVal;
-        }
-
-        if (upperDayVal.includes("ANW") || upperDayVal === "ANW") {
-          records[recKey].isAnw = true;
-        }
-
-        if (!isFullDayAbsence && r + 1 < data.length) {
-          const detailRow = data[r + 1];
-          const detailCell = String(detailRow[dc.colIndex]);
-
-          if (!detailCell || detailCell.trim() === "") {
-            continue;
-          }
-
-          const lines = detailCell.split('\n').map(l => l.trim());
-          let currentTimeRange = null;
-
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-
-            if (line.match(/^\d{2}:\d{2}-\d{2}:\d{2}/)) {
-              currentTimeRange = line.split(' ')[0];
-            } else if (currentTimeRange) {
-              let matchedDbSkill = null;
-
-              for (const planoSkill of planoSkillsSorted) {
-                if (normalizeStr(line).includes(planoSkill)) {
-                  matchedDbSkill = skillMap[planoSkill];
-                  break;
-                }
-              }
-
-              if (matchedDbSkill) {
-                const hrs = calculateHours(currentTimeRange);
-                records[recKey].skills[matchedDbSkill] = (records[recKey].skills[matchedDbSkill] || 0) + hrs;
-              } else {
-                if (
-                  line &&
-                  line.trim().toUpperCase() !== "PAUSE" &&
-                  !line.toUpperCase().includes("PAUSE") &&
-                  line.trim().toUpperCase() !== "ANW"
-                ) {
-                  unmappedSkills.add(line.trim());
-                }
-              }
-
-              currentTimeRange = null;
-            }
+          if (line && lineUpper !== "ANW") {
+            ctx.unmappedSkills.add(line.trim());
           }
         }
+
+        currentTimeRange = null;
       }
     }
   }
+}
 
+/**
+ * Holt Datum aus einer Tageszelle.
+ */
+function extractDateFromHeaderCell_(cellValue, year) {
+  let valStr = "";
+
+  if (cellValue instanceof Date) {
+    valStr = Utilities.formatDate(cellValue, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  } else {
+    valStr = String(cellValue).trim();
+  }
+
+  const match = valStr.match(/(\d{1,2})\.(\d{1,2})\./);
+
+  if (!match) {
+    return null;
+  }
+
+  const day = ("0" + match[1]).slice(-2);
+  const month = ("0" + match[2]).slice(-2);
+  const dateStr = `${day}.${month}.${year}`;
+
+  const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
+  const isSaturday = dateObj.getDay() === 6;
+
+  return {
+    dateStr,
+    isSaturday
+  };
+}
+
+/**
+ * Berechnet die täglichen Arbeitsstunden aus Detailzelle oder Tageszelle.
+ */
+function calculateDailyWorkHoursFromPlanoDay_(dayCell, detailCell) {
+  const detailHours = calculateWorkHoursFromDetailCell_(detailCell);
+
+  if (detailHours > 0) {
+    return detailHours;
+  }
+
+  const dayCellHours = calculateHoursFromAnyTimeRanges_(dayCell);
+
+  if (dayCellHours > 0) {
+    return dayCellHours;
+  }
+
+  return 0;
+}
+
+/**
+ * Summiert alle Arbeitszeitblöcke aus der Detailzelle.
+ * Pausen werden nicht gezählt.
+ */
+function calculateWorkHoursFromDetailCell_(detailCell) {
+  if (!detailCell) {
+    return 0;
+  }
+
+  const lines = String(detailCell).split("\n").map(l => l.trim());
+  let currentTimeRange = null;
+  let totalHours = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.match(/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/)) {
+      currentTimeRange = normalizeTimeRange_(line);
+      continue;
+    }
+
+    if (!currentTimeRange) {
+      continue;
+    }
+
+    const lineUpper = line.toUpperCase();
+
+    if (
+      line &&
+      lineUpper !== "PAUSE" &&
+      !lineUpper.includes("PAUSE")
+    ) {
+      totalHours += calculateHours(currentTimeRange);
+    }
+
+    currentTimeRange = null;
+  }
+
+  return totalHours;
+}
+
+/**
+ * Erkennt Zeiträume in beliebigem Text.
+ */
+function calculateHoursFromAnyTimeRanges_(text) {
+  if (!text) {
+    return 0;
+  }
+
+  const str = String(text);
+  const regex = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g;
+
+  let match;
+  let totalHours = 0;
+
+  while ((match = regex.exec(str)) !== null) {
+    totalHours += calculateHours(`${match[1]}-${match[2]}`);
+  }
+
+  return totalHours;
+}
+
+/**
+ * Normalisiert eine Zeitzeile auf "HH:MM-HH:MM".
+ */
+function normalizeTimeRange_(line) {
+  const match = String(line).match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+
+  if (!match) {
+    return "";
+  }
+
+  return `${match[1]}-${match[2]}`;
+}
+
+/**
+ * Fallback für Abwesenheiten.
+ * Wenn Plano bei Urlaub / ABW keine Tagesdetails liefert,
+ * wird der Wochenvertrag auf die erkennbaren Arbeitstage verteilt.
+ */
+function calculateDailyContractFallback_(data, employeeRowIndex, dateColumns, weeklyVertragVal) {
+  if (!weeklyVertragVal || weeklyVertragVal <= 0) {
+    return 0;
+  }
+
+  let countedDays = 0;
+
+  for (const dc of dateColumns) {
+    const dayCell = String(data[employeeRowIndex][dc.colIndex]).trim();
+    const detailCell = employeeRowIndex + 1 < data.length
+      ? String(data[employeeRowIndex + 1][dc.colIndex])
+      : "";
+
+    const upperDayCell = dayCell.toUpperCase();
+    const hasWorkHours = calculateDailyWorkHoursFromPlanoDay_(dayCell, detailCell) > 0;
+
+    const hasAbsence =
+      upperDayCell.includes("URLAUB") ||
+      upperDayCell.includes("ABW") ||
+      upperDayCell.includes("ÜBERSTUNDEN") ||
+      upperDayCell.includes("WUNSCHFREI");
+
+    if (hasWorkHours || hasAbsence) {
+      countedDays++;
+    }
+  }
+
+  if (countedDays > 0) {
+    return weeklyVertragVal / countedDays;
+  }
+
+  return weeklyVertragVal / 5;
+}
+
+/**
+ * Baut Mitarbeiterzeilen für KO_SKILL.
+ */
+function buildKoSkillRows_(records, headers, abwDbName) {
   const results = [];
-  let addedRowsCount = 0;
 
-  for (const key in records) {
+  Object.keys(records).sort(sortRecordKeys_).forEach(key => {
     const rec = records[key];
 
-    let rowData = new Array(targetHeaders.length).fill("");
+    const rowData = new Array(headers.length).fill("");
+
     rowData[0] = rec.date;
     rowData[1] = rec.kw;
     rowData[2] = rec.name;
@@ -536,12 +653,11 @@ function processSelectedFile(fileId) {
     let hasSkillData = false;
 
     for (const dbSkill in rec.skills) {
-      const colIndex = targetHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
+      const colIndex = headers.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
 
       if (colIndex !== -1) {
         if (dbSkill.toUpperCase() === abwDbName) {
-          let totalMins = Math.round(rec.skills[dbSkill] * 60);
-          rowData[colIndex] = minutesToHHMM(totalMins);
+          rowData[colIndex] = minutesToHHMM(Math.round(rec.skills[dbSkill] * 60));
         } else {
           rowData[colIndex] = rec.skills[dbSkill];
         }
@@ -551,117 +667,34 @@ function processSelectedFile(fileId) {
     }
 
     if (hasSkillData || rec.isAnw) {
-      const setVal = (headerName, val) => {
-        const idx = targetHeaders.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
-
-        if (idx !== -1) {
-          rowData[idx] = val;
-        }
-      };
-
-      setVal("DIFFERENZ", rec.differenz);
-      setVal("SOLL", minutesToHHMM(Math.round(rec.soll * 60)));
-      setVal("IST", rec.ist);
-      setVal("TEAM", rec.team);
-      setVal("SCHICHT", rec.schicht);
+      setRowValueByHeader_(rowData, headers, "Differenz", rec.differenz);
+      setRowValueByHeader_(rowData, headers, "Soll", minutesToHHMM(Math.round(rec.soll * 60)));
+      setRowValueByHeader_(rowData, headers, "Ist", rec.ist);
+      setRowValueByHeader_(rowData, headers, "Team", rec.team);
+      setRowValueByHeader_(rowData, headers, "Schicht", rec.schicht);
 
       results.push(rowData);
-      addedRowsCount++;
     }
-  }
+  });
 
-  const lastRow = targetSheet.getLastRow();
+  return results;
+}
 
-  if (lastRow > 1) {
-    targetSheet.getRange(2, 1, lastRow - 1, targetSheet.getLastColumn()).clearContent();
-  }
-
-  if (results.length > 0) {
-    targetSheet.getRange(2, 1, results.length, results[0].length).setValues(results);
-  }
-
-  const gesamtSheetName = "Datenbank_Gesamt";
-  let gesamtSheet = ss.getSheetByName(gesamtSheetName);
-  const gesamtHeaders = [...targetHeaders];
-  gesamtHeaders[2] = "Team";
-
-  if (!gesamtSheet) {
-    gesamtSheet = ss.insertSheet(gesamtSheetName);
-    gesamtSheet.appendRow(gesamtHeaders);
-    gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setFontWeight("bold");
-  } else {
-    if (gesamtSheet.getLastColumn() < gesamtHeaders.length) {
-      gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setValues([gesamtHeaders]);
-      gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setFontWeight("bold");
-    }
-  }
-
-  const existingGesamtData = gesamtSheet.getDataRange().getValues();
-  const existingKeys = new Set();
-
-  for (let i = 1; i < existingGesamtData.length; i++) {
-    let d = existingGesamtData[i][0];
-    let dStr = (d instanceof Date)
-      ? Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy")
-      : String(d);
-
-    existingKeys.add(`${dStr}|${String(existingGesamtData[i][2]).trim()}`);
-  }
-
-  let overlapDates = new Set();
-
-  for (const key in records) {
-    let tName = records[key].team || "Ohne Team";
-
-    if (existingKeys.has(`${records[key].date}|${tName}`)) {
-      overlapDates.add(records[key].date);
-    }
-  }
-
-  let overwrite = false;
-
-  if (overlapDates.size > 0) {
-    const ui = SpreadsheetApp.getUi();
-    const datesStr = Array.from(overlapDates).join(", ");
-
-    const res = ui.alert(
-      "Duplikate gefunden",
-      `Für das/die Datum(e) ${datesStr} existieren bereits Einträge in 'Datenbank_Gesamt'.\n\nSollen die vorhandenen Einträge für diese Tage überschrieben und neu importiert werden?`,
-      ui.ButtonSet.YES_NO
-    );
-
-    overwrite = (res === ui.Button.YES);
-
-    if (overwrite) {
-      for (let i = existingGesamtData.length - 1; i >= 1; i--) {
-        let d = existingGesamtData[i][0];
-        let dStr = (d instanceof Date)
-          ? Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy")
-          : String(d);
-
-        if (overlapDates.has(dStr)) {
-          gesamtSheet.deleteRow(i + 1);
-        }
-      }
-
-      for (let key of existingKeys) {
-        if (overlapDates.has(key.split('|')[0])) {
-          existingKeys.delete(key);
-        }
-      }
-    }
-  }
-
+/**
+ * Baut Teamaggregation für Datenbank_Gesamt_Test.
+ */
+function buildGesamtTeamRows_(records, headers, abwDbName) {
   const teamRecords = {};
 
   for (const key in records) {
     const rec = records[key];
-    const teamName = rec.team || "Ohne Team";
-    const teamKey = `${rec.date}|${rec.kw}|${teamName}`;
 
     if (Object.keys(rec.skills).length === 0 && !rec.isAnw) {
       continue;
     }
+
+    const teamName = rec.team || "Ohne Team";
+    const teamKey = `${rec.date}|${rec.kw}|${teamName}`;
 
     if (!teamRecords[teamKey]) {
       teamRecords[teamKey] = {
@@ -679,199 +712,124 @@ function processSelectedFile(fileId) {
       teamRecords[teamKey].skills[dbSkill] = (teamRecords[teamKey].skills[dbSkill] || 0) + rec.skills[dbSkill];
     }
 
-    teamRecords[teamKey].differenz += (rec.differenz || 0);
-
-    let employeeSollMins = Math.round((rec.soll || 0) * 60);
-    teamRecords[teamKey].sollMins += employeeSollMins;
-
-    teamRecords[teamKey].ist += (rec.ist || 0);
+    teamRecords[teamKey].differenz += rec.differenz || 0;
+    teamRecords[teamKey].sollMins += Math.round((rec.soll || 0) * 60);
+    teamRecords[teamKey].ist += rec.ist || 0;
   }
 
-  const teamResults = [];
-  let addedTeamRowsCount = 0;
+  const results = [];
 
-  for (const teamKey in teamRecords) {
+  Object.keys(teamRecords).sort(sortRecordKeys_).forEach(teamKey => {
     const tr = teamRecords[teamKey];
 
-    if (existingKeys.has(`${tr.date}|${tr.team}`)) {
-      continue;
-    }
+    const rowData = new Array(headers.length).fill("");
 
-    let rowData = new Array(gesamtHeaders.length).fill("");
     rowData[0] = tr.date;
     rowData[1] = tr.kw;
     rowData[2] = tr.team;
 
     for (const dbSkill in tr.skills) {
-      const colIndex = gesamtHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
+      const colIndex = headers.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
 
       if (colIndex !== -1) {
         if (dbSkill.toUpperCase() === abwDbName) {
-          let totalMins = Math.round(tr.skills[dbSkill] * 60);
-          rowData[colIndex] = minutesToHHMM(totalMins);
+          rowData[colIndex] = minutesToHHMM(Math.round(tr.skills[dbSkill] * 60));
         } else {
           rowData[colIndex] = tr.skills[dbSkill];
         }
       }
     }
 
-    const setTeamVal = (headerName, val) => {
-      const idx = gesamtHeaders.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
+    setRowValueByHeader_(rowData, headers, "Differenz", tr.differenz);
+    setRowValueByHeader_(rowData, headers, "Soll", minutesToHHMM(tr.sollMins));
+    setRowValueByHeader_(rowData, headers, "Ist", tr.ist);
 
-      if (idx !== -1) {
-        rowData[idx] = val;
-      }
-    };
+    results.push(rowData);
+  });
 
-    setTeamVal("DIFFERENZ", tr.differenz);
-    setTeamVal("SOLL", minutesToHHMM(tr.sollMins));
-    setTeamVal("IST", tr.ist);
+  return results;
+}
 
-    teamResults.push(rowData);
-    addedTeamRowsCount++;
+/**
+ * Schreibt ein Sheet komplett neu.
+ */
+function writeRowsToSheet_(ss, sheetName, headers, rows) {
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
   }
 
-  if (teamResults.length > 0) {
-    const lastGesamtRow = Math.max(gesamtSheet.getLastRow(), 1);
-    gesamtSheet.getRange(lastGesamtRow + 1, 1, teamResults.length, teamResults[0].length).setValues(teamResults);
+  sheet.clearContents();
+
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
 
-  let dashboardDate = "";
-  const fileName = file.getName();
+  sheet.autoResizeColumns(1, Math.min(headers.length, 20));
+}
 
-  const dateMatch = fileName.match(/\d{2}\.\d{2}\.\d{2,4}/);
+/**
+ * Schreibt fehlende Zuordnungen in einen eigenen Prüf-Reiter.
+ */
+function writeMonthImportErrors_(ss, sheetName, unmappedEmployees, unmappedSkills) {
+  let sheet = ss.getSheetByName(sheetName);
 
-  if (dateMatch) {
-    dashboardDate = dateMatch[0];
-  } else if (dateColumns.length > 0) {
-    dashboardDate = dateColumns[0].date;
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
   }
 
-  if (dashboardDate) {
-    let dashboardSheet = ss.getSheetByName("Dashboard");
+  sheet.clear();
 
-    if (dashboardSheet) {
-      dashboardSheet.getRange("B2").setValue(dashboardDate);
-      dashboardSheet.getRange("C13").setValue(dashboardDate);
-      dashboardSheet.getRange("C113").setValue(dashboardDate);
+  const rows = [["Typ", "Fehlender Eintrag"]];
 
-      if (kw) {
-        dashboardSheet.getRange("C30").setValue(kw);
-        dashboardSheet.getRange("C130").setValue(kw);
-      }
+  unmappedEmployees.forEach(emp => rows.push(["Mitarbeiter ohne Team", emp]));
+  unmappedSkills.forEach(skill => rows.push(["Unbekannte Tätigkeit", skill]));
 
-      let parts = dashboardDate.split(".");
-
-      if (parts.length === 3) {
-        let monthDate = "01." + parts[1] + "." + parts[2];
-        dashboardSheet.getRange("C48").setValue(monthDate);
-        dashboardSheet.getRange("C147").setValue(monthDate);
-      }
-    }
+  if (rows.length === 1) {
+    rows.push(["OK", "Alle Mitarbeiter und Tätigkeiten konnten zugeordnet werden."]);
   }
 
-  const errorSheetName = "Fehlende_Zuordnungen";
-  let errorSheet = ss.getSheetByName(errorSheetName);
+  sheet.getRange(1, 1, rows.length, 2).setValues(rows);
+  sheet.getRange(1, 1, 1, 2).setFontWeight("bold");
+  sheet.autoResizeColumns(1, 2);
+}
 
-  if (!errorSheet) {
-    errorSheet = ss.insertSheet(errorSheetName);
-  }
+/**
+ * Setzt einen Wert anhand des Spaltennamens.
+ */
+function setRowValueByHeader_(rowData, headers, headerName, value) {
+  const idx = headers.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
 
-  errorSheet.clear();
-
-  const errorData = [["Typ", "Fehlender Eintrag (Name / Tätigkeit)"]];
-
-  unmappedEmployees.forEach(emp => errorData.push(["Mitarbeiter ohne Team", emp]));
-  unmappedSkills.forEach(skill => errorData.push(["Unbekannte Tätigkeit (Plano)", skill]));
-
-  if (errorData.length > 1) {
-    errorSheet.getRange(1, 1, errorData.length, 2).setValues(errorData);
-    errorSheet.getRange(1, 1, 1, 2).setFontWeight("bold");
-    errorSheet.autoResizeColumns(1, 2);
-
-    return `Erfolg! ${addedRowsCount} Mitarbeiter aktualisiert und ${addedTeamRowsCount} neue Teamsätze geschrieben.\n\n⚠️ WICHTIG: Es fehlen ${unmappedEmployees.size} Team-Zuordnungen und ${unmappedSkills.size} Tätigkeiten! Bitte prüfe den Reiter '${errorSheetName}'.`;
-  } else {
-    errorSheet.appendRow(["Perfekt! Alle Mitarbeiter und Tätigkeiten konnten erfolgreich zugeordnet werden."]);
-    return `Erfolg! ${addedRowsCount} Mitarbeiter aktualisiert und ${addedTeamRowsCount} neue Teamsätze in Datenbank_Gesamt geschrieben. Alles wurde sauber gemappt!`;
+  if (idx !== -1) {
+    rowData[idx] = value;
   }
 }
 
 /**
- * Hilfsfunktion zur Normalisierung von Strings.
+ * Sortiert nach Datum und danach nach Rest-Key.
  */
-function normalizeStr(str) {
-  if (!str) return "";
-  return String(str).trim().replace(/\s+/g, ' ');
-}
+function sortRecordKeys_(a, b) {
+  const da = parseDateFromKey_(a);
+  const db = parseDateFromKey_(b);
 
-/**
- * Hilfsfunktion zur Berechnung der Dezimalstunden aus einem String wie "07:00-09:15".
- */
-function calculateHours(timeRange) {
-  try {
-    const [start, end] = timeRange.split('-');
-    const [h1, m1] = start.split(':').map(Number);
-    const [h2, m2] = end.split(':').map(Number);
-
-    let diffMinutes = (h2 * 60 + m2) - (h1 * 60 + m1);
-
-    if (diffMinutes < 0) {
-      diffMinutes += 24 * 60;
-    }
-
-    return diffMinutes / 60;
-  } catch (e) {
-    return 0;
-  }
-}
-
-/**
- * Hilfsfunktion zum Umwandeln von Zahlen-Strings in Float-Zahlen.
- */
-function parseGermanFloat(str) {
-  if (!str) return 0;
-
-  let s = String(str).trim().replace(',', '.');
-  let f = parseFloat(s);
-
-  return isNaN(f) ? 0 : f;
-}
-
-/**
- * Hilfsfunktion zum Umwandeln von Dezimalstunden in das Format HH:MM.
- */
-function toHHMM(decimalHours) {
-  if (!decimalHours) return "0:00";
-
-  let sign = decimalHours < 0 ? "-" : "";
-  let absDec = Math.abs(decimalHours);
-
-  let h = Math.floor(absDec);
-  let m = Math.round((absDec - h) * 60);
-
-  if (m >= 60) {
-    h += 1;
-    m -= 60;
+  if (da.getTime() !== db.getTime()) {
+    return da.getTime() - db.getTime();
   }
 
-  let mStr = m < 10 ? "0" + m : m;
-
-  return sign + h + ":" + mStr;
+  return a.localeCompare(b);
 }
 
 /**
- * Hilfsfunktion, die addierte, exakte Minuten in das Format HH:MM umwandelt.
+ * Holt das Datum aus einem Key wie:
+ * 04.05.2026|19|Name
  */
-function minutesToHHMM(totalMinutes) {
-  if (!totalMinutes) return "0:00";
+function parseDateFromKey_(key) {
+  const dateStr = key.split("|")[0];
+  const parts = dateStr.split(".");
 
-  let sign = totalMinutes < 0 ? "-" : "";
-  let absMins = Math.abs(totalMinutes);
-
-  let h = Math.floor(absMins / 60);
-  let m = Math.round(absMins % 60);
-
-  let mStr = m < 10 ? "0" + m : m;
-
-  return sign + h + ":" + mStr;
+  return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
 }
