@@ -1,185 +1,721 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-    <style>
-      body {
-        font-family: 'Arial', sans-serif;
-        padding: 15px;
-        color: #333;
+/**
+ * Dialog etwas hoeher machen, weil eine Checkbox dazu kommt.
+ * Ersetzt deine vorhandene showImportDialog-Funktion.
+ */
+function showImportDialog() {
+  const htmlOutput = HtmlService.createHtmlOutputFromFile('dialog')
+    .setWidth(450)
+    .setHeight(370);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Lidl Kundenservice - Plano');
+}
+
+/**
+ * Einstiegspunkt aus dialog.html.
+ * importWholeMonth = false: bisherige Tageslogik, erster gefundener Planabschnitt.
+ * importWholeMonth = true: alle gefundenen Wochenplan-/Tagesabschnitte werden verarbeitet.
+ */
+function processSelectedFile(fileId, importWholeMonth) {
+  return processPlanoBackup_(fileId, Boolean(importWholeMonth));
+}
+
+/**
+ * Optionaler Direktaufruf, falls du den Monatsimport spaeter separat ins Menue haengen willst.
+ */
+function processSelectedMonthFile(fileId) {
+  return processPlanoBackup_(fileId, true);
+}
+
+/**
+ * Neue zentrale Plano-Backup-Logik.
+ * Wichtig:
+ * - Datenbank_KO_SKILL bleibt die Mitarbeiter-Detailbasis.
+ * - Beim Monatsimport wird die Teamaggregation testweise nach Datenbank_Gesamt_Test geschrieben.
+ * - Die Tage muessen nicht sortiert sein; entscheidend sind die wiederkehrenden Planabschnitte.
+ */
+function processPlanoBackup_(fileId, importWholeMonth) {
+  const targetSheetName = "Datenbank_KO_SKILL";
+  const gesamtSheetName = importWholeMonth ? "Datenbank_Gesamt_Test" : "Datenbank_Gesamt";
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const skillMap = getMapping(ss);
+  const planoSkillsSorted = Object.keys(skillMap).sort((a, b) => b.length - a.length);
+  const nameMap = getNameMapping(ss);
+  const localTeamMap = getTeamMapping(ss);
+  const ignoreSet = getIgnoreMapping(ss);
+  const externalTeamMap = getEmployeeTeams();
+  const unmappedSkills = new Set();
+  const unmappedEmployees = new Set();
+  const abwDbName = (skillMap["ABW"] || "ABW").toUpperCase();
+
+  const targetSheet = ensureSheetWithBaseHeaders_(ss, targetSheetName, ["Datum", "KW", "Mitarbeitername"]);
+  const targetHeaders = ensurePlanoTargetHeaders_(targetSheet, skillMap);
+
+  const file = DriveApp.getFileById(fileId);
+  const data = readPlanoFileData_(file, fileId);
+  if (!data || data.length < 4) throw new Error("Die Datei enthaelt nicht genug Daten.");
+
+  const sections = collectPlanoSections_(data, importWholeMonth);
+  if (sections.length === 0) {
+    throw new Error("Konnte keine Wochenplan-/Datum-Kopfzeile in der Datei finden.");
+  }
+
+  const weeklyContractMap = importWholeMonth
+    ? buildWeeklyContractMap_(data, sections, nameMap, ignoreSet)
+    : {};
+
+  const records = {};
+  sections.forEach(section => {
+    parsePlanoSectionIntoRecords_({
+      data,
+      section,
+      importWholeMonth,
+      weeklyContractMap,
+      skillMap,
+      planoSkillsSorted,
+      nameMap,
+      localTeamMap,
+      externalTeamMap,
+      ignoreSet,
+      unmappedSkills,
+      unmappedEmployees,
+      records
+    });
+  });
+
+  const koResult = writeKoSkillRecords_(targetSheet, targetHeaders, records, abwDbName);
+  const teamResult = writePlanoTeamAggregation_({
+    ss,
+    sheetName: gesamtSheetName,
+    headers: targetHeaders,
+    records,
+    abwDbName,
+    clearBeforeWrite: importWholeMonth
+  });
+
+  updateDashboardFromPlanoImport_(ss, file.getName(), sections);
+  return finishPlanoImport_(ss, unmappedEmployees, unmappedSkills, koResult.addedRowsCount, teamResult.addedTeamRowsCount, gesamtSheetName);
+}
+
+function readPlanoFileData_(file, fileId) {
+  const mimeType = file.getMimeType();
+
+  try {
+    if (mimeType === MimeType.GOOGLE_SHEETS) {
+      return SpreadsheetApp.openById(fileId).getSheets()[0].getDataRange().getValues();
+    }
+
+    const blob = file.getBlob();
+    const textData = blob.getDataAsString("UTF-8");
+
+    if (textData.includes("PK\x03\x04")) {
+      const resource = { name: "Temp_" + file.getName(), mimeType: MimeType.GOOGLE_SHEETS };
+      let tempFile;
+      if (typeof Drive !== 'undefined') {
+        tempFile = Drive.Files.create(resource, blob, { supportsAllDrives: true });
+        const tempDoc = SpreadsheetApp.openById(tempFile.id);
+        const data = tempDoc.getSheets()[0].getDataRange().getValues();
+        Drive.Files.remove(tempFile.id);
+        return data;
+      }
+      throw new Error("Drive API nicht aktiviert.");
+    }
+
+    if (textData.includes(";") && textData.split(";").length > textData.split(",").length) {
+      return Utilities.parseCsv(textData, ';');
+    }
+    return Utilities.parseCsv(textData);
+  } catch (e) {
+    throw new Error("Fehler beim Lesen der Datei: " + e.message);
+  }
+}
+
+function ensureSheetWithBaseHeaders_(ss, sheetName, baseHeaders) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(baseHeaders);
+    sheet.getRange(1, 1, 1, baseHeaders.length).setFontWeight("bold");
+  }
+  return sheet;
+}
+
+function ensurePlanoTargetHeaders_(targetSheet, skillMap) {
+  const lastTargetCol = Math.max(targetSheet.getLastColumn(), 3);
+  const targetHeaders = targetSheet.getRange(1, 1, 1, lastTargetCol).getValues()[0];
+  const uniqueDbSkills = [...new Set(Object.values(skillMap))];
+
+  ["Differenz", "Team", "Schicht", "Soll", "Ist", "Ausgleichstag"].forEach(requiredHeader => {
+    if (!uniqueDbSkills.some(skill => String(skill).toUpperCase() === requiredHeader.toUpperCase())) {
+      uniqueDbSkills.push(requiredHeader);
+    }
+  });
+
+  uniqueDbSkills.forEach(dbSkill => {
+    const exists = targetHeaders.some(h => String(h).trim().toUpperCase() === String(dbSkill).toUpperCase());
+    if (!exists) {
+      targetHeaders.push(dbSkill);
+      targetSheet.getRange(1, targetHeaders.length).setValue(dbSkill);
+      targetSheet.getRange(1, targetHeaders.length).setFontWeight("bold");
+    }
+  });
+
+  return targetHeaders;
+}
+
+function collectPlanoSections_(data, importWholeMonth) {
+  const sections = [];
+  let currentTitle = "";
+
+  for (let r = 0; r < data.length; r++) {
+    const rowStr = data[r].map(v => String(v || "")).join(" ");
+    if (rowStr.includes("Wochenplan KW")) {
+      currentTitle = rowStr;
+    }
+
+    if (isPlanoHeaderRow_(data[r])) {
+      const headerRow = data[r];
+      const meta = getPlanoSectionMeta_(currentTitle, headerRow);
+      if (meta.dateColumns.length > 0) {
+        sections.push({
+          title: currentTitle,
+          headerRowIndex: r,
+          startRow: r + 2,
+          endRow: data.length - 1,
+          kw: meta.kw,
+          year: meta.year,
+          dateColumns: meta.dateColumns,
+          differenzColIndex: meta.differenzColIndex,
+          isthColIndex: meta.isthColIndex,
+          vertragColIndex: meta.vertragColIndex
+        });
+      }
+    }
+  }
+
+  for (let i = 0; i < sections.length - 1; i++) {
+    sections[i].endRow = sections[i + 1].headerRowIndex - 1;
+  }
+
+  return importWholeMonth ? sections : sections.slice(0, 1);
+}
+
+function isPlanoHeaderRow_(row) {
+  const firstCell = String(row[0] || "").trim();
+  const rowStr = row.map(v => String(v || "")).join(" ");
+
+  if (firstCell === "Name") return true;
+  if (!rowStr.match(/\d{2}\.\d{2}\./)) return false;
+
+  return /Montag,|Dienstag,|Mittwoch,|Donnerstag,|Freitag,|Samstag,|Sonntag,/.test(rowStr);
+}
+
+function getPlanoSectionMeta_(titleStr, headerRow) {
+  const kwMatch = String(titleStr || "").match(/KW\s+(\d+)/);
+  const yearMatch = String(titleStr || "").match(/\/\s+(\d{4})/);
+  const kw = kwMatch ? kwMatch[1] : "";
+  const year = yearMatch ? yearMatch[1] : new Date().getFullYear();
+  const dateColumns = [];
+
+  for (let c = 0; c < headerRow.length; c++) {
+    const val = headerRow[c];
+    const valStr = (val instanceof Date)
+      ? Utilities.formatDate(val, Session.getScriptTimeZone(), "dd.MM.yyyy")
+      : String(val);
+
+    const dateMatch = valStr.match(/(\d{2}\.\d{2}\.)/);
+    if (dateMatch) {
+      const dateStr = dateMatch[1] + year;
+      const parts = dateStr.split('.');
+      const dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+      dateColumns.push({ colIndex: c, date: dateStr, isSaturday: dateObj.getDay() === 6 });
+    }
+  }
+
+  let differenzColIndex = headerRow.findIndex(h => String(h).trim() === 'Differenz');
+  if (differenzColIndex === -1) differenzColIndex = 10;
+
+  let isthColIndex = headerRow.findIndex(h => String(h).trim() === 'Isth');
+  if (isthColIndex === -1) isthColIndex = 12;
+
+  let vertragColIndex = headerRow.findIndex(h => String(h).trim() === 'Vertrag h');
+  if (vertragColIndex === -1) vertragColIndex = 14;
+
+  return { kw, year, dateColumns, differenzColIndex, isthColIndex, vertragColIndex };
+}
+
+function parsePlanoSectionIntoRecords_(ctx) {
+  const {
+    data, section, importWholeMonth, weeklyContractMap, skillMap, planoSkillsSorted, nameMap, localTeamMap, externalTeamMap,
+    ignoreSet, unmappedSkills, unmappedEmployees, records
+  } = ctx;
+
+  for (let r = section.startRow; r <= section.endRow && r < data.length; r++) {
+    const nameCell = String(data[r][0] || "");
+    if (!nameCell.includes("Lidl Kundenservice DE")) continue;
+
+    const planoCleanName = normalizeStr(nameCell.split('\n')[0]);
+    if (ignoreSet.has(planoCleanName)) continue;
+
+    const mappedName = nameMap[planoCleanName] || planoCleanName;
+    const assignedTeam = localTeamMap[mappedName] || localTeamMap[planoCleanName] || externalTeamMap[mappedName];
+    if (!assignedTeam) unmappedEmployees.add(planoCleanName);
+
+    const differenzVal = parseGermanFloat(data[r][section.differenzColIndex]);
+    const isthVal = parseGermanFloat(data[r][section.isthColIndex]);
+    const vertragHVal = parseGermanFloat(data[r][section.vertragColIndex]);
+    const weeklyContractKey = `${section.kw}|${mappedName}`;
+    const dailyContractVal = importWholeMonth
+      ? (weeklyContractMap[weeklyContractKey] || getDailyContractHoursForMonthlyImport_(data[r], section.dateColumns, vertragHVal))
+      : vertragHVal;
+
+    section.dateColumns.forEach(dc => {
+      const dayValueInNameRow = String(data[r][dc.colIndex] || "").trim();
+      const upperDayVal = dayValueInNameRow.toUpperCase();
+      const recKey = `${dc.date}|${section.kw}|${mappedName}`;
+      const detailCell = (r + 1 <= section.endRow && r + 1 < data.length) ? data[r + 1][dc.colIndex] : "";
+      const dailyDetailHours = importWholeMonth ? calculatePlanoDetailHours_(detailCell) : 0;
+      const dailyShiftHours = importWholeMonth ? calculateHoursFromText_(dayValueInNameRow) : 0;
+      const currentSollVal = importWholeMonth
+        ? getMonthlyDailySoll_(dc, upperDayVal, dailyDetailHours, dailyShiftHours, dailyContractVal)
+        : (dc.isSaturday ? isthVal : vertragHVal);
+
+      if (!records[recKey]) {
+        records[recKey] = {
+          date: dc.date,
+          kw: section.kw,
+          name: mappedName,
+          skills: {},
+          differenz: differenzVal,
+          soll: currentSollVal,
+          ist: 0,
+          isAnw: false,
+          schicht: dayValueInNameRow,
+          team: assignedTeam || "Unbekannt"
+        };
       }
 
-      h3 {
-        color: #0050AA;
-        margin-top: 0;
-        font-size: 18px;
-      }
+      let isFullDayAbsence = false;
+      const isAusgleichstag = importWholeMonth
+        ? (upperDayVal === "-" && dailyContractVal > 0 && dailyDetailHours === 0)
+        : (upperDayVal === "-" && vertragHVal > 0 && isthVal === 0);
 
-      p {
-        font-size: 13px;
-        color: #555;
-      }
+      if (upperDayVal.includes("URLAUB") || upperDayVal.includes("ABW") || upperDayVal.includes("UEBERSTUNDEN") || upperDayVal.includes("ÜBERSTUNDEN") || upperDayVal.includes("WUNSCHFREI") || isAusgleichstag) {
+        const isUrlaub = upperDayVal.includes("URLAUB");
+        const isUeberstunden = upperDayVal.includes("UEBERSTUNDEN") || upperDayVal.includes("ÜBERSTUNDEN");
+        const isWunschfrei = upperDayVal.includes("WUNSCHFREI");
 
-      select {
-        width: 100%;
-        padding: 10px;
-        margin-bottom: 14px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        font-size: 14px;
-        box-sizing: border-box;
-      }
+        let matchedPlanoSkill = "ABW";
+        if (isUrlaub) matchedPlanoSkill = "Urlaub";
+        if (isUeberstunden) matchedPlanoSkill = "Überstundenfrei";
+        if (isWunschfrei) matchedPlanoSkill = "Wunschfrei";
+        if (isAusgleichstag) matchedPlanoSkill = "Ausgleichstag";
 
-      .check-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: #f1f8ff;
-        border: 1px solid #cce5ff;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 18px;
-        font-size: 13px;
-        color: #333;
-      }
+        const dbSkill = skillMap[matchedPlanoSkill] || matchedPlanoSkill;
+        if (!skillMap[matchedPlanoSkill] && !isAusgleichstag) unmappedSkills.add(matchedPlanoSkill);
 
-      .check-row input {
-        width: 16px;
-        height: 16px;
-        cursor: pointer;
-      }
-
-      button {
-        background-color: #0050AA;
-        color: white;
-        border: none;
-        padding: 12px 20px;
-        font-size: 14px;
-        font-weight: bold;
-        cursor: pointer;
-        width: 100%;
-        border-radius: 4px;
-      }
-
-      button:hover {
-        background-color: #003d82;
-      }
-
-      button:disabled {
-        background-color: #ccc;
-        cursor: not-allowed;
-      }
-
-      #status {
-        margin-top: 15px;
-        font-size: 13px;
-        padding: 10px;
-        border-radius: 4px;
-        display: none;
-        white-space: pre-line;
-      }
-
-      .loading {
-        background-color: #e8f0fe;
-        color: #0050AA;
-        border: 1px solid #b6d4fe;
-      }
-
-      .success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-
-      .error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-    </style>
-  </head>
-
-  <body>
-    <h3>Plano-Daten importieren</h3>
-    <p>Wähle eine Datei aus der geteilten Ablage:</p>
-
-    <select id="fileSelect">
-      <option value="">Lade Dateien...</option>
-    </select>
-
-    <label class="check-row">
-      <input type="checkbox" id="fullMonthCheckbox">
-      <span>Gesamten Monat importieren</span>
-    </label>
-
-    <button id="importBtn" onclick="startImport()" disabled>Auswerten & Importieren</button>
-
-    <div id="status"></div>
-
-    <script>
-      google.script.run
-        .withSuccessHandler(function(files) {
-          const select = document.getElementById('fileSelect');
-          select.innerHTML = '';
-
-          if (files.length === 0) {
-            select.innerHTML = '<option value="">Keine Dateien im Ordner gefunden</option>';
-            return;
-          }
-
-          files.forEach(function(f) {
-            const option = document.createElement('option');
-            option.value = f.id;
-            option.text = f.name;
-            select.appendChild(option);
-          });
-
-          document.getElementById('importBtn').disabled = false;
-        })
-        .withFailureHandler(function(err) {
-          showStatus("Fehler beim Laden der Dateien: " + err.message, "error");
-        })
-        .getFilesInFolder();
-
-      function startImport() {
-        const select = document.getElementById('fileSelect');
-        const fileId = select.value;
-        const importFullMonth = document.getElementById('fullMonthCheckbox').checked;
-
-        if (!fileId) return;
-
-        document.getElementById('importBtn').disabled = true;
-        select.disabled = true;
-        document.getElementById('fullMonthCheckbox').disabled = true;
-
-        if (importFullMonth) {
-          showStatus("Monatsimport läuft. Die Datei wird blockweise ausgewertet und in die Testdatenbank geschrieben.", "loading");
-        } else {
-          showStatus("Datei wird eingelesen und ausgewertet. Bitte warten.", "loading");
+        let hoursToUse = ((isUrlaub || isUeberstunden || isWunschfrei) && !dc.isSaturday) ? dailyContractVal : isthVal;
+        if (importWholeMonth) {
+          hoursToUse = dailyDetailHours || dailyShiftHours || dailyContractVal;
+        }
+        if (isAusgleichstag) {
+          hoursToUse = dailyContractVal;
+          records[recKey].soll = 0;
         }
 
-        google.script.run
-          .withSuccessHandler(function(res) {
-            showStatus("Erfolgreich! " + res, "success");
-            setTimeout(function() {
-              google.script.host.close();
-            }, 5000);
-          })
-          .withFailureHandler(function(err) {
-            showStatus("Fehler: " + err.message, "error");
-            document.getElementById('importBtn').disabled = false;
-            select.disabled = false;
-            document.getElementById('fullMonthCheckbox').disabled = false;
-          })
-          .processPlanoImport(fileId, importFullMonth);
+        records[recKey].skills[dbSkill] = (records[recKey].skills[dbSkill] || 0) + hoursToUse;
+        isFullDayAbsence = true;
+        records[recKey].ist = importWholeMonth
+          ? ((isUeberstunden || isWunschfrei || isAusgleichstag) ? 0 : hoursToUse)
+          : ((isUeberstunden || isWunschfrei || isAusgleichstag) ? 0 : isthVal);
+      } else {
+        records[recKey].ist = importWholeMonth ? dailyDetailHours : isthVal;
       }
 
-      function showStatus(msg, type) {
-        const el = document.getElementById('status');
-        el.style.display = 'block';
-        el.className = type;
-        el.innerText = msg;
+      if (upperDayVal.includes("ANW") || upperDayVal === "ANW") {
+        records[recKey].isAnw = true;
       }
-    </script>
-  </body>
-</html>
+
+      if (!isFullDayAbsence && r + 1 <= section.endRow && r + 1 < data.length) {
+        parsePlanoDetailCell_(detailCell, recKey, records, skillMap, planoSkillsSorted, unmappedSkills);
+      }
+    });
+  }
+}
+
+function buildWeeklyContractMap_(data, sections, nameMap, ignoreSet) {
+  const weeklyInfo = {};
+
+  sections.forEach(section => {
+    for (let r = section.startRow; r <= section.endRow && r < data.length; r++) {
+      const nameCell = String(data[r][0] || "");
+      if (!nameCell.includes("Lidl Kundenservice DE")) continue;
+
+      const planoCleanName = normalizeStr(nameCell.split('\n')[0]);
+      if (ignoreSet.has(planoCleanName)) continue;
+
+      const mappedName = nameMap[planoCleanName] || planoCleanName;
+      const key = `${section.kw}|${mappedName}`;
+      const contractHours = parseGermanFloat(data[r][section.vertragColIndex]);
+
+      if (!weeklyInfo[key]) {
+        weeklyInfo[key] = { contractHours: 0, plannedWeekdays: new Set() };
+      }
+      if (contractHours > weeklyInfo[key].contractHours) {
+        weeklyInfo[key].contractHours = contractHours;
+      }
+
+      section.dateColumns.forEach(dc => {
+        if (dc.isSaturday) return;
+
+        const val = String(data[r][dc.colIndex] || "").trim().toUpperCase();
+        if (!val || val === "-") return;
+
+        weeklyInfo[key].plannedWeekdays.add(dc.date);
+      });
+    }
+  });
+
+  const weeklyContractMap = {};
+  for (const key in weeklyInfo) {
+    const info = weeklyInfo[key];
+    if (!info.contractHours) continue;
+
+    const plannedDays = info.plannedWeekdays.size;
+    const divisor = plannedDays >= 2 ? plannedDays : 5;
+    weeklyContractMap[key] = info.contractHours / divisor;
+  }
+
+  return weeklyContractMap;
+}
+
+function getMonthlyDailySoll_(dc, upperDayVal, dailyDetailHours, dailyShiftHours, dailyContractVal) {
+  if (!upperDayVal || upperDayVal === "-") return 0;
+  if (dc.isSaturday) return dailyDetailHours || dailyShiftHours || 0;
+  if (upperDayVal.includes("ANW")) return dailyDetailHours || dailyShiftHours || dailyContractVal;
+  if (upperDayVal.includes("URLAUB") || upperDayVal.includes("ABW") || upperDayVal.includes("UEBERSTUNDEN") || upperDayVal.includes("ÜBERSTUNDEN") || upperDayVal.includes("WUNSCHFREI")) {
+    return dailyDetailHours || dailyShiftHours || dailyContractVal;
+  }
+  return dailyDetailHours || dailyShiftHours || 0;
+}
+
+function getDailyContractHoursForMonthlyImport_(employeeRow, dateColumns, contractHours) {
+  if (!contractHours) return 0;
+  const plannedWeekdays = dateColumns.filter(dc => {
+    const val = String(employeeRow[dc.colIndex] || "").trim().toUpperCase();
+    if (!val || val === "-") return false;
+    return !dc.isSaturday;
+  }).length;
+  return plannedWeekdays > 1 ? contractHours / plannedWeekdays : contractHours;
+}
+
+function calculatePlanoDetailHours_(cellValue) {
+  const detailCell = String(cellValue || "");
+  if (!detailCell.trim()) return 0;
+
+  const lines = detailCell.split('\n').map(l => l.trim()).filter(Boolean);
+  let totalHours = 0;
+  let currentTimeRange = null;
+
+  lines.forEach(line => {
+    if (line.match(/^\d{2}:\d{2}-\d{2}:\d{2}/)) {
+      currentTimeRange = line.split(' ')[0];
+      return;
+    }
+
+    if (!currentTimeRange) return;
+
+    const upperLine = line.toUpperCase();
+    if (upperLine !== "PAUSE" && !upperLine.includes("PAUSE")) {
+      totalHours += calculateHours(currentTimeRange);
+    }
+    currentTimeRange = null;
+  });
+
+  return totalHours;
+}
+
+function calculateHoursFromText_(text) {
+  const match = String(text || "").match(/(\d{2}:\d{2}-\d{2}:\d{2})/);
+  return match ? calculateHours(match[1]) : 0;
+}
+
+function parsePlanoDetailCell_(cellValue, recKey, records, skillMap, planoSkillsSorted, unmappedSkills) {
+  const detailCell = String(cellValue || "");
+  if (!detailCell.trim()) return;
+
+  const lines = detailCell.split('\n').map(l => l.trim()).filter(Boolean);
+  let currentTimeRange = null;
+
+  lines.forEach(line => {
+    if (line.match(/^\d{2}:\d{2}-\d{2}:\d{2}/)) {
+      currentTimeRange = line.split(' ')[0];
+      return;
+    }
+
+    if (!currentTimeRange) return;
+
+    let matchedDbSkill = null;
+    for (const planoSkill of planoSkillsSorted) {
+      if (normalizeStr(line).includes(planoSkill)) {
+        matchedDbSkill = skillMap[planoSkill];
+        break;
+      }
+    }
+
+    if (matchedDbSkill) {
+      const hrs = calculateHours(currentTimeRange);
+      records[recKey].skills[matchedDbSkill] = (records[recKey].skills[matchedDbSkill] || 0) + hrs;
+    } else {
+      const upperLine = line.toUpperCase();
+      if (upperLine !== "PAUSE" && !upperLine.includes("PAUSE") && upperLine !== "ANW") {
+        unmappedSkills.add(line.trim());
+      }
+    }
+
+    currentTimeRange = null;
+  });
+}
+
+function writeKoSkillRecords_(targetSheet, targetHeaders, records, abwDbName) {
+  const results = [];
+
+  Object.keys(records)
+    .sort((a, b) => sortPlanoRecordKeys_(a, b))
+    .forEach(key => {
+      const rec = records[key];
+      const rowData = new Array(targetHeaders.length).fill("");
+      rowData[0] = rec.date;
+      rowData[1] = rec.kw;
+      rowData[2] = rec.name;
+
+      let hasSkillData = false;
+      for (const dbSkill in rec.skills) {
+        const colIndex = targetHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
+        if (colIndex !== -1) {
+          rowData[colIndex] = dbSkill.toUpperCase() === abwDbName
+            ? minutesToHHMM(Math.round(rec.skills[dbSkill] * 60))
+            : rec.skills[dbSkill];
+          hasSkillData = true;
+        }
+      }
+
+      if (hasSkillData || rec.isAnw) {
+        setRowValueByHeader_(rowData, targetHeaders, "Differenz", rec.differenz);
+        setRowValueByHeader_(rowData, targetHeaders, "Soll", minutesToHHMM(Math.round(rec.soll * 60)));
+        setRowValueByHeader_(rowData, targetHeaders, "Ist", rec.ist);
+        setRowValueByHeader_(rowData, targetHeaders, "Team", rec.team);
+        setRowValueByHeader_(rowData, targetHeaders, "Schicht", rec.schicht);
+        results.push(rowData);
+      }
+    });
+
+  const lastRow = targetSheet.getLastRow();
+  if (lastRow > 1) {
+    targetSheet.getRange(2, 1, lastRow - 1, targetSheet.getLastColumn()).clearContent();
+  }
+  if (results.length > 0) {
+    targetSheet.getRange(2, 1, results.length, results[0].length).setValues(results);
+  }
+
+  return { addedRowsCount: results.length };
+}
+
+function writePlanoTeamAggregation_(opts) {
+  const { ss, sheetName, headers, records, abwDbName, clearBeforeWrite } = opts;
+  let gesamtSheet = ss.getSheetByName(sheetName);
+  const gesamtHeaders = [...headers];
+  gesamtHeaders[2] = "Team";
+
+  if (!gesamtSheet) {
+    gesamtSheet = ss.insertSheet(sheetName);
+  }
+
+  if (clearBeforeWrite) {
+    gesamtSheet.clear();
+  }
+
+  if (gesamtSheet.getLastRow() === 0 || gesamtSheet.getLastColumn() < gesamtHeaders.length) {
+    gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setValues([gesamtHeaders]);
+    gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setFontWeight("bold");
+  }
+
+  const existingKeys = getExistingPlanoTeamKeys_(gesamtSheet);
+  const overlapDates = new Set();
+
+  if (!clearBeforeWrite) {
+    for (const key in records) {
+      const rec = records[key];
+      if (existingKeys.has(`${rec.date}|${rec.team || "Ohne Team"}`)) {
+        overlapDates.add(rec.date);
+      }
+    }
+
+    if (overlapDates.size > 0) {
+      const ui = SpreadsheetApp.getUi();
+      const datesStr = Array.from(overlapDates).join(", ");
+      const res = ui.alert(
+        "Duplikate gefunden",
+        `Fuer das/die Datum(e) ${datesStr} existieren bereits Eintraege in '${sheetName}'.\n\nSollen die vorhandenen Eintraege fuer diese Tage ueberschrieben und neu importiert werden?`,
+        ui.ButtonSet.YES_NO
+      );
+
+      if (res === ui.Button.YES) {
+        deletePlanoTeamRowsByDate_(gesamtSheet, overlapDates);
+        overlapDates.forEach(dateStr => {
+          Array.from(existingKeys).forEach(key => {
+            if (key.split('|')[0] === dateStr) existingKeys.delete(key);
+          });
+        });
+      }
+    }
+  }
+
+  const teamRecords = {};
+  for (const key in records) {
+    const rec = records[key];
+    const teamName = rec.team || "Ohne Team";
+    const teamKey = `${rec.date}|${rec.kw}|${teamName}`;
+    if (Object.keys(rec.skills).length === 0 && !rec.isAnw) continue;
+
+    if (!teamRecords[teamKey]) {
+      teamRecords[teamKey] = { date: rec.date, kw: rec.kw, team: teamName, skills: {}, differenz: 0, sollMins: 0, ist: 0 };
+    }
+
+    for (const dbSkill in rec.skills) {
+      teamRecords[teamKey].skills[dbSkill] = (teamRecords[teamKey].skills[dbSkill] || 0) + rec.skills[dbSkill];
+    }
+    teamRecords[teamKey].differenz += (rec.differenz || 0);
+    teamRecords[teamKey].sollMins += Math.round((rec.soll || 0) * 60);
+    teamRecords[teamKey].ist += (rec.ist || 0);
+  }
+
+  const teamResults = [];
+  Object.keys(teamRecords)
+    .sort((a, b) => sortPlanoRecordKeys_(a, b))
+    .forEach(teamKey => {
+      const tr = teamRecords[teamKey];
+      if (!clearBeforeWrite && existingKeys.has(`${tr.date}|${tr.team}`)) return;
+
+      const rowData = new Array(gesamtHeaders.length).fill("");
+      rowData[0] = tr.date;
+      rowData[1] = tr.kw;
+      rowData[2] = tr.team;
+
+      for (const dbSkill in tr.skills) {
+        const colIndex = gesamtHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
+        if (colIndex !== -1) {
+          rowData[colIndex] = dbSkill.toUpperCase() === abwDbName
+            ? minutesToHHMM(Math.round(tr.skills[dbSkill] * 60))
+            : tr.skills[dbSkill];
+        }
+      }
+
+      setRowValueByHeader_(rowData, gesamtHeaders, "Differenz", tr.differenz);
+      setRowValueByHeader_(rowData, gesamtHeaders, "Soll", minutesToHHMM(tr.sollMins));
+      setRowValueByHeader_(rowData, gesamtHeaders, "Ist", tr.ist);
+      teamResults.push(rowData);
+    });
+
+  if (teamResults.length > 0) {
+    const lastGesamtRow = Math.max(gesamtSheet.getLastRow(), 1);
+    gesamtSheet.getRange(lastGesamtRow + 1, 1, teamResults.length, teamResults[0].length).setValues(teamResults);
+  }
+
+  return { addedTeamRowsCount: teamResults.length };
+}
+
+function getExistingPlanoTeamKeys_(sheet) {
+  const existingKeys = new Set();
+  if (sheet.getLastRow() < 2) return existingKeys;
+
+  const existingData = sheet.getDataRange().getValues();
+  for (let i = 1; i < existingData.length; i++) {
+    const d = existingData[i][0];
+    const dStr = (d instanceof Date) ? Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy") : String(d);
+    existingKeys.add(`${dStr}|${String(existingData[i][2]).trim()}`);
+  }
+  return existingKeys;
+}
+
+function deletePlanoTeamRowsByDate_(sheet, datesToDelete) {
+  const data = sheet.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) {
+    const d = data[i][0];
+    const dStr = (d instanceof Date) ? Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy") : String(d);
+    if (datesToDelete.has(dStr)) sheet.deleteRow(i + 1);
+  }
+}
+
+function updateDashboardFromPlanoImport_(ss, fileName, sections) {
+  let dashboardDate = "";
+  const fileDateMatch = fileName.match(/\d{2}\.\d{2}\.\d{2,4}/);
+
+  if (fileDateMatch) {
+    dashboardDate = fileDateMatch[0];
+  } else if (sections.length > 0 && sections[0].dateColumns.length > 0) {
+    dashboardDate = sections[0].dateColumns[0].date;
+  }
+
+  if (!dashboardDate) return;
+
+  const dashboardSheet = ss.getSheetByName("Dashboard");
+  if (!dashboardSheet) return;
+
+  dashboardSheet.getRange("B2").setValue(dashboardDate);
+  dashboardSheet.getRange("C13").setValue(dashboardDate);
+  dashboardSheet.getRange("C113").setValue(dashboardDate);
+
+  if (sections[0].kw) {
+    dashboardSheet.getRange("C30").setValue(sections[0].kw);
+    dashboardSheet.getRange("C130").setValue(sections[0].kw);
+  }
+
+  const parts = dashboardDate.split(".");
+  if (parts.length === 3) {
+    const monthDate = "01." + parts[1] + "." + parts[2];
+    dashboardSheet.getRange("C48").setValue(monthDate);
+    dashboardSheet.getRange("C147").setValue(monthDate);
+  }
+}
+
+function finishPlanoImport_(ss, unmappedEmployees, unmappedSkills, addedRowsCount, addedTeamRowsCount, gesamtSheetName) {
+  const errorSheetName = "Fehlende_Zuordnungen";
+  let errorSheet = ss.getSheetByName(errorSheetName);
+  if (!errorSheet) errorSheet = ss.insertSheet(errorSheetName);
+  errorSheet.clear();
+
+  const errorData = [["Typ", "Fehlender Eintrag (Name / Taetigkeit)"]];
+  unmappedEmployees.forEach(emp => errorData.push(["Mitarbeiter ohne Team", emp]));
+  unmappedSkills.forEach(skill => errorData.push(["Unbekannte Taetigkeit (Plano)", skill]));
+
+  if (errorData.length > 1) {
+    errorSheet.getRange(1, 1, errorData.length, 2).setValues(errorData);
+    errorSheet.getRange(1, 1, 1, 2).setFontWeight("bold");
+    errorSheet.autoResizeColumns(1, 2);
+    return `Erfolg! ${addedRowsCount} Mitarbeiter aktualisiert und ${addedTeamRowsCount} Teamsaetze in ${gesamtSheetName} geschrieben.\n\nWICHTIG: Es fehlen ${unmappedEmployees.size} Team-Zuordnungen und ${unmappedSkills.size} Taetigkeiten. Bitte pruefe den Reiter '${errorSheetName}'.`;
+  }
+
+  errorSheet.appendRow(["Perfekt! Alle Mitarbeiter und Taetigkeiten konnten erfolgreich zugeordnet werden."]);
+  return `Erfolg! ${addedRowsCount} Mitarbeiter aktualisiert und ${addedTeamRowsCount} Teamsaetze in ${gesamtSheetName} geschrieben. Alles wurde sauber gemappt.`;
+}
+
+function setRowValueByHeader_(rowData, headers, headerName, value) {
+  const idx = headers.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
+  if (idx !== -1) rowData[idx] = value;
+}
+
+function sortPlanoRecordKeys_(a, b) {
+  const [dateA, kwA, nameA] = a.split('|');
+  const [dateB, kwB, nameB] = b.split('|');
+  const timeDiff = planoDateToTime_(dateA) - planoDateToTime_(dateB);
+  if (timeDiff !== 0) return timeDiff;
+  const kwDiff = String(kwA).localeCompare(String(kwB));
+  if (kwDiff !== 0) return kwDiff;
+  return String(nameA).localeCompare(String(nameB));
+}
+
+function planoDateToTime_(dateStr) {
+  const parts = String(dateStr || "").split(".");
+  if (parts.length !== 3) return 0;
+  return new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+}
