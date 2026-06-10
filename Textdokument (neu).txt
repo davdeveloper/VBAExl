@@ -258,20 +258,22 @@ function findHeaderRowInBlock_(data, startRow, endRow) {
 
 /**
  * Wertet einen Wochenplan-Block aus.
- * Wichtig für Monatsimport:
+ *
+ * Wichtig:
  * Isth und Vertrag h sind im Monatsbackup Wochenwerte.
- * Deshalb werden Soll und Ist pro Tag aus Tageszelle und Detailzelle berechnet.
+ * Deshalb:
+ * IST = Tagesdetails ohne Pause
+ * SOLL = geplante Tageszeit oder Vertrags-Fallback
+ * Ausgleichstag = eigener Fall, nicht über Wochen-Ist erkennen
  */
 function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year, records, ctx) {
-  const headerRow = data[headerRowIndex];
+  const AUSGLEICHSTAG_ZAEHLT_INS_SOLL = true;
 
+  const headerRow = data[headerRowIndex];
   const dateColumns = [];
 
   let differenzColIndex = headerRow.findIndex(h => String(h).trim() === "Differenz");
   if (differenzColIndex === -1) differenzColIndex = 10;
-
-  let isthColIndex = headerRow.findIndex(h => String(h).trim() === "Isth");
-  if (isthColIndex === -1) isthColIndex = 12;
 
   let vertragColIndex = headerRow.findIndex(h => String(h).trim() === "Vertrag h");
   if (vertragColIndex === -1) vertragColIndex = 14;
@@ -316,7 +318,6 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
 
     const differenzVal = parseGermanFloat(data[r][differenzColIndex]);
 
-    const weeklyIstVal = parseGermanFloat(data[r][isthColIndex]);
     const weeklyVertragVal = parseGermanFloat(data[r][vertragColIndex]);
 
     const dailyContractFallback = calculateDailyContractFallback_(
@@ -334,10 +335,12 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
         ? String(data[r + 1][dc.colIndex])
         : "";
 
-      const dailyWorkHours = calculateDailyWorkHoursFromPlanoDay_(
-        dayValueInNameRow,
-        detailCell
-      );
+      const detailIstHours = calculateWorkHoursFromDetailCell_(detailCell);
+      const dayCellTimeHours = calculateHoursFromAnyTimeRanges_(dayValueInNameRow);
+
+      const hasDetail = detailCell && detailCell.trim() !== "";
+      const hasDetailHours = detailIstHours > 0;
+      const hasDayCellHours = dayCellTimeHours > 0;
 
       const recKey = `${dc.date}|${kw}|${mappedName}`;
 
@@ -361,10 +364,20 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
       const isUeberstunden = upperDayVal.includes("ÜBERSTUNDEN");
       const isWunschfrei = upperDayVal.includes("WUNSCHFREI");
 
+      /**
+       * Ausgleichstag:
+       * Im Monatsbackup reicht weeklyIstVal === 0 nicht.
+       * Ein einzelner Ausgleichstag liegt oft in einer Woche mit sonstiger Arbeitszeit.
+       *
+       * Deshalb:
+       * Tageszelle ist "-"
+       * keine Detailstunden
+       * Vertragsstunden vorhanden
+       */
       const isAusgleichstag = (
         upperDayVal === "-" &&
         weeklyVertragVal > 0 &&
-        weeklyIstVal === 0
+        !hasDetailHours
       );
 
       const isFullDayAbsence = isUrlaub || isAbw || isUeberstunden || isWunschfrei || isAusgleichstag;
@@ -383,9 +396,15 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
           ctx.unmappedSkills.add(matchedPlanoSkill);
         }
 
-        let absenceHours = dailyWorkHours > 0
-          ? dailyWorkHours
-          : dailyContractFallback;
+        let absenceHours = 0;
+
+        if (hasDayCellHours) {
+          absenceHours = dayCellTimeHours;
+        } else if (hasDetailHours) {
+          absenceHours = detailIstHours;
+        } else {
+          absenceHours = dailyContractFallback;
+        }
 
         if (!absenceHours && weeklyVertragVal > 0) {
           absenceHours = weeklyVertragVal / 5;
@@ -394,14 +413,13 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
         records[recKey].skills[dbSkill] = (records[recKey].skills[dbSkill] || 0) + absenceHours;
 
         if (isAusgleichstag) {
-          records[recKey].soll = 0;
-        } else {
+          records[recKey].soll = AUSGLEICHSTAG_ZAEHLT_INS_SOLL ? absenceHours : 0;
+          records[recKey].ist = 0;
+        } else if (isUeberstunden || isWunschfrei) {
           records[recKey].soll = absenceHours;
-        }
-
-        if (isUeberstunden || isWunschfrei || isAusgleichstag) {
           records[recKey].ist = 0;
         } else {
+          records[recKey].soll = absenceHours;
           records[recKey].ist = absenceHours;
         }
 
@@ -412,10 +430,25 @@ function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year
         records[recKey].isAnw = true;
       }
 
-      records[recKey].soll = dailyWorkHours;
-      records[recKey].ist = dailyWorkHours;
+      /**
+       * Normaler Arbeitstag:
+       * IST bleibt echte Detail-Arbeitszeit ohne Pause.
+       * SOLL darf nicht automatisch IST sein.
+       */
+      let plannedSollHours = 0;
 
-      if (!detailCell || detailCell.trim() === "") {
+      if (hasDayCellHours) {
+        plannedSollHours = dayCellTimeHours;
+      } else if (hasDetailHours) {
+        plannedSollHours = detailIstHours;
+      } else if (upperDayVal && upperDayVal !== "-") {
+        plannedSollHours = dailyContractFallback;
+      }
+
+      records[recKey].soll = plannedSollHours;
+      records[recKey].ist = detailIstHours;
+
+      if (!hasDetail) {
         continue;
       }
 
@@ -620,7 +653,8 @@ function calculateDailyContractFallback_(data, employeeRowIndex, dateColumns, we
       upperDayCell.includes("URLAUB") ||
       upperDayCell.includes("ABW") ||
       upperDayCell.includes("ÜBERSTUNDEN") ||
-      upperDayCell.includes("WUNSCHFREI");
+      upperDayCell.includes("WUNSCHFREI") ||
+      upperDayCell === "-";
 
     if (hasWorkHours || hasAbsence) {
       countedDays++;
