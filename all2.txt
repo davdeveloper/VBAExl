@@ -312,7 +312,7 @@ function parsePlanoSectionIntoRecords_(ctx) {
 
         let hoursToUse = ((isUrlaub || isUeberstunden || isWunschfrei) && !dc.isSaturday) ? dailyContractVal : isthVal;
         if (importWholeMonth) {
-          hoursToUse = dailyDetailHours || dailyShiftHours || dailyContractVal;
+          hoursToUse = getMonthlyAbsenceHours_(dc, dailyShiftHours, dailyContractVal);
         }
         if (isAusgleichstag) {
           hoursToUse = dailyContractVal;
@@ -393,6 +393,11 @@ function getMonthlyDailySoll_(dc, upperDayVal, dailyDetailHours, dailyShiftHours
     return dailyDetailHours || dailyShiftHours || dailyContractVal;
   }
   return dailyDetailHours || dailyShiftHours || 0;
+}
+
+function getMonthlyAbsenceHours_(dc, dailyShiftHours, dailyContractVal) {
+  if (dc.isSaturday) return dailyShiftHours || 0;
+  return dailyContractVal;
 }
 
 function getDailyContractHoursForMonthlyImport_(employeeRow, dateColumns, contractHours) {
