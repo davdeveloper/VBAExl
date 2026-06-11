@@ -1,1172 +1,136 @@
-<script>
-  /* ==========================================================
-     GLOBALE VARIABLEN & KONSTANTEN
-     ========================================================== */
-  let vacEmployeeList = [];
-  let vacSelectedEmp = null;
-  let vacSelectedEmpDetails = null;
-
-  let dienstplanungLoaded = false; 
-  let dienstplanInitDone = false; 
-  let rawDienstplanData = []; 
-  let globalHolidays = {}; 
-  
-  let currentNameFilter = "";
-  let currentDaySort = 'none';
-  
-  const MONTH_NAMES = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
-  let currentViewMonth = 0; 
-  const YEAR_VIEW = 2026;
-
-  /* ==========================================================
-     FILTER & SORT FUNKTIONEN
-     ========================================================== */
-  
-  function setDienstplanNameFilter(val) {
-      currentNameFilter = val.toLowerCase();
-      window.filterAndRenderDienstplan(true);
-  }
-
-  function toggleDienstplanSort() {
-      if (currentDaySort === 'none') currentDaySort = 'desc';
-      else if (currentDaySort === 'desc') currentDaySort = 'asc';
-      else currentDaySort = 'none';
-      
-      renderCalendarHeader();
-      window.filterAndRenderDienstplan();
-  }
-
-  function getApprovedDays(emp) {
-      if (!emp.vacations) return 0;
-      return emp.vacations
-          .filter(v => v.type === 'Urlaub (genehmigt)')
-          .reduce((sum, v) => sum + (v.days || 0), 0);
-  }
-
-  /* ==========================================================
-     HOLIDAY MODAL LOGIC
-     ========================================================== */
-  function openHolidayModal() {
-     const modal = document.getElementById('holidayModal');
-     const container = document.querySelector('#holidayModalContent .custom-scroll div');
-
-     container.innerHTML = '';
-     
-     const sortedDates = Object.keys(globalHolidays).sort();
-
-     if (sortedDates.length === 0) {
-         container.innerHTML = '<div class="text-center text-gray-400 italic">Keine Daten in "Betriebsferien" gefunden.</div>';
-     } else {
-         sortedDates.forEach(dateIso => {
-             const parts = dateIso.split('-');
-             const d = new Date(parts[0], parts[1] - 1, parts[2]);
-             const weekday = d.toLocaleDateString('de-DE', { weekday: 'short' });
-             
-             const deDate = `${parts[2]}.${parts[1]}.`; 
-             const name = globalHolidays[dateIso];
-             
-             container.innerHTML += `
-               <div class="flex justify-between border-b border-gray-50 pb-1 last:border-0">
-                  <span>${name}</span>
-                  <span class="font-bold text-gray-500 flex gap-2">
-                    <span class="text-gray-400 font-normal">${weekday}</span>
-                    ${deDate}
-                  </span>
-               </div>`;
-         });
-     }
-
-     modal.classList.remove('hidden');
-
-     setTimeout(() => {
-         modal.classList.remove('opacity-0');
-         document.getElementById('holidayModalContent').classList.remove('scale-95');
-         document.getElementById('holidayModalContent').classList.add('scale-100');
-     }, 10);
-  }
-
-  function closeHolidayModal() {
-     const modal = document.getElementById('holidayModal');
-
-     modal.classList.add('opacity-0');
-     document.getElementById('holidayModalContent').classList.remove('scale-100');
-     document.getElementById('holidayModalContent').classList.add('scale-95');
-
-     setTimeout(() => {
-        modal.classList.add('hidden');
-     }, 300);
-  }
-
-  /* ==========================================================
-     VACATION MODAL LOGIC
-     ========================================================== */
-  function openVacationModal() {
-      document.getElementById('vac-search').value = '';
-      document.getElementById('vac-search-results').classList.add('hidden');
-      document.getElementById('vac-info-card').classList.add('hidden');
-
-      const container = document.getElementById('vac-slots-container');
-
-      container.innerHTML = ''; 
-      addVacationSlot(); 
-
-      document.getElementById('quota-container').classList.add('hidden');
-      document.getElementById('user-collision-msg').classList.add('hidden');
-      document.getElementById('quota-result').classList.add('hidden');
-
-      document.getElementById('vac-submitted').valueAsDate = new Date();
-
-      vacSelectedEmp = null;
-      vacSelectedEmpDetails = null;
-      
-      const modal = document.getElementById('vacationModal');
-
-      modal.classList.remove('hidden');
-
-      setTimeout(() => {
-          modal.classList.remove('opacity-0');
-          document.getElementById('vacationModalContent').classList.remove('scale-95');
-          document.getElementById('vacationModalContent').classList.add('scale-100');
-      }, 10);
-  }
-
-  function closeVacationModal() {
-      const modal = document.getElementById('vacationModal');
-
-      modal.classList.add('opacity-0');
-      document.getElementById('vacationModalContent').classList.remove('scale-100');
-      document.getElementById('vacationModalContent').classList.add('scale-95');
-
-      setTimeout(() => {
-        modal.classList.add('hidden');
-      }, 300);
-  }
-
-  function addVacationSlot() {
-      const container = document.getElementById('vac-slots-container');
-      const id = Date.now() + Math.random().toString(16).slice(2); 
-      const div = document.createElement('div');
-
-      div.className = "mb-4 last:mb-0 border border-gray-200 rounded-xl p-3 vac-slot-row bg-white shadow-sm"; 
-      div.dataset.id = id;
-
-      div.innerHTML = `
-         <div class="grid grid-cols-12 gap-3 items-end">
-             <div class="col-span-12 md:col-span-4">
-                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Art der Abwesenheit</label>
-                <select class="vac-type-select w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none bg-white" onchange="handleSlotTypeChange(this)">
-                  <option value="Urlaub (genehmigt)">Urlaub (genehmigt)</option>
-                  <option value="Sonderurlaub">Sonderurlaub</option>
-                  <option value="Freizeitausgleich">Freizeitausgleich</option>
-                </select>
-             </div>
-
-             <div class="col-span-6 md:col-span-3">
-                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Startdatum</label>
-                <input type="date" class="vac-start-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none" onchange="syncDate(this)">
-             </div>
-
-             <div class="col-span-6 md:col-span-3">
-                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Enddatum</label>
-                <input type="date" class="vac-end-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none" onchange="checkQuotaBatch()">
-             </div>
-
-             <div class="col-span-12 md:col-span-2 flex md:justify-end">
-                ${container.children.length > 0 ? `<button onclick="removeVacationSlot(this)" class="h-[38px] w-full md:w-[38px] flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition border border-gray-200 md:border-0"><i class="fa-solid fa-trash-can"></i></button>` : `<div class="h-[38px]"></div>`}
-             </div>
-         </div>
-
-         <div class="slot-fza-container hidden mt-3 bg-blue-50 border border-blue-100 p-3 rounded-lg">
-            <div class="flex justify-between items-center mb-1">
-                <label class="block text-[10px] font-bold text-blue-500 uppercase">Vertragsstunden täglich</label>
-                <span class="text-xs text-gray-500">Aktuelles Saldo: <span class="vac-saldo-display font-bold">...</span></span>
-            </div>
-            <div class="flex items-center gap-2">
-                <input type="text" placeholder="hh:mm" class="vac-daily-hours w-32 border border-blue-200 rounded px-2 py-1 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-500">
-                <span class="text-xs text-blue-400"><i class="fa-solid fa-info-circle"></i> Wird als geplanter Abbau übernommen</span>
-            </div>
-         </div>
-
-         <div class="slot-quota-info mt-2 space-y-1"></div>
-      `;
-
-      container.appendChild(div);
-  }
-
-  function removeVacationSlot(btn) {
-      btn.closest('.vac-slot-row').remove();
-      checkQuotaBatch();
-  }
-
-  function handleSlotTypeChange(selectEl) {
-      const row = selectEl.closest('.vac-slot-row');
-      const fzaContainer = row.querySelector('.slot-fza-container');
-
-      if (selectEl.value === 'Freizeitausgleich') {
-          fzaContainer.classList.remove('hidden');
-
-          if (vacSelectedEmp) {
-            loadEmpDetailsForSlot(row);
-          }
-      } else {
-          fzaContainer.classList.add('hidden');
-      }
-
-      checkQuotaBatch();
-  }
-
-  function loadEmpDetailsForSlot(slotRow) {
-      if (!slotRow || !vacSelectedEmp) return;
-
-      const hoursInput = slotRow.querySelector('.vac-daily-hours');
-      const saldoSpan = slotRow.querySelector('.vac-saldo-display');
-
-      if (!hoursInput || !saldoSpan) return;
-
-      const applyDetails = res => {
-        if (!hoursInput.value || hoursInput.value === "Lade...") {
-          hoursInput.value = res.hours;
-        }
-
-        const saldoVal = res.saldo;
-        const formattedSaldo = decimalToTime(saldoVal);
-
-        let colorClass = "text-modern-green";
-
-        if (saldoVal < 0) {
-          colorClass = "text-red-600";
-        } else if (saldoVal > 40) {
-          colorClass = "text-red-500";
-        }
-
-        saldoSpan.className = "vac-saldo-display ml-1 font-mono font-bold text-sm " + colorClass;
-        saldoSpan.innerText = formattedSaldo + " Std.";
-      };
-
-      if (vacSelectedEmpDetails) {
-        applyDetails(vacSelectedEmpDetails);
-        return;
-      }
-
-      if (!hoursInput.value) {
-        hoursInput.value = "Lade...";
-      }
-
-      saldoSpan.innerText = "...";
-
-      google.script.run.withSuccessHandler(res => {
-        vacSelectedEmpDetails = res;
-        applyDetails(res);
-      }).getEmployeeDetails(vacSelectedEmp.label);
-  }
-
-  function syncDate(startInput) {
-      const row = startInput.closest('.vac-slot-row');
-      const endInput = row.querySelector('.vac-end-input');
-
-      if (startInput.value) {
-          if (!endInput.value || endInput.value < startInput.value) {
-              endInput.value = startInput.value;
-          }
-      }
-
-      checkQuotaBatch();
-  }
-
-  function handleEmployeeSearch(val) {
-      const res = document.getElementById('vac-search-results');
-
-      if (!val || val.length < 2) {
-        res.classList.add('hidden');
-        return;
-      }
-
-      if (vacEmployeeList.length === 0) {
-         res.innerHTML = '<div class="p-2 text-xs text-gray-400 text-center">Lade Daten...</div>';
-         res.classList.remove('hidden');
-         return;
-      }
-
-      const matches = vacEmployeeList.filter(e => e.label.toLowerCase().includes(val.toLowerCase()));
-
-      res.innerHTML = '';
-
-      if (matches.length === 0) {
-          res.innerHTML = '<div class="p-2 text-xs text-gray-400 text-center">Keine Treffer</div>';
-      } else {
-          matches.forEach(e => {
-              const div = document.createElement('div');
-
-              div.className = "px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-slate-700";
-              div.innerText = e.label;
-              div.onclick = () => selectEmployee(e);
-
-              res.appendChild(div);
-          });
-      }
-
-      res.classList.remove('hidden');
-  }
-
-  function selectEmployee(emp) {
-      vacSelectedEmp = emp;
-      vacSelectedEmpDetails = null;
-
-      document.getElementById('vac-search').value = emp.label;
-      document.getElementById('vac-search-results').classList.add('hidden');
-      document.getElementById('vac-tma').innerText = emp.tma || '-';
-      document.getElementById('vac-team').innerText = emp.team || '-';
-      
-      let count = 0;
-      let budget = 30; 
-
-      if (rawDienstplanData.length > 0) {
-          const match = rawDienstplanData.find(d => d.fullName === emp.label || (d.nachname === emp.name && d.vorname === emp.vorname));
-
-          if (match) {
-             count = match.vacations
-                .filter(v => v.type === 'Urlaub (genehmigt)')
-                .reduce((sum, v) => sum + (v.days || 0), 0);
-
-             budget = match.vacationBudget || 30;
-          }
-      }
-
-      document.getElementById('vac-count').innerText = count + " / " + budget;
-      document.getElementById('vac-info-card').classList.remove('hidden');
-
-      document.querySelectorAll('.vac-slot-row').forEach(row => {
-        const typeSelect = row.querySelector('.vac-type-select');
-
-        if (typeSelect && typeSelect.value === 'Freizeitausgleich') {
-          loadEmpDetailsForSlot(row);
-        }
-      });
-
-      checkQuotaBatch(); 
-  }
-
-  function getSlotData() {
-      const rows = document.querySelectorAll('.vac-slot-row');
-      const ranges = [];
-
-      rows.forEach(r => {
-          const s = r.querySelector('.vac-start-input').value;
-          const e = r.querySelector('.vac-end-input').value;
-          const type = r.querySelector('.vac-type-select') ? r.querySelector('.vac-type-select').value : 'Urlaub (genehmigt)';
-          const dailyHoursInput = r.querySelector('.vac-daily-hours');
-          const dailyHours = dailyHoursInput ? dailyHoursInput.value : "";
-
-          if (s && e) {
-            ranges.push({
-              start: s,
-              end: e,
-              type: type,
-              dailyHours: dailyHours,
-              domRow: r
-            });
-          }
-      });
-
-      return ranges;
-  }
-
-  function checkQuotaBatch() {
-      const slotObjects = getSlotData();
-      const ranges = slotObjects.map(o => ({ start: o.start, end: o.end }));
-
-      document.querySelectorAll('.slot-quota-info').forEach(el => el.innerHTML = '');
-
-      if (ranges.length === 0 || !vacSelectedEmp) {
-          document.getElementById('quota-container').classList.add('hidden');
-          return;
-      }
-
-      document.getElementById('quota-container').classList.remove('hidden');
-      document.getElementById('quota-loader').classList.remove('hidden');
-      
-      const colDiv = document.getElementById('user-collision-msg');
-
-      colDiv.classList.add('hidden');
-      document.getElementById('quota-result').classList.add('hidden');
-
-      google.script.run.withSuccessHandler(res => {
-          document.getElementById('quota-loader').classList.add('hidden');
-
-          if (res.userCollision) {
-              colDiv.classList.remove('hidden');
-              colDiv.className = "p-3 rounded-lg border text-sm flex items-center gap-3 bg-red-100 border-red-300 text-red-800 font-bold";
-              colDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-lg"></i> Achtung: Kollege hat bereits Urlaub in einem der Zeiträume!`;
-          } else {
-              colDiv.classList.add('hidden');
-          }
-
-          if (res.details && res.details.length > 0) {
-              slotObjects.forEach(slot => {
-                  const sDate = new Date(slot.start);
-                  const eDate = new Date(slot.end);
-                  const feedbackDiv = slot.domRow.querySelector('.slot-quota-info');
-                  const slotKWs = getWeeksInRangeClient(sDate, eDate); 
-
-                  let html = '';
-
-                  slotKWs.forEach(wk => {
-                      const match = res.details.find(d => d.kw == wk.kw && d.year == wk.year);
-
-                      if (match) {
-                           let colorClass = "text-green-700 bg-green-50 border-green-200";
-                           let icon = "fa-circle-check";
-
-                           if (match.status === 'critical') {
-                               colorClass = "text-red-700 bg-red-50 border-red-200";
-                               icon = "fa-circle-exclamation";
-                           } else if (match.status === 'unknown') {
-                               colorClass = "text-gray-600 bg-gray-50 border-gray-200";
-                               icon = "fa-circle-question";
-                           }
-
-                           html += `
-                            <div class="flex items-center gap-3 p-1.5 rounded border text-xs ${colorClass}">
-                                <div class="flex items-center gap-1 min-w-[60px]">
-                                    <i class="fa-solid ${icon}"></i>
-                                    <span class="font-bold">KW ${match.kw}</span>
-                                </div>
-                                <span class="font-mono ml-auto">${match.taken} / ${match.allowed} belegt</span>
-                            </div>`;
-                      }
-                  });
-
-                  feedbackDiv.innerHTML = html;
-              });
-          }
-      }).checkQuotaBatch(vacSelectedEmp.tma, vacSelectedEmp.name, ranges);
-  }
-
-  function getWeeksInRangeClient(d1, d2) {
-      const weeks = [];
-      const current = new Date(d1);
-      const day = current.getDay() || 7; 
-
-      if (day !== 1) {
-        current.setHours(-24 * (day - 1));
-      }
-
-      while (current <= d2) {
-          weeks.push(getKW(current));
-          current.setDate(current.getDate() + 7);
-      }
-
-      const endKw = getKW(d2);
-
-      if (!weeks.some(w => w.kw === endKw.kw && w.year === endKw.year)) {
-          weeks.push(endKw);
-      }
-
-      return weeks;
-  }
-
-  function getKW(date) {
-      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-
-      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-      const kw = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-
-      return { kw: kw, year: d.getUTCFullYear() };
-  }
-
-  function submitVacation() {
-      const slotObjects = getSlotData();
-
-      if (!vacSelectedEmp || slotObjects.length === 0) {
-          alert("Bitte Mitarbeiter wählen und mindestens einen vollständigen Zeitraum angeben.");
-          return;
-      }
-
-      for (const slot of slotObjects) {
-        if (slot.type === 'Freizeitausgleich') {
-          if (!slot.dailyHours || slot.dailyHours === "Lade..." || !slot.dailyHours.includes(":")) {
-            alert("Bitte bei jedem Freizeitausgleich gültige Vertragsstunden im Format hh:mm angeben.");
-            return;
-          }
-        }
-      }
-
-      const btn = document.getElementById('btn-vac-save');
-      const oldText = btn.innerText;
-
-      btn.innerText = "Speichere...";
-      btn.disabled = true;
-
-      const entries = slotObjects.map(r => ({
-        start: r.start,
-        end: r.end,
-        type: r.type,
-        dailyHours: r.dailyHours || "00:00"
-      }));
-
-      const payload = {
-          name: vacSelectedEmp.label,
-          tma: vacSelectedEmp.tma,
-          team: vacSelectedEmp.team,
-          entries: entries,
-          submitted: document.getElementById('vac-submitted').value
-      };
-
-      google.script.run.withSuccessHandler(() => {
-          btn.innerText = "Gespeichert!";
-
-          setTimeout(() => {
-              closeVacationModal();
-
-              btn.innerText = oldText;
-              btn.disabled = false;
-
-              initDienstplanView(); 
-
-              if (typeof loadData === 'function') {
-                loadData(); 
-              }
-          }, 800);
-      }).withFailureHandler(err => {
-          alert("Fehler: " + err.message);
-
-          btn.innerText = oldText;
-          btn.disabled = false;
-      }).saveVacationBatch(payload);
-  }
-
-  /* ==========================================================
-     PERSON DETAILS MODAL
-     ========================================================== */
-  function openPersonModal(empId) {
-      const emp = rawDienstplanData.find(e => e.id == empId);
-
-      if (!emp) return;
-
-      document.getElementById('person-modal-name').innerText = emp.fullName;
-      
-      const usedDays = emp.vacations
-          .filter(v => v.type === 'Urlaub (genehmigt)')
-          .reduce((sum, v) => sum + (v.days || 0), 0);
-      
-      const budget = emp.vacationBudget || 30;
-      const percent = Math.min((usedDays / budget) * 100, 100);
-      
-      let colorClass = "text-modern-green";
-      let barColorClass = "bg-lidl-blue";
-
-      if (usedDays > budget) {
-          colorClass = "text-red-500";
-          barColorClass = "bg-red-500";
-      }
-      
-      document.getElementById('person-modal-info').innerHTML = `
-          <div class="flex flex-col w-full mt-1">
-            <span class="text-sm text-gray-500 mb-2">${emp.team} | ${emp.tma}</span>
-            
-            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 w-full relative">
-                <div class="flex justify-between items-end mb-2">
-                    <div>
-                        <label class="text-[10px] uppercase font-bold text-blue-800 tracking-wider block mb-1">Jahresurlaub 2026</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" 
-                                   class="text-3xl font-bold text-lidl-blue bg-transparent border-b-2 border-blue-200 focus:border-lidl-blue outline-none w-24 text-left transition-colors placeholder-blue-300" 
-                                   value="${budget}" 
-                                   onchange="updateBudget(${emp.id}, this.value)">
-                            <span class="text-sm text-gray-500 font-medium self-end mb-1">Tage</span>
-                        </div>
-                    </div>
-                    <div class="text-right flex flex-col justify-end h-full">
-                        <div id="save-feedback-${emp.id}" class="text-xs font-bold opacity-0 transition-opacity mb-auto flex items-center gap-1 justify-end text-gray-400">
-                            <i class="fa-solid fa-spinner fa-spin"></i> Speichere...
-                        </div>
-                        
-                        <div class="text-xs font-bold uppercase text-gray-400 mt-2">Verplant</div>
-                        <div class="text-xl font-bold ${colorClass}">
-                           ${usedDays} <span class="text-sm text-gray-400 font-normal">/ <span id="budget-display-${emp.id}">${budget}</span></span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div id="budget-bar-${emp.id}" class="${barColorClass} h-full rounded-full transition-all duration-500" style="width: ${percent}%"></div>
-                </div>
-            </div>
-            
-            <div id="save-feedback-${emp.id}" class="text-xs font-bold opacity-0 transition-opacity flex items-center gap-1 justify-end text-gray-400 mt-1 h-4">
-                <i class="fa-solid fa-spinner fa-spin"></i> Speichere...
-            </div>
-          </div>
-      `;
-      
-      const list = document.getElementById('person-vacation-list');
-
-      list.innerHTML = '';
-
-      if (!emp.vacations || emp.vacations.length === 0) {
-          list.innerHTML = '<div class="p-6 text-center text-gray-400 italic">Keine Urlaube eingetragen.</div>';
-      } else {
-          emp.vacations.sort((a, b) => new Date(a.start) - new Date(b.start));
-          
-          const today = new Date();
-
-          today.setHours(0, 0, 0, 0);
-
-          emp.vacations.forEach(vac => {
-              const d1 = new Date(vac.start);
-              const d1Str = d1.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-              
-              const d2 = new Date(vac.end);
-              const d2Str = d2.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-              
-              const isPast = d2 < today;
-
-              let iconClass = "fa-umbrella-beach text-orange-500"; 
-
-              if (vac.type === 'Freizeitausgleich') iconClass = "fa-business-time text-blue-500";
-              if (vac.type === 'Sonderurlaub') iconClass = "fa-star text-purple-500";
-
-              let containerClass = "px-6 py-3 border-b border-gray-100 flex justify-between items-center group transition";
-              let textClass = "text-sm font-bold text-slate-700";
-              
-              if (isPast) {
-                 containerClass += " bg-gray-50"; 
-                 textClass = "text-sm font-medium text-gray-400 italic line-through- decoration-gray-300"; 
-                 iconClass = iconClass.replace('text-', 'text-gray-400 opacity-50 '); 
-              } else {
-                 containerClass += " hover:bg-gray-50";
-              }
-
-              const submittedDate = vac.created ? new Date(vac.created).toLocaleDateString('de-DE') : '-';
-              const dayLabel = (vac.days === 1) ? 'Tag' : 'Tage';
-
-              list.innerHTML += `
-                <div class="${containerClass}">
-                    <div class="flex items-start gap-3">
-                        <div class="mt-1 w-6 text-center"><i class="fa-solid ${iconClass}"></i></div>
-                        <div>
-                            <div class="${textClass} flex items-center gap-2">
-                                ${d1Str} - ${d2Str} 
-                                <span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] uppercase font-bold ${isPast ? 'opacity-50' : ''}">${vac.days} ${dayLabel}</span>
-                            </div>
-                            <div class="text-xs text-gray-500 mt-0.5 ${isPast ? 'italic opacity-60' : ''}">${vac.type} <span class="text-gray-300 mx-1">|</span> Eingereicht am: ${submittedDate}</div>
-                        </div>
-                    </div>
-                    <button onclick="deleteVacation(${vac.rowId})" class="w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 flex items-center justify-center transition" title="Löschen">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
-                </div>
-              `;
-          });
-      }
-
-      const modal = document.getElementById('personModal');
-
-      modal.classList.remove('hidden');
-
-      setTimeout(() => {
-          modal.classList.remove('opacity-0');
-          document.getElementById('personModalContent').classList.remove('scale-95');
-          document.getElementById('personModalContent').classList.add('scale-100');
-      }, 10);
-  }
-
-  function updateBudget(empId, val) {
-     if (!val || val < 0) return;
-
-     val = parseInt(val);
-     
-     const emp = rawDienstplanData.find(e => e.id == empId);
-
-     if (emp) {
-         emp.vacationBudget = val; 
-     }
-
-     const feedback = document.getElementById(`save-feedback-${empId}`);
-
-     if (feedback) {
-         feedback.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Speichere...';
-         feedback.classList.remove('opacity-0', 'text-green-600');
-         feedback.classList.add('text-gray-400');
-     }
-     
-     const display = document.getElementById(`budget-display-${empId}`);
-     const bar = document.getElementById(`budget-bar-${empId}`);
-     
-     if (emp) {
-         const usedDays = emp.vacations
-              .filter(v => v.type === 'Urlaub (genehmigt)')
-              .reduce((sum, v) => sum + (v.days || 0), 0);
-         
-         const percent = Math.min((usedDays / val) * 100, 100);
-         
-         if (display) {
-          display.innerText = val;
-         }
-         
-         const counterSpan = display.closest('.text-xl'); 
-
-         if (counterSpan) {
-             if (usedDays > val) {
-                 counterSpan.classList.remove('text-modern-green');
-                 counterSpan.classList.add('text-red-500');
-
-                 if (bar) {
-                  bar.classList.remove('bg-lidl-blue');
-                  bar.classList.add('bg-red-500');
-                 }
-             } else {
-                 counterSpan.classList.add('text-modern-green');
-                 counterSpan.classList.remove('text-red-500');
-
-                 if (bar) {
-                  bar.classList.add('bg-lidl-blue');
-                  bar.classList.remove('bg-red-500');
-                 }
-             }
-         }
-
-         if (bar) {
-          bar.style.width = percent + "%";
-         }
-     }
-     
-     google.script.run.withSuccessHandler(() => {
-         if (feedback) {
-             feedback.innerHTML = '<i class="fa-solid fa-check"></i> Gespeichert';
-             feedback.classList.remove('text-gray-400');
-             feedback.classList.add('text-green-600');
-
-             setTimeout(() => feedback.classList.add('opacity-0'), 2000);
-         }
-     }).updateEmployeeBudget(empId, val);
-  }
-
-  function closePersonModal() {
-      window.filterAndRenderDienstplan(); 
-      
-      const modal = document.getElementById('personModal');
-
-      modal.classList.add('opacity-0');
-      document.getElementById('personModalContent').classList.remove('scale-100');
-      document.getElementById('personModalContent').classList.add('scale-95');
-
-      setTimeout(() => {
-        modal.classList.add('hidden');
-      }, 300);
-  }
-
-  function deleteVacation(rowId) {
-      if (!confirm("Diesen Eintrag wirklich löschen?")) return;
-
-      document.getElementById('person-vacation-list').innerHTML = '<div class="p-6 text-center text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Lösche Eintrag...</div>';
-
-      google.script.run.withSuccessHandler(() => {
-          closePersonModal(); 
-          initDienstplanView(); 
-
-          if (typeof loadData === 'function') {
-            loadData(); 
-          }
-      }).withFailureHandler(err => {
-          alert("Fehler beim Löschen: " + err.message);
-          closePersonModal();
-      }).deleteVacationEntry(rowId);
-  }
-
-  /* ==========================================================
-     DIENSTPLANUNG RENDER & FILTER
-     ========================================================== */
-  function loadDienstplanungContent() {
-     google.script.run.withSuccessHandler(function(htmlContent) {
-             document.getElementById('dienstplanung-content-area').innerHTML = htmlContent;
-
-             const btn = document.getElementById('btn-open-vacation');
-
-             if (btn) {
-              btn.onclick = openVacationModal;
-             }
-             
-             dienstplanungLoaded = true;
-
-             setTimeout(initDienstplanView, 100);
-        }).getDienstplanungFragment();
-  }
-
-  function initDienstplanView() {
-      dienstplanInitDone = true;
-
-      const loaderText = document.getElementById('loader-text');
-
-      if (loaderText) {
-        loaderText.innerText = "Lade Kollegen & Kalender...";
-      }
-
-      renderMonthNavigation();
-      renderCalendarHeader();
-
-      google.script.run.withSuccessHandler(h => {
-          globalHolidays = h;
-
-          google.script.run.withSuccessHandler((data) => {
-                rawDienstplanData = data || []; 
-                window.filterAndRenderDienstplan(); 
-            }).withFailureHandler(err => {
-                 const l = document.getElementById('calendar-loader');
-
-                 if (l) {
-                  l.innerHTML = `<div class="text-red-500 p-4 font-bold text-center">Fehler: ${err.message}</div>`;
-                 }
-            }).getDienstplanData();
-      }).getHolidaysFromSheet();
-  }
-
-  function renderMonthNavigation() {
-      const navContainer = document.getElementById('month-nav-container');
-
-      if (!navContainer) return;
-
-      navContainer.innerHTML = '';
-
-      MONTH_NAMES.forEach((m, index) => {
-          const btn = document.createElement('button');
-          const isActive = (index === currentViewMonth);
-
-          let baseClass = "px-4 py-2 text-sm font-bold whitespace-nowrap transition-all border-b-2 outline-none ";
-
-          if (isActive) {
-              baseClass += "border-modern-green text-modern-green bg-emerald-50/50";
-          } else {
-              baseClass += "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50";
-          }
-
-          btn.className = baseClass;
-          btn.innerText = m;
-          btn.onclick = () => switchDienstplanMonth(index);
-
-          navContainer.appendChild(btn);
-      });
-  }
-
-  function switchDienstplanMonth(index) {
-      currentViewMonth = index;
-
-      renderMonthNavigation(); 
-      renderCalendarHeader(); 
-      window.filterAndRenderDienstplan(); 
-  }
-
-  window.filterAndRenderDienstplan = function(onlyBody = false) {
-     if (!rawDienstplanData.length && !dienstplanInitDone) return;
-
-     const startFilter = document.getElementById('filter-start') ? document.getElementById('filter-start').value : null;
-     const endFilter = document.getElementById('filter-end') ? document.getElementById('filter-end').value : null;
-
-     let filtered = rawDienstplanData.filter(d => {
-         const teamMatch = selectedTeams.size === 0 || selectedTeams.has(d.team);
-         const tmaMatch = selectedTmas.size === 0 || selectedTmas.has(d.tma);
-         
-         let nameMatch = true;
-
-         if (currentNameFilter) {
-             nameMatch = d.fullName.toLowerCase().includes(currentNameFilter);
-         }
-
-         let dateMatch = true;
-
-         if (startFilter && endFilter) {
-             if (d.vacations.length === 0) {
-                 dateMatch = false; 
-             } else {
-                 const fS = new Date(startFilter);
-                 const fE = new Date(endFilter);
-
-                 const hasOverlap = d.vacations.some(v => {
-                     const vS = new Date(v.start);
-                     const vE = new Date(v.end);
-
-                     return vS <= fE && vE >= fS;
-                 });
-
-                 dateMatch = hasOverlap;
-             }
-         }
-
-         return teamMatch && tmaMatch && dateMatch && nameMatch;
-     });
-     
-     if (currentDaySort === 'asc') {
-         filtered.sort((a, b) => getApprovedDays(a) - getApprovedDays(b));
-     } else if (currentDaySort === 'desc') {
-         filtered.sort((a, b) => getApprovedDays(b) - getApprovedDays(a));
-     }
-     
-     updateGlobalStats(filtered);
-     renderCalendarBody(filtered);
-  };
-
-  function updateGlobalStats(filteredData) {
-      const statPlanned = document.getElementById('stat-total-planned');
-      const statCapacity = document.getElementById('stat-total-capacity');
-      const statBar = document.getElementById('stat-bar-capacity');
-      const statPast = document.getElementById('stat-past');
-      const statFuture = document.getElementById('stat-future');
-      
-      if (!statPlanned) return; 
-
-      const totalCapacity = filteredData.reduce((sum, emp) => sum + (emp.vacationBudget || 30), 0);
-      
-      let totalPlanned = 0;
-      let pastDays = 0;
-      let futureDays = 0;
-
-      const today = new Date();
-
-      today.setHours(0, 0, 0, 0);
-
-      filteredData.forEach(emp => {
-          emp.vacations.forEach(v => {
-              if (v.type === 'Urlaub (genehmigt)') {
-                  totalPlanned += (v.days || 0);
-                  
-                  let current = new Date(v.start);
-                  const end = new Date(v.end);
-                  
-                  while (current <= end) {
-                      const d = current.getDay();
-
-                      if (d !== 0 && d !== 6) { 
-                         if (current < today) {
-                             pastDays++;
-                         } else {
-                             futureDays++;
-                         }
-                      }
-
-                      current.setDate(current.getDate() + 1);
-                  }
-              }
-          });
-      });
-
-      statPlanned.innerText = totalPlanned;
-      statCapacity.innerText = totalCapacity;
-      statPast.innerText = pastDays;
-      statFuture.innerText = futureDays;
-
-      const percent = totalCapacity > 0 ? (totalPlanned / totalCapacity) * 100 : 0;
-
-      statBar.style.width = Math.min(percent, 100) + "%";
-      
-      if (percent > 100) {
-        statBar.classList.replace('bg-lidl-blue', 'bg-red-500');
-      } else {
-        statBar.classList.replace('bg-red-500', 'bg-lidl-blue');
-      }
-  }
-
-  window.clearDateFilter = function() {
-      const s = document.getElementById('filter-start');
-      const e = document.getElementById('filter-end');
-
-      if (s) s.value = '';
-      if (e) e.value = '';
-
-      window.filterAndRenderDienstplan();
-  };
-
-  function renderCalendarHeader() {
-      const thead = document.getElementById('calendar-thead');
-
-      if (!thead) return;
-
-      const daysInMonth = getDaysInMonth(YEAR_VIEW, currentViewMonth);
-      
-      let sortIcon = 'fa-sort';
-
-      if (currentDaySort === 'asc') sortIcon = 'fa-sort-up';
-      if (currentDaySort === 'desc') sortIcon = 'fa-sort-down';
-
-      let monthRowHTML = `
-          <tr class="h-6">
-              <th rowspan="2" class="sticky left-0 top-0 z-40 bg-gray-50 border-b border-r border-gray-200 w-[200px] min-w-[200px] text-left px-4 align-top py-2">
-                  <div class="flex flex-col gap-1">
-                      <span>KOLLEGE</span>
-                      <input type="text" placeholder="Suchen..." 
-                             value="${currentNameFilter}"
-                             class="text-xs font-normal border border-gray-300 rounded px-2 py-1 w-full focus:ring-1 focus:ring-lidl-blue outline-none"
-                             oninput="window.setDienstplanNameFilter(this.value)">
-                  </div>
-              </th>
-              
-              <th rowspan="2" class="sticky left-[200px] top-0 z-40 bg-gray-50 border-b border-r border-gray-200 w-[150px] min-w-[150px] text-left px-4 align-middle">Teamleiter</th>
-              <th rowspan="2" class="sticky left-[350px] top-0 z-40 bg-gray-50 border-b border-r border-gray-200 w-[120px] min-w-[120px] text-left px-4 align-middle">TEAM</th>
-              
-              <th rowspan="2" onclick="window.toggleDienstplanSort()" class="sticky left-[470px] top-0 z-40 bg-gray-50 border-b border-r border-gray-200 w-[80px] min-w-[80px] text-center px-2 cursor-pointer hover:bg-gray-100 transition select-none align-middle group">
-                  <div class="flex items-center justify-center gap-1">
-                      TAGE <i class="fa-solid ${sortIcon} text-gray-400 group-hover:text-lidl-blue"></i>
-                  </div>
-              </th>
-              
-              <th colspan="${daysInMonth.length}" class="sticky top-0 z-30 bg-gray-100 border-b border-l border-gray-300 text-center py-1 font-bold text-gray-600 truncate align-middle">
-                ${MONTH_NAMES[currentViewMonth]} ${YEAR_VIEW}
-              </th>
-          </tr>`;
-
-      let dayRowHTML = `<tr class="h-8">`;
-
-      dayRowHTML += daysInMonth.map(d => {
-          const dayName = d.toLocaleDateString('de-DE', { weekday: 'short' }).substring(0, 2);
-          const dayNum = d.getDate();
-          const isoDate = formatDateIsoSimple(d);
-          const holidayName = globalHolidays[isoDate];
-          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-          
-          let bgClass = isWeekend ? 'bg-gray-100 text-gray-400' : 'bg-white';
-
-          if (holidayName) {
-            bgClass = 'bg-purple-100 text-purple-800 border-purple-200';
-          }
-          
-          const borderClass = d.getDate() === 1 ? 'border-l-2 border-l-gray-300' : 'border-l border-gray-100';
-          const titleAttr = holidayName ? `title="${holidayName}"` : '';
-
-          return `<th ${titleAttr} class="sticky top-[24px] z-20 ${bgClass} ${borderClass} border-b w-[35px] min-w-[35px] text-center py-1 font-normal select-none"><div class="text-[9px]">${dayName}</div><div class="text-[10px] font-bold">${dayNum}</div></th>`;
-      }).join('');
-
-      dayRowHTML += `</tr>`;
-      
-      thead.innerHTML = monthRowHTML + dayRowHTML;
-  }
-
-  function renderCalendarBody(data) {
-      const body = document.getElementById('calendar-body');
-
-      if (!body) return;
-      
-      if (data.length === 0) {
-          body.innerHTML = `<tr><td class="p-8 text-center text-gray-400" colspan="100%">Keine Daten verfügbar.</td></tr>`;
-          return;
-      }
-
-      const daysInMonth = getDaysInMonth(YEAR_VIEW, currentViewMonth);
-
-      const formatDate = (dateObj) => {
-             const y = dateObj.getFullYear();
-             const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-             const d = String(dateObj.getDate()).padStart(2, '0');
-
-             return `${y}-${m}-${d}`;
-      };
-
-      const rowsHTML = data.map(emp => {
-             const vacMap = new Map(); 
-
-             if (emp.vacations && emp.vacations.length > 0) {
-                 emp.vacations.forEach(range => {
-                     let current = new Date(range.start);
-                     const end = new Date(range.end);
-                     const viewStart = daysInMonth[0];
-                     const viewEnd = daysInMonth[daysInMonth.length - 1];
-
-                     if (end < viewStart || current > viewEnd) return; 
-
-                     while (current <= end) {
-                         if (current >= viewStart && current <= viewEnd) {
-                             vacMap.set(formatDate(current), range.type);
-                         }
-
-                         current.setDate(current.getDate() + 1);
-                     }
-                 });
-             }
-
-             const cellsHTML = daysInMonth.map(d => {
-                 const dateStr = formatDate(d);
-                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                 const isoDate = formatDateIsoSimple(d);
-                 const isHoliday = !!globalHolidays[isoDate];
-
-                 let bgClass = isWeekend ? 'bg-gray-100 text-gray-400' : 'bg-white';
-
-                 if (isHoliday) {
-                  bgClass = 'bg-purple-50';
-                 }
-
-                 const borderClass = d.getDate() === 1 ? 'border-l-2 border-l-gray-300' : 'border-l border-gray-100';
-                 const vacType = vacMap.get(dateStr);
-                 const isVacation = !!vacType && !isWeekend && !isHoliday; 
-
-                 let content = '';
-                 let cellBg = bgClass;
-
-                 if (isVacation) {
-                     if (vacType === 'Freizeitausgleich') {
-                         content = '<i class="fa-solid fa-business-time text-blue-500"></i>';
-                         cellBg = 'bg-blue-50';
-                     } else if (vacType === 'Sonderurlaub') {
-                         content = '<i class="fa-solid fa-star text-purple-500"></i>';
-                         cellBg = 'bg-purple-50';
-                     } else {
-                         content = '<i class="fa-solid fa-umbrella-beach text-orange-500"></i>';
-                         cellBg = 'bg-orange-50';
-                     }
-                 }
-
-                 return `<td class="${cellBg} ${borderClass} border-b border-gray-50 text-center p-0 relative group/cell cursor-pointer hover:bg-blue-200 transition-colors">${content}</td>`;
-             }).join('');
-
-             const totalUrlaub = emp.vacations
-                .filter(v => v.type === 'Urlaub (genehmigt)')
-                .reduce((sum, v) => sum + (v.days || 0), 0);
-
-             const budget = emp.vacationBudget || 30;
-
-             let antraegeClass = "text-modern-green";
-
-             if (totalUrlaub > budget || (totalUrlaub > 0 && totalUrlaub < 5)) {
-              antraegeClass = "text-red-600";
-             }
-             
-             const displayCount = (totalUrlaub > 0 ? totalUrlaub : 0) + " / " + budget;
-
-             return `<tr onclick="openPersonModal(${emp.id})" class="hover:bg-blue-50/30 transition-colors h-10 group/row cursor-pointer">
-                 <td class="sticky left-0 z-10 bg-white border-r border-gray-200 px-4 font-medium text-slate-700 truncate max-w-[200px] border-b border-gray-50 group-hover/row:bg-blue-50">${emp.nachname}, ${emp.vorname}</td>
-                 <td class="sticky left-[200px] z-10 bg-white border-r border-gray-200 px-4 text-gray-500 truncate max-w-[150px] border-b border-gray-50 text-xs group-hover/row:bg-blue-50">${emp.tma}</td>
-                 <td class="sticky left-[350px] z-10 bg-white border-r border-gray-200 px-4 text-gray-500 truncate max-w-[120px] border-b border-gray-50 text-xs group-hover/row:bg-blue-50">${emp.team}</td>
-                 <td class="sticky left-[470px] z-10 bg-white border-r border-gray-200 px-2 text-center border-b border-gray-50 text-xs font-bold ${antraegeClass} group-hover/row:bg-blue-50">${displayCount}</td>
-                 ${cellsHTML}
-             </tr>`;
-      }).join('');
-
-      body.innerHTML = rowsHTML;
-      
-      const loader = document.getElementById('calendar-loader');
-
-      if (loader) {
-        loader.classList.add('hidden');
-      }
-  }
-
-  function getDaysInMonth(year, monthIndex) {
-      const date = new Date(year, monthIndex, 1);
-      const days = [];
-
-      while (date.getMonth() === monthIndex) {
-          days.push(new Date(date));
-          date.setDate(date.getDate() + 1);
-      }
-
-      return days;
-  }
-  
-  function formatDateIsoSimple(d) {
-     const y = d.getFullYear();
-     const m = String(d.getMonth() + 1).padStart(2, '0');
-     const day = String(d.getDate()).padStart(2, '0');
-
-     return `${y}-${m}-${day}`;
-  }
-</script>
+<div id="page-control" class="hidden h-full flex flex-col max-w-[1800px] mx-auto space-y-4">
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50 flex justify-between items-center">
+      <div>
+        <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-lidl-blue"></i> Steuerung
+        </h3>
+        <p class="text-[11px] text-gray-400 mt-0.5">Aktionen für Tagesimport, Monatsübermittlung und Plano-Analyse</p>
+      </div>
+
+      <div class="hidden xl:flex items-center gap-2 text-[10px] font-bold uppercase">
+        <span class="px-2 py-1 rounded-full bg-blue-50 text-lidl-blue border border-blue-100">
+          <i class="fa-solid fa-file-import mr-1"></i> Backup
+        </span>
+        <span class="px-2 py-1 rounded-full bg-emerald-50 text-modern-green border border-emerald-100">
+          <i class="fa-solid fa-database mr-1"></i> Erfassung
+        </span>
+        <span class="px-2 py-1 rounded-full bg-gray-50 text-gray-500 border border-gray-200">
+          <i class="fa-solid fa-chart-line mr-1"></i> Overview
+        </span>
+      </div>
+    </div>
+
+    <div class="p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+      <button onclick="openImportTypeModal()" id="btn-import-modal-open" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
+          <i class="fa-solid fa-file-import"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-slate-700 truncate">Plano Backup importieren</div>
+          <div class="text-[11px] text-gray-400 truncate">Tagesdaten oder Stundenerfassung übernehmen</div>
+        </div>
+        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
+      </button>
+
+      <button onclick="openUebermittelnModal()" class="group relative overflow-hidden bg-white border border-emerald-100 rounded-xl p-3 hover:border-modern-green hover:shadow-md transition text-left flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-modern-green flex items-center justify-center shrink-0 group-hover:bg-modern-green group-hover:text-white transition">
+          <i class="fa-solid fa-paper-plane"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-slate-700 truncate">Stundenerfassung übermitteln</div>
+          <div class="text-[11px] text-gray-400 truncate">Tag löschen, übertragen oder Monat synchronisieren</div>
+        </div>
+        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-modern-green transition"></i>
+      </button>
+
+      <a href="https://docs.google.com/spreadsheets/d/1aq-TtGaW4yzRqKng_ZLT1sNmmNVi9BqAbrdYgj5FQrg/edit?gid=986034657#gid=986034657"
+         target="_blank"
+         rel="noopener noreferrer"
+         class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gray-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
+          <i class="fa-solid fa-up-right-from-square"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-slate-700 truncate">Plano Overview öffnen</div>
+          <div class="text-[11px] text-gray-400 truncate">Monatsübersicht und Analyse in Google Sheets</div>
+        </div>
+        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-slate-600 transition"></i>
+      </a>
+    </div>
+  </div>
+
+  <div class="flex justify-between items-center shrink-0 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+    <div class="flex gap-2 items-center">
+      <span class="text-xs font-bold text-gray-400 uppercase mr-2">
+        <i class="fa-solid fa-arrow-down-up-across-line"></i> Sortierung:
+      </span>
+
+      <button onclick="setControlSort('plus')" id="btn-ctrl-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
+        <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
+      </button>
+      <button onclick="setControlSort('minus')" id="btn-ctrl-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+        <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
+      </button>
+      <button onclick="setControlSort('time')" id="btn-ctrl-time" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+        <i class="fa-regular fa-clock"></i> Zeit (Tätigkeit)
+      </button>
+    </div>
+
+    <div class="hidden xl:flex items-center gap-2 text-xs text-gray-400">
+      <i class="fa-solid fa-circle-info text-lidl-blue"></i>
+      <span>Sortierung wirkt auf die Schichtkarten darunter</span>
+    </div>
+  </div>
+
+  <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex items-start gap-4">
+    <span class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap mt-1.5">
+      <i class="fa-solid fa-list-check"></i> Tätigkeiten:
+    </span>
+    <div id="activity-filter-container" class="flex flex-wrap gap-2 items-center"></div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+        <div class="flex justify-between items-center mb-1">
+          <h3 class="font-bold text-sm text-slate-700 uppercase">Frühschicht</h3>
+          <span class="text-xs font-bold bg-blue-100 text-lidl-blue px-2 py-0.5 rounded" id="count-frueh">0</span>
+        </div>
+        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+          <span>Verfügbar:</span>
+          <span class="text-modern-green" id="sum-frueh">00:00 Std</span>
+        </div>
+      </div>
+      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-frueh"></div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+        <div class="flex justify-between items-center mb-1">
+          <h3 class="font-bold text-sm text-slate-700 uppercase">Mittelschicht</h3>
+          <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" id="count-mittel">0</span>
+        </div>
+        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+          <span>Verfügbar:</span>
+          <span class="text-modern-green" id="sum-mittel">00:00 Std</span>
+        </div>
+      </div>
+      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-mittel"></div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+        <div class="flex justify-between items-center mb-1">
+          <h3 class="font-bold text-sm text-slate-700 uppercase">Spätschicht</h3>
+          <span class="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded" id="count-spaet">0</span>
+        </div>
+        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+          <span>Verfügbar:</span>
+          <span class="text-modern-green" id="sum-spaet">00:00 Std</span>
+        </div>
+      </div>
+      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-spaet"></div>
+    </div>
+  </div>
