@@ -1,136 +1,24 @@
-<div id="page-control" class="hidden h-full flex flex-col max-w-[1800px] mx-auto space-y-4">
+Super, sieht schon mal sehr sehr gut aus.
+Lasse das genau so.
+Entferne mir die Menüpunkte " Backup
+ Erfassung
+ Overview" Das soll nicht mehr da stehen.
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
-    <div class="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50 flex justify-between items-center">
-      <div>
-        <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
-          <i class="fa-solid fa-sliders text-lidl-blue"></i> Steuerung
-        </h3>
-        <p class="text-[11px] text-gray-400 mt-0.5">Aktionen für Tagesimport, Monatsübermittlung und Plano-Analyse</p>
-      </div>
+Das Panel für die Steuerung soll auch genau so bleiben, das sieht super gut aus auch vom Design.
+Kannst du noch machen, dass es einklappbar ist?
 
-      <div class="hidden xl:flex items-center gap-2 text-[10px] font-bold uppercase">
-        <span class="px-2 py-1 rounded-full bg-blue-50 text-lidl-blue border border-blue-100">
-          <i class="fa-solid fa-file-import mr-1"></i> Backup
-        </span>
-        <span class="px-2 py-1 rounded-full bg-emerald-50 text-modern-green border border-emerald-100">
-          <i class="fa-solid fa-database mr-1"></i> Erfassung
-        </span>
-        <span class="px-2 py-1 rounded-full bg-gray-50 text-gray-500 border border-gray-200">
-          <i class="fa-solid fa-chart-line mr-1"></i> Overview
-        </span>
-      </div>
-    </div>
+Das Panel Steuerung soll umbenannt werden in "Administration" (am besten hier auch so ein ICON)
 
-    <div class="p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-      <button onclick="openImportTypeModal()" id="btn-import-modal-open" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
-          <i class="fa-solid fa-file-import"></i>
-        </div>
-        <div class="min-w-0">
-          <div class="font-bold text-sm text-slate-700 truncate">Plano Backup importieren</div>
-          <div class="text-[11px] text-gray-400 truncate">Tagesdaten oder Stundenerfassung übernehmen</div>
-        </div>
-        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
-      </button>
+Dann soll es noch ein Panel zur STEUERUNG geben, etwas was dann mit Steuerung zutun hat, auch zuklappbar machen.
 
-      <button onclick="openUebermittelnModal()" class="group relative overflow-hidden bg-white border border-emerald-100 rounded-xl p-3 hover:border-modern-green hover:shadow-md transition text-left flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-modern-green flex items-center justify-center shrink-0 group-hover:bg-modern-green group-hover:text-white transition">
-          <i class="fa-solid fa-paper-plane"></i>
-        </div>
-        <div class="min-w-0">
-          <div class="font-bold text-sm text-slate-700 truncate">Stundenerfassung übermitteln</div>
-          <div class="text-[11px] text-gray-400 truncate">Tag löschen, übertragen oder Monat synchronisieren</div>
-        </div>
-        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-modern-green transition"></i>
-      </button>
+Hier soll ein Menüpunkt Tagesplanung hinzukommen, erstmal quasi ohne Funktion
 
-      <a href="https://docs.google.com/spreadsheets/d/1aq-TtGaW4yzRqKng_ZLT1sNmmNVi9BqAbrdYgj5FQrg/edit?gid=986034657#gid=986034657"
-         target="_blank"
-         rel="noopener noreferrer"
-         class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gray-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
-          <i class="fa-solid fa-up-right-from-square"></i>
-        </div>
-        <div class="min-w-0">
-          <div class="font-bold text-sm text-slate-700 truncate">Plano Overview öffnen</div>
-          <div class="text-[11px] text-gray-400 truncate">Monatsübersicht und Analyse in Google Sheets</div>
-        </div>
-        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-slate-600 transition"></i>
-      </a>
-    </div>
-  </div>
+Ein weiterer Punkt soll hier dann die Kapazitätenübersicht sein, wenn darauf geklickt wird, soll ein neues Dialog Overlay im gleichen Style geöffnet werden
 
-  <div class="flex justify-between items-center shrink-0 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-    <div class="flex gap-2 items-center">
-      <span class="text-xs font-bold text-gray-400 uppercase mr-2">
-        <i class="fa-solid fa-arrow-down-up-across-line"></i> Sortierung:
-      </span>
+Er soll dann aus dem Plano Backup, so wie wir es in Tagessteuerung aktuell auslesen, die aktuellen Stunden je Bereich anzeigen also als Stundenoverlay bzw. Kapazitätenübersicht
 
-      <button onclick="setControlSort('plus')" id="btn-ctrl-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
-        <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
-      </button>
-      <button onclick="setControlSort('minus')" id="btn-ctrl-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
-        <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
-      </button>
-      <button onclick="setControlSort('time')" id="btn-ctrl-time" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
-        <i class="fa-regular fa-clock"></i> Zeit (Tätigkeit)
-      </button>
-    </div>
+Da soll dann für den gesamten Tag angezeigt werden, dann wie viel Reststunden ab Zeitpunkt jetzt
 
-    <div class="hidden xl:flex items-center gap-2 text-xs text-gray-400">
-      <i class="fa-solid fa-circle-info text-lidl-blue"></i>
-      <span>Sortierung wirkt auf die Schichtkarten darunter</span>
-    </div>
-  </div>
-
-  <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex items-start gap-4">
-    <span class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap mt-1.5">
-      <i class="fa-solid fa-list-check"></i> Tätigkeiten:
-    </span>
-    <div id="activity-filter-container" class="flex flex-wrap gap-2 items-center"></div>
-  </div>
-
-  <div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-        <div class="flex justify-between items-center mb-1">
-          <h3 class="font-bold text-sm text-slate-700 uppercase">Frühschicht</h3>
-          <span class="text-xs font-bold bg-blue-100 text-lidl-blue px-2 py-0.5 rounded" id="count-frueh">0</span>
-        </div>
-        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-          <span>Verfügbar:</span>
-          <span class="text-modern-green" id="sum-frueh">00:00 Std</span>
-        </div>
-      </div>
-      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-frueh"></div>
-    </div>
-
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-        <div class="flex justify-between items-center mb-1">
-          <h3 class="font-bold text-sm text-slate-700 uppercase">Mittelschicht</h3>
-          <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" id="count-mittel">0</span>
-        </div>
-        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-          <span>Verfügbar:</span>
-          <span class="text-modern-green" id="sum-mittel">00:00 Std</span>
-        </div>
-      </div>
-      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-mittel"></div>
-    </div>
-
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-        <div class="flex justify-between items-center mb-1">
-          <h3 class="font-bold text-sm text-slate-700 uppercase">Spätschicht</h3>
-          <span class="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded" id="count-spaet">0</span>
-        </div>
-        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-          <span>Verfügbar:</span>
-          <span class="text-modern-green" id="sum-spaet">00:00 Std</span>
-        </div>
-      </div>
-      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-spaet"></div>
-    </div>
-  </div>
+Wichtiger Punkt, die Skills 1st Level Filiale, Telefon Filiale/Lidl zusammen rechnen und als 1st Level Filiale ausgebe so wie 2nd Level Filiale und Telefon kleine Lines zusammen als 2nd Level Filiale ausgeben.
+Dann für One 1st Level Onlineshop, 1st Level Lidl Plus, Telefon Onlineshop, Telefon Lidl Plus als One 1st Level und One 2nd Level ist dann 2nd Level Onlineshop und 2nd Level Lidl Plus
+Übelege dir ein smartes overlay für die Tagessteuerung zur Auswertung der Kapazitätenübersicht in Verbindung mit dem Plano Backup hier in der Überstundenliste so wie wir den Tag importieren.
