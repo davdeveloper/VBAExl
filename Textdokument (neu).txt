@@ -1,653 +1,1183 @@
-Super, das sieht gut aus.
-Systemstörung so wie Meeting und Coaching LKS DE, Schulung LKS, PayPal, Briefdruck und andere Tätigkeiten, Trainer brauchen da nicht aufgelistet sein in der Übersicht Kapazitäten
-
-Gehen wir an die Tagesplanung ran.
-Wenn die sich öffnet, soll nun genau so ein modernes Overlay im schlichten lidl Design geöffnet werden. Ziel ist es, eine Tagesplanung mit den heutigen Stunden die du aus dem Plano Backup heute (quasi ähnlich zu den Kapazitätenübersicht) hast aufzulisten und anzuzeigen.
-
-Es soll quasi interaktiv sein und komplett zu öffnen sein - wenn das Fenster mal geschlossen wird, soll er es auch speichern, also wirklich alles zwischenspeichern in einem Tagessteuerung_Planung und da auch immer raus lesen beim öffnen.
-
-Im Arbeitsblatt Produktivität steht jeweils die Produktivität je Skill - Wenn nicht gefunden, rechne erstmal pauschal mit 5. (Salte A Team und B ist die Produktivität also cases per hour)
-
-Alles was eingegeben wird vom User soll gespeichert werden quasi in einem Muster Datenbank_Tagessteuerung
-
-Es soll vom Aufbau und Ablauf auch so sein, dass der aktuelle Backlog kopiert werden soll.
-
-Du hast hier einen code, da gibt es die Option, 1st und 2nd Level Backlog zu importieren, das sollst du quasi mitnehmen und auch speichern in der Datenbank nach Tag und Datum und KW alles.
-
-Das soll dann angezeigt werden, horizontal welche Teams, wie viele Plano Produktivstunden haben, was der Backlog für den Bereich ist und wie die Produktivität ist - Dann auch stylisch und übersichtlich was sie schaffen würden mit der Produktivität 
 /**
- * TAGESPLANUNG-COCKPIT & STEUERUNGSREPORT
- * Umzug VBA zu Apps Script
- * * WICHTIG:
- * Damit der Excel-Import funktioniert, muss der "Drive API" Dienst aktiviert sein!
- * 1. Links im Editor auf das "+" bei "Dienste" klicken.
- * 2. "Drive API" auswählen und hinzufügen.
- * 3. Version: v3 (wie angegeben)
- */
-
-// Ordner-IDs
-const FOLDER_ID_TELEKOM = '1zIdH0nxvYTiZM5gkrMFQk2kgB5c6wXlq';
-const FOLDER_ID_STEUERUNG = '1cWmHGm1RGWe9OQ7ObIffD85wFqiKCjFY';
-
-/**
- * Erstellt das Menü beim Öffnen des Google Sheets.
+ * Erstellt das Menü.
  */
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('Cockpit')
-    .addItem('Cockpit öffnen', 'showSidebar')
-    .addItem('1st Backlog import', 'showImportDialogLevel1')
-    .addItem('2nd Backlog import', 'showImportDialogLevel2')
+    .createMenu('⚡ Dashboard')
+    .addItem('Dashboard öffnen', 'showDashboard')
     .addToUi();
 }
 
 /**
- * Öffnet die Sidebar.
+ * Öffnet das Dashboard.
  */
-function showSidebar() {
-  const html = HtmlService.createHtmlOutputFromFile('Sidebar')
-    .setTitle('Cockpit')
-    .setWidth(300);
-  SpreadsheetApp.getUi().showSidebar(html);
+function showDashboard() {
+  var html = HtmlService.createTemplateFromFile('Dashboard')
+    .evaluate()
+    .setWidth(1850)
+    .setHeight(950)
+    .setTitle('Überstundenliste Dashboard');
+
+  SpreadsheetApp.getUi().showModalDialog(html, 'Überstundenliste Dashboard');
 }
 
-// --- FUNKTIONEN (Import & Planung) ---
+/**
+ * Holt den Inhalt der Dienstplanung.html für das Frontend.
+ */
+function getDienstplanungFragment() {
+  return HtmlService.createTemplateFromFile('Dienstplanung').evaluate().getContent();
+}
 
 /**
- * Importiert Telefoniedaten (Analog zu VBA Sub DatenImportieren2)
+ * ZENTRALE BERECHTIGUNG
+ * Prüft differenziert nach Zugriff, Admin-Status und Dienstplaner-Status.
  */
-function importTelephonyData(dateString) {
+function getUserPermissions(email) {
+  if (!email) return { hasAccess: false, isAdmin: false, isDienstplaner: false };
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // 1. Datum berechnen (Eingabe - 1 Tag, wie im VBA Dat = Dat - 1)
-  const inputDate = new Date(dateString);
-  const targetDate = new Date(inputDate);
-  targetDate.setDate(inputDate.getDate() - 1); 
+  const searchEmail = String(email).toLowerCase().trim();
 
-  // Formatierungen für Suche und Anzeige
-  const day = targetDate.getDate();
-  const month = targetDate.getMonth() + 1;
-  const year = targetDate.getFullYear();
-  
-  const dayStr = day < 10 ? '0' + day : '' + day;
-  const monthStr = month < 10 ? '0' + month : '' + month;
-  
-  // Dateiname Telekom: dd.mm.yyyy (z.B. 26.11.2025)
-  const dateDotFormat = `${dayStr}.${monthStr}.${year}`; 
-  
-  // Dateiname Report ist JAHRMONAT_Steuerungsreport_Salesforce (z.B. 202511_...)
-  const dateReportPattern = `${year}${monthStr}_Steuerungsreport_Salesforce`;
+  let hasAccess = false;
+  let isAdmin = false;
+  let isDienstplaner = false;
 
-  // 2. Duplikatsprüfung im Blatt "DTAG" & in "Datenbank" vorbereiten
-  let wsDTAG = ss.getSheetByName("DTAG");
-  if (!wsDTAG) {
-    throw new Error("Blatt 'DTAG' wurde nicht gefunden.");
+  const sheetTS = ss.getSheetByName('Tagessteuerung');
+
+  if (sheetTS && sheetTS.getLastRow() > 1) {
+    const data = sheetTS.getRange(2, 1, sheetTS.getLastRow() - 1, 2).getValues();
+
+    for (let i = 0; i < data.length; i++) {
+      const rowEmail = String(data[i][0]).toLowerCase().trim();
+
+      if (rowEmail === searchEmail) {
+        hasAccess = true;
+
+        const rowRole = String(data[i][1] || "").toLowerCase().trim();
+
+        if (rowRole.includes('tagessteuerung') || rowRole.includes('dienstplanung')) {
+          isAdmin = true;
+        }
+
+        if (rowRole.includes('dienstplanung')) {
+          isDienstplaner = true;
+        }
+      }
+    }
   }
 
-  let isTelekomImported = false;
-  const lastRowDTAG = wsDTAG.getLastRow();
-  if (lastRowDTAG >= 3) {
-    // Hole alle vorhandenen Daten in Spalte C (Index 3), starte ab Zeile 3
-    const existingDates = wsDTAG.getRange(3, 3, lastRowDTAG - 2, 1).getValues().flat();
-    for (let d of existingDates) {
-      if (d instanceof Date && isSameDay(d, targetDate)) {
-        isTelekomImported = true; // Telekom Daten existieren bereits
+  if (!isAdmin) {
+    const sheetDB = ss.getSheetByName('Data_DB');
+
+    if (sheetDB && sheetDB.getLastRow() > 1) {
+      const lastRow = sheetDB.getLastRow();
+      const dataDB = sheetDB.getRange(2, 1, lastRow - 1, 14).getValues();
+
+      const isDienstplanerInDB = dataDB.some(row => {
+        const dbEmail = String(row[13] || "").trim().toLowerCase();
+        const skill = String(row[4] || "").trim().toLowerCase();
+
+        return dbEmail === searchEmail && skill === 'dienstplanung';
+      });
+
+      if (isDienstplanerInDB) {
+        hasAccess = true;
+        isAdmin = true;
+        isDienstplaner = true;
+      }
+    }
+  }
+
+  return { hasAccess, isAdmin, isDienstplaner };
+}
+
+/**
+ * Hauptfunktion: Daten laden.
+ */
+function getData() {
+  try {
+    const userEmail = Session.getActiveUser().getEmail().toLowerCase();
+    const permissions = getUserPermissions(userEmail);
+
+    if (!permissions.hasAccess) {
+      throw new Error("⛔ Zugriff verweigert: Ihre E-Mail (" + userEmail + ") ist nicht berechtigt.");
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    let sheetDB = ss.getSheetByName('Data_DB');
+    let sheetAuftrag = ss.getSheetByName('Auftrag');
+    let sheetTS = ss.getSheetByName('Tagessteuerung');
+    let sheetSchicht = ss.getSheetByName('Schichtmodelle');
+    let sheetAbbau = ss.getSheetByName('AbbauKW');
+
+    if (!sheetDB) throw new Error('Blatt "Data_DB" fehlt.');
+
+    if (!sheetAuftrag) {
+      sheetAuftrag = ss.insertSheet('Auftrag');
+      sheetAuftrag.appendRow(['Name', 'Vorname', 'Datum', 'Stunden', 'Notizen', 'Erstellt von']);
+    }
+
+    if (!sheetSchicht) {
+      sheetSchicht = ss.insertSheet('Schichtmodelle');
+      sheetSchicht.appendRow(['Nachname', 'Vorname', 'Schichtzeit', 'Typ', 'Pause', 'Taetigkeiten']);
+    }
+
+    processAuftragExpiry(sheetDB, sheetAuftrag);
+
+    const lastRow = sheetDB.getLastRow();
+
+    if (lastRow < 2) {
+      return {
+        employees: [],
+        stats: {},
+        currentWeek: getWeekNumber(new Date()),
+        currentYear: new Date().getFullYear(),
+        isAdmin: permissions.isAdmin,
+        isDienstplaner: permissions.isDienstplaner,
+        abbauHistory: []
+      };
+    }
+
+    const data = sheetDB.getRange(2, 1, lastRow - 1, 14).getValues();
+    const rawAuftraege = getAuftraege(sheetAuftrag);
+
+    const tsNames = new Set();
+
+    if (sheetTS && sheetTS.getLastRow() > 1) {
+      const tsData = sheetTS.getRange(2, 3, sheetTS.getLastRow() - 1, 1).getValues();
+
+      tsData.forEach(r => {
+        const full = String(r[0]).trim();
+
+        if (full) {
+          tsNames.add(full.split(' ')[0].toLowerCase());
+        }
+      });
+    }
+
+    const shiftMap = new Map();
+
+    if (sheetSchicht.getLastRow() > 1) {
+      const lastColS = sheetSchicht.getLastColumn();
+      const colsToLoad = Math.min(lastColS, 6);
+
+      if (colsToLoad >= 1) {
+        const sData = sheetSchicht
+          .getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad)
+          .getValues();
+
+        sData.forEach(r => {
+          const key = (String(r[1] || "").trim() + " " + String(r[0] || "").trim()).toLowerCase();
+
+          let activitiesArr = [];
+          let detailsArr = [];
+
+          const rawActivities = colsToLoad >= 6 ? String(r[5] || "").trim() : "";
+
+          if (rawActivities) {
+            try {
+              const parsed = JSON.parse(rawActivities);
+
+              if (Array.isArray(parsed)) {
+                detailsArr = parsed
+                  .map(item => ({
+                    time: String(item.time || "").trim(),
+                    activity: String(item.activity || "").trim()
+                  }))
+                  .filter(item => item.time || item.activity);
+
+                detailsArr.forEach(item => {
+                  const activity = item.activity.trim();
+
+                  if (
+                    activity &&
+                    activity !== '-' &&
+                    !activity.toLowerCase().includes('pause') &&
+                    !activitiesArr.includes(activity)
+                  ) {
+                    activitiesArr.push(activity);
+                  }
+                });
+              }
+            } catch (jsonErr) {
+              const parts = rawActivities.split(/(?=\d{2}:\d{2}\s*-\s*\d{2}:\d{2})/);
+
+              parts.forEach(p => {
+                const match = p.match(/(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\s+(.+)/);
+
+                if (match) {
+                  const time = match[1].replace(/\s/g, '').trim();
+                  const activity = match[2].replace(/\n/g, '').trim();
+
+                  if (activity) {
+                    detailsArr.push({
+                      time: time,
+                      activity: activity
+                    });
+
+                    if (
+                      !activity.toLowerCase().includes('pause') &&
+                      !activitiesArr.includes(activity)
+                    ) {
+                      activitiesArr.push(activity);
+                    }
+                  }
+                }
+              });
+
+              if (activitiesArr.length === 0) {
+                activitiesArr = rawActivities
+                  .split(',')
+                  .map(a => a.trim())
+                  .filter(a => a);
+              }
+            }
+          }
+
+          shiftMap.set(key, {
+            time: colsToLoad >= 3 ? String(r[2] || "") : "",
+            type: colsToLoad >= 4 ? String(r[3] || "") : "",
+            pause: colsToLoad >= 5 ? String(r[4] || "") : "",
+            activities: activitiesArr,
+            details: detailsArr
+          });
+        });
+      }
+    }
+
+    let abbauRaw = [];
+
+    if (sheetAbbau && sheetAbbau.getLastRow() > 1) {
+      const rows = sheetAbbau.getDataRange().getValues();
+      const headers = rows[0];
+
+      for (let r = 1; r < rows.length; r++) {
+        const rowData = rows[r];
+        const rYear = rowData[0];
+        const rKw = rowData[1];
+
+        for (let c = 3; c < rowData.length; c++) {
+          const val = Number(rowData[c]);
+          const teamName = String(headers[c]);
+
+          if (val !== 0 && teamName) {
+            abbauRaw.push({
+              y: rYear,
+              kw: rKw,
+              val: val,
+              team: teamName,
+              tma: ""
+            });
+          }
+        }
+      }
+    }
+
+    const formattedData = data.map((row, index) => {
+      if (!row[0]) return null;
+
+      const austrittRaw = row[12];
+      let isAustritt = false;
+
+      if (austrittRaw) {
+        let aDate = null;
+
+        if (austrittRaw instanceof Date) {
+          aDate = austrittRaw;
+        } else if (typeof austrittRaw === 'string' && austrittRaw.trim() !== "") {
+          const parts = extractDates(austrittRaw);
+
+          if (parts.length > 0) {
+            aDate = parts[0];
+          }
+        }
+
+        if (aDate) {
+          aDate.setHours(0, 0, 0, 0);
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          if (aDate <= today) {
+            isAustritt = true;
+          }
+        }
+      }
+
+      if (isAustritt) return null;
+
+      const nachname = String(row[0] || "").trim();
+      const vorname = String(row[1] || "").trim();
+      const dbKey = (vorname + " " + nachname).toLowerCase();
+
+      const myAuftraege = rawAuftraege
+        .filter(a =>
+          a.name.toLowerCase() === nachname.toLowerCase() &&
+          a.vorname.toLowerCase() === vorname.toLowerCase()
+        )
+        .map(a => {
+          let isTs = false;
+
+          if (a.erstelltVon) {
+            const creatorFirst = a.erstelltVon.split(' ')[0].toLowerCase();
+
+            if (tsNames.has(creatorFirst)) {
+              isTs = true;
+            }
+          }
+
+          return { ...a, isTsRelevant: isTs };
+        });
+
+      const rawEss = row[5];
+      const essDecimal = timeToDecimal(rawEss);
+      const plannedDecimal = myAuftraege.reduce((sum, order) => sum + (order.stunden || 0), 0);
+
+      let saldoDecimal = essDecimal - plannedDecimal;
+      saldoDecimal = Math.round(saldoDecimal * 100) / 100;
+
+      const shiftInfo = shiftMap.get(dbKey) || {
+        time: "",
+        type: "",
+        pause: "",
+        activities: [],
+        details: []
+      };
+
+      const austrittDisplay = row[12] instanceof Date ? formatDateCompat(row[12]) : "";
+
+      return {
+        id: index + 2,
+        nachname: nachname,
+        vorname: vorname,
+        fullName: `${vorname} ${nachname}`,
+        tmaVorname: String(row[3] || "Ohne TMA"),
+        skill: String(row[4] || "-"),
+        stundenEss: rawEss,
+        stundenSaldo: saldoDecimal,
+        letzteAktualisierung: row[6] ? formatDateCompat(row[6]) : "-",
+        notizen: String(row[11] || ""),
+        austrittDatum: austrittDisplay,
+        auftraege: myAuftraege,
+        schicht: shiftInfo
+      };
+    }).filter(item => item !== null);
+
+    return {
+      employees: formattedData,
+      currentWeek: getWeekNumber(new Date()),
+      currentYear: new Date().getFullYear(),
+      isAdmin: permissions.isAdmin,
+      isDienstplaner: permissions.isDienstplaner,
+      abbauHistory: abbauRaw
+    };
+
+  } catch (e) {
+    Logger.log("Fehler in getData: " + e.toString());
+    throw e;
+  }
+}
+
+/**
+ * Cleanup Logic.
+ */
+function processAuftragExpiry(sheetDB, sheetAuftrag) {
+  const lastRowA = sheetAuftrag.getLastRow();
+
+  if (lastRowA < 2) return;
+
+  const dbDataRange = sheetDB.getDataRange();
+  const dbData = dbDataRange.getValues();
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dbMap = new Map();
+
+  for (let i = 1; i < dbData.length; i++) {
+    const key = (String(dbData[i][1]).trim() + " " + String(dbData[i][0]).trim()).toLowerCase();
+    dbMap.set(key, i);
+  }
+
+  const auftragData = sheetAuftrag.getRange(2, 1, lastRowA - 1, 6).getValues();
+
+  let dbDirty = false;
+  let auftragDirty = false;
+
+  const validAuftraege = [];
+
+  auftragData.forEach(row => {
+    const n = String(row[0]);
+    const v = String(row[1]);
+    const rawDate = row[2];
+    const hoursVal = row[3];
+    const notiz = row[4];
+    const creator = row[5];
+
+    let dates = [];
+
+    if (rawDate instanceof Date) {
+      dates.push(rawDate);
+    } else {
+      dates = extractDates(String(rawDate));
+    }
+
+    let isExpired = false;
+
+    if (dates.length > 0) {
+      const lastDate = dates[dates.length - 1];
+      lastDate.setHours(0, 0, 0, 0);
+
+      if (lastDate < today) {
+        isExpired = true;
+      }
+    }
+
+    let processed = false;
+
+    if (isExpired) {
+      const dbKey = (v.trim() + " " + n.trim()).toLowerCase();
+
+      if (dbMap.has(dbKey)) {
+        const dbIdx = dbMap.get(dbKey);
+
+        const currentEssStr = dbData[dbIdx][5];
+        const currentEssDec = timeToDecimal(currentEssStr);
+        const orderHoursDec = timeToDecimal(hoursVal);
+        const newEssDec = currentEssDec - orderHoursDec;
+
+        dbData[dbIdx][5] = decimalToTime(newEssDec);
+        dbData[dbIdx][6] = today;
+
+        dbDirty = true;
+        processed = true;
+        auftragDirty = true;
+      }
+    }
+
+    if (!processed) {
+      validAuftraege.push([n, v, rawDate, hoursVal, notiz, creator]);
+    }
+  });
+
+  if (dbDirty) {
+    const dataToWrite = dbData.slice(1);
+    const rangeFG = sheetDB.getRange(2, 6, dataToWrite.length, 2);
+
+    rangeFG.setNumberFormat("@");
+
+    const valuesFG = rangeFG.getValues();
+
+    let rangeDirty = false;
+
+    for (let i = 0; i < dataToWrite.length; i++) {
+      const newF = dataToWrite[i][5];
+      const newG = dataToWrite[i][6];
+
+      if (valuesFG[i][0] !== newF) {
+        valuesFG[i][0] = newF;
+        valuesFG[i][1] = newG;
+        rangeDirty = true;
+      }
+    }
+
+    if (rangeDirty) {
+      rangeFG.setValues(valuesFG);
+    }
+  }
+
+  if (auftragDirty) {
+    sheetAuftrag.getRange(2, 1, lastRowA - 1, 6).clearContent();
+
+    if (validAuftraege.length > 0) {
+      sheetAuftrag.getRange(2, 1, validAuftraege.length, 6).setValues(validAuftraege);
+    }
+
+    SpreadsheetApp.flush();
+  }
+}
+
+function getAuftraege(sheet) {
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) return [];
+
+  const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+
+  return data.map((row, idx) => ({
+    rowId: idx + 2,
+    name: String(row[0]),
+    vorname: String(row[1]),
+    datum: formatDateCompat(row[2]),
+    stunden: timeToDecimal(row[3]),
+    stundenDisplay: row[3],
+    notizen: String(row[4]),
+    erstelltVon: String(row[5] || "")
+  }));
+}
+
+function addAuftrag(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheetAuftrag = ss.getSheetByName('Auftrag');
+
+  if (!sheetAuftrag) {
+    sheetAuftrag = ss.insertSheet('Auftrag');
+  }
+
+  const userEmail = Session.getActiveUser().getEmail();
+  const editorName = getEditorNameFromEmail(userEmail);
+  const lastRow = sheetAuftrag.getLastRow() + 1;
+
+  sheetAuftrag.getRange(lastRow, 4).setNumberFormat("@");
+
+  sheetAuftrag.getRange(lastRow, 1, 1, 6).setValues([[
+    data.nachname.trim(),
+    data.vorname.trim(),
+    data.datum,
+    data.stunden,
+    data.notizen,
+    editorName
+  ]]);
+
+  const team = getEmployeeTeam(data.nachname, data.vorname);
+
+  updateAbbauStats(data.datum, timeToDecimal(data.stunden), 'add', team);
+
+  SpreadsheetApp.flush();
+
+  return getData();
+}
+
+function deleteAuftrag(rowId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Auftrag');
+
+  if (sheet) {
+    const r = Number(rowId);
+    const val = sheet.getRange(r, 1, 1, 6).getValues()[0];
+    const team = getEmployeeTeam(val[0], val[1]);
+
+    updateAbbauStats(val[2], timeToDecimal(val[3]), 'remove', team);
+
+    sheet.deleteRow(r);
+  }
+
+  return getData();
+}
+
+function updateEmployeeBase(formData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Data_DB');
+  const row = parseInt(formData.id, 10);
+
+  const essCell = sheet.getRange(row, 6);
+
+  essCell.setNumberFormat("@");
+  essCell.setValue(formData.stundenEss);
+
+  sheet.getRange(row, 7).setValue(new Date()).setNumberFormat("dd.MM.yyyy");
+  sheet.getRange(row, 12).setValue(formData.notizen);
+
+  if (formData.austrittDatum) {
+    const parts = formData.austrittDatum.split('-');
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+
+    sheet.getRange(row, 13).setValue(d).setNumberFormat("dd.MM.yyyy");
+  } else {
+    sheet.getRange(row, 13).setValue("");
+  }
+
+  SpreadsheetApp.flush();
+
+  return getData();
+}
+
+function getEditorNameFromEmail(email) {
+  if (!email) return "";
+
+  try {
+    const localPart = email.split('@')[0];
+    const parts = localPart.split('.');
+
+    if (parts.length > 0) {
+      const firstNamePart = parts[0].replace(/_/g, ' ');
+
+      return firstNamePart.replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    return email;
+  } catch (e) {
+    return email;
+  }
+}
+
+function extractDates(str) {
+  const regex = /(\d{1,2})\.(\d{1,2})\.(\d{4})/g;
+  const matches = [];
+
+  let match;
+
+  while ((match = regex.exec(str)) !== null) {
+    matches.push(new Date(match[3], match[2] - 1, match[1]));
+  }
+
+  return matches.sort((a, b) => a - b);
+}
+
+function formatDateCompat(dateObj) {
+  if (!dateObj) return "-";
+
+  let d = null;
+
+  if (dateObj instanceof Date) {
+    d = dateObj;
+  } else if (typeof dateObj === 'string') {
+    if (dateObj.match(/[A-Za-z]{3}\s[A-Za-z]{3}\s\d{2}/) || dateObj.includes("GMT")) {
+      const tryD = new Date(dateObj);
+
+      if (!isNaN(tryD.getTime())) {
+        d = tryD;
+      } else {
+        return dateObj;
+      }
+    } else {
+      return dateObj;
+    }
+  }
+
+  if (d && !isNaN(d.getTime())) {
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  }
+
+  return String(dateObj);
+}
+
+function getWeekNumber(d) {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function doGet(e) {
+  const userEmail = Session.getActiveUser().getEmail();
+  const permissions = getUserPermissions(userEmail);
+
+  if (permissions.hasAccess) {
+    return HtmlService
+      .createTemplateFromFile('Dashboard')
+      .evaluate()
+      .setTitle('Überstundenliste Dashboard')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  return HtmlService
+    .createHtmlOutput('Zugriff verweigert')
+    .setTitle("Zugriff verweigert");
+}
+
+function checkAccess(email) {
+  return getUserPermissions(email).hasAccess;
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/* =========================================================================
+   HILFSFUNKTIONEN FÜR ZEIT-UMRECHNUNG
+   ========================================================================= */
+
+function timeToDecimal(timeStr) {
+  if (timeStr === null || timeStr === undefined || timeStr === "") return 0;
+
+  if (typeof timeStr === 'number') return timeStr;
+
+  if (timeStr instanceof Date) {
+    const h = timeStr.getHours();
+    const m = timeStr.getMinutes();
+
+    return h + (m / 60);
+  }
+
+  timeStr = String(timeStr).trim();
+
+  let isNegative = timeStr.startsWith("-");
+
+  if (isNegative) {
+    timeStr = timeStr.substring(1);
+  }
+
+  const parts = timeStr.split(':');
+
+  if (parts.length < 2) {
+    return parseFloat(timeStr) || 0;
+  }
+
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+
+  let decimal = hours + (minutes / 60);
+
+  return isNegative ? -decimal : decimal;
+}
+
+function decimalToTime(decimalVal) {
+  if (decimalVal === null || decimalVal === undefined || decimalVal === "") return "00:00";
+
+  decimalVal = Number(decimalVal) || 0;
+
+  const isNegative = decimalVal < 0;
+
+  decimalVal = Math.abs(decimalVal);
+
+  let hours = Math.floor(decimalVal);
+  let minutes = Math.round((decimalVal - hours) * 60);
+
+  if (minutes === 60) {
+    hours += 1;
+    minutes = 0;
+  }
+
+  const hStr = String(hours).padStart(2, '0');
+  const mStr = String(minutes).padStart(2, '0');
+
+  return (isNegative ? "-" : "") + hStr + ":" + mStr;
+}
+
+function updateAbbauStats(dateStr, hoursDecimal, operation, teamName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheet = ss.getSheetByName('AbbauKW');
+
+  if (!sheet) {
+    sheet = ss.insertSheet('AbbauKW');
+    sheet.appendRow(['Jahr', 'KW', 'Gesamt']);
+    sheet.setFrozenRows(1);
+    sheet.setFrozenColumns(2);
+  }
+
+  let dateObj = dateStr instanceof Date ? dateStr : extractDates(String(dateStr))[0];
+
+  if (!dateObj) return;
+
+  const year = dateObj.getFullYear();
+  const kw = getWeekNumber(dateObj);
+  const team = teamName || "Sonstiges";
+
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  let colIndex = -1;
+
+  for (let c = 0; c < headers.length; c++) {
+    if (String(headers[c]).toLowerCase() === String(team).toLowerCase()) {
+      colIndex = c + 1;
+      break;
+    }
+  }
+
+  if (colIndex === -1) {
+    colIndex = lastCol + 1;
+    sheet.getRange(1, colIndex).setValue(team).setFontWeight("bold");
+  }
+
+  const lastRow = sheet.getLastRow();
+
+  let rowIndex = -1;
+
+  if (lastRow > 1) {
+    const timeData = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+
+    for (let r = 0; r < timeData.length; r++) {
+      if (timeData[r][0] == year && timeData[r][1] == kw) {
+        rowIndex = r + 2;
         break;
       }
     }
   }
 
-  const wsDatenbank = ss.getSheetByName("Datenbank");
-  if (!wsDatenbank) {
-    throw new Error("Blatt 'Datenbank' wurde nicht gefunden.");
+  if (rowIndex === -1) {
+    sheet.appendRow([year, kw, 0]);
+    rowIndex = sheet.getLastRow();
   }
 
-  // Zeile des Datums in der Datenbank ermitteln
-  const dbRowIndex = findRowByDate(wsDatenbank, targetDate);
-  
-  // PRÜFUNG KORRIGIERT: Prüfe jetzt den komplett durchgehenden Block EA bis ET (Spalten 131 bis 150)
-  const checkValues = wsDatenbank.getRange(dbRowIndex, 131, 1, 20).getValues()[0];
-  const isDatabaseFilled = checkValues.some(val => val !== "" && val !== null);
+  const cell = sheet.getRange(rowIndex, colIndex);
+  const oldVal = Number(cell.getValue()) || 0;
 
-  // Spezialfall: Wenn bereits BEIDE Datentöpfe befüllt sind, direkt abbrechen
-  if (isTelekomImported && isDatabaseFilled) {
-    return `Hinweis: Daten für ${dateDotFormat} sind bereits vollständig importiert (DTAG & Datenbank befüllt).`;
-  }
+  let newVal = oldVal;
 
-  // 3. Dateien suchen (nur wenn der jeweilige Import noch aussteht)
-  
-  // A) Telekom Datei suchen (nur wenn noch nicht in DTAG vorhanden)
-  let telekomFile = null;
-  if (!isTelekomImported) {
-    const telekomFolder = DriveApp.getFolderById(FOLDER_ID_TELEKOM);
-    const telekomFiles = telekomFolder.searchFiles(`title contains '${dateDotFormat}' and trashed = false`);
-    if (telekomFiles.hasNext()) {
-      telekomFile = telekomFiles.next();
-    } else {
-      throw new Error(`Telekom-Datei für ${dateDotFormat} nicht gefunden.`);
-    }
-  }
-
-  // B) Steuerungsreport suchen (nur wenn Datenbank-Spalten noch leer sind)
-  let steuerungFile = null;
-  if (!isDatabaseFilled) {
-    const steuerungFolder = DriveApp.getFolderById(FOLDER_ID_STEUERUNG);
-    const steuerungFiles = steuerungFolder.searchFiles(`title contains '${dateReportPattern}' and trashed = false`);
-    if (steuerungFiles.hasNext()) {
-      steuerungFile = steuerungFiles.next();
-    } else {
-      throw new Error(`Steuerungsreport nicht gefunden: ${dateReportPattern}`);
-    }
-  }
-
-  // 4. Import durchführen (Telekom -> DTAG)
-  if (!isTelekomImported) {
-    // Excel temporär konvertieren
-    const tempId = convertExcelToGoogleSheet(telekomFile);
-    const tempSS = SpreadsheetApp.openById(tempId);
-    const wsStatistik = tempSS.getSheetByName("Statistik");
-
-    if (!wsStatistik) {
-      DriveApp.getFileById(tempId).setTrashed(true);
-      throw new Error("Blatt 'Statistik' in der Telekom-Datei nicht gefunden.");
-    }
-
-    const lastRowSource = wsStatistik.getLastRow();
-    const lastColSource = wsStatistik.getLastColumn();
-
-    if (lastRowSource < 18) {
-      DriveApp.getFileById(tempId).setTrashed(true);
-      throw new Error("Keine Daten im Blatt 'Statistik' ab Zeile 18 gefunden.");
-    }
-
-    const dataValues = wsStatistik.getRange(18, 1, lastRowSource - 17, lastColSource).getValues();
-    const startRowDest = wsDTAG.getLastRow() + 1;
-
-    // Werte einfügen ab Spalte D (Index 4)
-    wsDTAG.getRange(startRowDest, 4, dataValues.length, dataValues[0].length).setValues(dataValues);
-
-    // 5. Nacharbeiten (Datum und Formeln)
-    wsDTAG.getRange(startRowDest, 3, dataValues.length, 1).setValue(dateDotFormat).setNumberFormat("dd.MM.yyyy");
-
-    if (startRowDest > 3) {
-      const formelA = wsDTAG.getRange("A3").getFormulaR1C1();
-      const formelB = wsDTAG.getRange("B3").getFormulaR1C1();
-      
-      const rangeA = wsDTAG.getRange(startRowDest, 1, dataValues.length, 1);
-      if (formelA) rangeA.setFormulaR1C1(formelA);
-      
-      const rangeB = wsDTAG.getRange(startRowDest, 2, dataValues.length, 1);
-      if (formelB) rangeB.setFormulaR1C1(formelB);
-      
-      SpreadsheetApp.flush(); 
-      rangeA.setValues(rangeA.getValues());
-      rangeB.setValues(rangeB.getValues());
-    }
-
-    // Temp Datei löschen
-    DriveApp.getFileById(tempId).setTrashed(true);
-
-    // 6. Abschluss für Tagesplanung
-    const wsTagesplanung = ss.getSheetByName("Tagesplanung");
-    if (wsTagesplanung) {
-      wsTagesplanung.getRange("H6").setValue(dateDotFormat).setNumberFormat("dd.MM.yyyy");
-    }
-  }
-
-  // 7. Steuerungsreport auslesen und in Datenbank schreiben (nur wenn Zielspalten leer sind)
-  if (!isDatabaseFilled) {
-    const tempReportId = convertExcelToGoogleSheet(steuerungFile);
-    
-    try {
-      const tempReportSS = SpreadsheetApp.openById(tempReportId);
-      const wsLKS1 = tempReportSS.getSheetByName("LKS-1st");
-      const wsLKS2 = tempReportSS.getSheetByName("LKS-2nd");
-      
-      if (!wsLKS1 || !wsLKS2) {
-        throw new Error("Blatt 'LKS-1st' oder 'LKS-2nd' im Steuerungsreport nicht gefunden.");
-      }
-      
-      let row1st = -1;
-      const data1st = wsLKS1.getRange("A1:A100").getValues();
-      for (let i = 0; i < data1st.length; i++) {
-        if (data1st[i][0] instanceof Date && isSameDay(data1st[i][0], targetDate)) {
-          row1st = i + 1; 
-          break;
-        }
-      }
-      
-      let row2nd = -1;
-      const data2nd = wsLKS2.getRange("A1:A100").getValues();
-      for (let i = 0; i < data2nd.length; i++) {
-        if (data2nd[i][0] instanceof Date && isSameDay(data2nd[i][0], targetDate)) {
-          row2nd = i + 1; 
-          break;
-        }
-      }
-      
-      if (row1st === -1) throw new Error(`Datum ${dateDotFormat} in LKS-1st nicht gefunden.`);
-      if (row2nd === -1) throw new Error(`Datum ${dateDotFormat} in LKS-2nd nicht gefunden.`);
-      
-      const rowData1st = wsLKS1.getRange(row1st, 1, 1, 100).getValues()[0];
-      const rowData2nd = wsLKS2.getRange(row2nd, 1, 1, 50).getValues()[0];
-      
-      // ALLES IN EINEM BATCH: 20 Werte am Stück für EA(131) bis ET(150)
-      const valuesToWrite = [
-        [
-          // --- LKS-1st Werte ---
-          rowData1st[35], rowData1st[37], rowData1st[40], rowData1st[41], // EA-ED (AJ, AL, AO, AP)
-          rowData1st[43], rowData1st[45], rowData1st[48], rowData1st[49], // EE-EH (AR, AT, AW, AX)
-          rowData1st[51], rowData1st[53], rowData1st[56], rowData1st[57], // EI-EL (AZ, BB, BE, BF)
-          rowData1st[67], rowData1st[69], rowData1st[72], rowData1st[73], // EM-EP (BP, BR, BU, BV)
-          
-          // --- LKS-2nd Werte ---
-          rowData2nd[24], rowData2nd[26], rowData2nd[29], rowData2nd[30]  // EQ-ET (Y, AA, AD, AE)
-        ]
-      ];
-      
-      // Schreibe alle 20 Spalten in einem einzigen Befehl
-      wsDatenbank.getRange(dbRowIndex, 131, 1, 20).setValues(valuesToWrite);
-      
-    } finally {
-      DriveApp.getFileById(tempReportId).setTrashed(true);
-    }
-  }
-
-  // Dynamischer Rückgabetext je nachdem, welcher Schritt ausgeführt wurde
-  if (isTelekomImported && !isDatabaseFilled) {
-    return `Telekom-Daten waren bereits vorhanden. Steuerungsreport (LKS) erfolgreich für ${dateDotFormat} nachgetragen.`;
-  } else if (!isTelekomImported && isDatabaseFilled) {
-    return `Telefoniedaten (Telekom) erfolgreich importiert. LKS-Daten in Datenbank waren bereits befüllt.`;
+  if (operation === 'add') {
+    newVal += hoursDecimal;
   } else {
-    return `Import erfolgreich abgeschlossen für ${dateDotFormat} (Telekom- & Steuerungsreport-Daten eingelesen).`;
+    newVal -= hoursDecimal;
   }
+
+  newVal = Math.round(newVal * 100) / 100;
+
+  cell.setValue(newVal);
 }
 
-/**
- * Entspricht Sub Tagesplanung()
- */
-function runTagesplanung() {
+function getEmployeeTeam(nachname, vorname) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const wsDatenbank = ss.getSheetByName("Datenbank");
-  const wsTabelle2 = ss.getSheetByName("Tabelle2");
-  const wsMapping = ss.getSheetByName("Mapping");
+  const sheetDB = ss.getSheetByName('Data_DB');
 
-  if (!wsDatenbank || !wsTabelle2 || !wsMapping) throw new Error("Blätter fehlen.");
+  if (!sheetDB) return "Unbekannt";
 
-  const datumZumSuchen = wsMapping.getRange("C3").getValue();
-  const rowIndex = findRowByDate(wsDatenbank, datumZumSuchen);
+  const data = sheetDB.getDataRange().getValues();
 
-  const fieldsTab2 = [
-    "B11", "C11", "D11", "E11", "F11", "G11", "J11", "B16", "C16", "D16", "E16", "F16", "G16", "H16", "I16", "J16", 
-    "P8", "P9", "P10", "P12", "P13", "P14", "P18", "P19", "P20", "P22", "P23", "P24", "P25", "B35", "B36", "B37", "B38", "B39", 
-    "C35", "C36", "C37", "C38", "C39", "D35", "D36", "D37", "D38", "D39", "E35", "E36", "E37", "E38", "E39", 
-    "B12", "C12", "D12", "E12", "F12", "G12", "J12", "B17", "C17", "D17", "E17", "F17", "G17", "H17", "I17", "J17", 
-    "A51", "B51", "C51", "D51", "E51", "F51", "G51", "H51", "I51", "J51", "K51", "A53", "B53", "C53", "D53", "E53", "F53", "G53", "H53", "I53", "J53", "K53", 
-    "A54", "B54", "C54", "D54", "E54", "F54", "G54", "H54", "I54", "J54", "K54", "F3", "F4", "F5", "F6", "H3", "H4", "H5", "H6", "K4"
-  ];
-  
-  const valuesTab2 = fieldsTab2.map(addr => wsTabelle2.getRange(addr).getValue());
-  wsDatenbank.getRange(rowIndex, 12, 1, valuesTab2.length).setValues([valuesTab2]);
-
-  const fieldsMap = ["C4", "E4"];
-  const valuesMap = fieldsMap.map(addr => wsMapping.getRange(addr).getValue());
-  wsDatenbank.getRange(rowIndex, 2, 1, valuesMap.length).setValues([valuesMap]);
-
-  return "Tagesplanung übertragen.";
-}
-
-// --- FUNKTIONEN (Steuerungsreport) ---
-
-/**
- * Entspricht Sub Steuerungsreport()
- */
-function runSteuerungsreport() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const wsTagesplanung = ss.getSheetByName("Tagesplanung");
-  const wsDatenbank = ss.getSheetByName("Datenbank");
-  const wsMapping = ss.getSheetByName("Mapping");
-
-  const datumZumSuchen = wsTagesplanung.getRange("H6").getValue();
-  const rowIndex = findRowByDate(wsDatenbank, datumZumSuchen);
-
-  const fieldsToBackup = ["C6", "C12", "C13"];
-  const values = fieldsToBackup.map(f => wsMapping.getRange(f).getValue());
-  
-  wsDatenbank.getRange(rowIndex, 4, 1, 3).setValues([values]);
-
-  return runOutgoingsCalculate();
-}
-
-/**
- * Entspricht Sub OutgoingsCalculate()
- */
-function runOutgoingsCalculate() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const wsMapping = ss.getSheetByName("Mapping");
-  const wsDBKontakte = ss.getSheetByName("Datenbank");
-
-  const today = new Date();
-  const targetDate = new Date(2025, 4, 2); 
-  if (today < targetDate) {
-    // return "Abbruch"; 
-  }
-
-  const datumVal = wsMapping.getRange("C3").getValue();
-  if (!(datumVal instanceof Date)) {
-    throw new Error("Das Datum im Mapping (C3) ist ungültig.");
-  }
-
-  const searchDate = new Date(datumVal);
-  searchDate.setDate(searchDate.getDate() - 1); 
-  
-  const year = searchDate.getFullYear();
-  const month = searchDate.getMonth() + 1;
-  const monthStr = month < 10 ? '0' + month : '' + month;
-  
-  const searchPattern = `${year}${monthStr}_Steuerungsreport_Salesforce`;
-  
-  Logger.log("Suche nach Datei: " + searchPattern);
-
-  const folder = DriveApp.getFolderById(FOLDER_ID_STEUERUNG);
-  const files = folder.searchFiles(`title contains '${searchPattern}' and trashed = false`);
-  
-  let reportFile;
-  if (files.hasNext()) {
-    reportFile = files.next();
-  } else {
-    throw new Error(`Datei nicht gefunden: ${searchPattern} (Gesucht für Datum: ${Utilities.formatDate(searchDate, Session.getScriptTimeZone(), "dd.MM.yyyy")})`);
-  }
-
-  const dbRowIndex = findRowByDate(wsDBKontakte, searchDate);
-
-  const tempSheetId = convertExcelToGoogleSheet(reportFile);
-  const tempSS = SpreadsheetApp.openById(tempSheetId);
-  const wsFC_DL = tempSS.getSheetByName("FC_DL");
-
-  if (!wsFC_DL) {
-    DriveApp.getFileById(tempSheetId).setTrashed(true);
-    throw new Error("Blatt 'FC_DL' im Steuerungsreport nicht gefunden.");
-  }
-
-  const rangeBP = wsFC_DL.getRange("BP10:BP40").getValues();
-  let foundInReportRow = -1;
-
-  for (let i = 0; i < rangeBP.length; i++) {
-    if (rangeBP[i][0] instanceof Date && isSameDay(rangeBP[i][0], searchDate)) {
-      foundInReportRow = 10 + i; 
-      break;
+  for (let i = 1; i < data.length; i++) {
+    if (
+      String(data[i][0]).toLowerCase().trim() === String(nachname).toLowerCase().trim() &&
+      String(data[i][1]).toLowerCase().trim() === String(vorname).toLowerCase().trim()
+    ) {
+      return String(data[i][4]);
     }
   }
 
-  if (foundInReportRow === -1) {
-    DriveApp.getFileById(tempSheetId).setTrashed(true);
-    throw new Error(`Datum ${Utilities.formatDate(searchDate, Session.getScriptTimeZone(), "dd.MM.yyyy")} in Steuerungsreport (FC_DL) nicht gefunden.`);
-  }
-
-  const sourceValues = wsFC_DL.getRange(foundInReportRow, 1, 1, 100).getValues()[0]; 
-  
-  const valBW = sourceValues[74];
-  const valCA = sourceValues[78];
-  const valCI = sourceValues[86];
-  const valCN = sourceValues[91];
-  const valCO = sourceValues[92];
-  const valCP = sourceValues[93];
-
-  DriveApp.getFileById(tempSheetId).setTrashed(true);
-
-  wsDBKontakte.getRange(dbRowIndex, 121).setValue(valBW); // DQ
-  wsDBKontakte.getRange(dbRowIndex, 123).setValue(valCA); // DS
-  wsDBKontakte.getRange(dbRowIndex, 125).setValue(valCI); // DU
-  
-  wsDBKontakte.getRange(dbRowIndex, 122).setValue(valCN); // DR
-  wsDBKontakte.getRange(dbRowIndex, 124).setValue(valCO); // DT
-  wsDBKontakte.getRange(dbRowIndex, 126).setValue(valCP); // DV
-
-  const formulas = wsDBKontakte.getRange(1, 127, 1, 4).getFormulasR1C1();
-  wsDBKontakte.getRange(dbRowIndex, 127, 1, 4).setFormulasR1C1(formulas);
-
-  return "Steuerungsreport erfolgreich übernommen.";
+  return "Unbekannt";
 }
 
-// --- TAGESREPORT ---
+/* =========================================================================
+   WRAPPER FÜR BIBLIOTHEK: StundenerfassungPlano
+   ========================================================================= */
 
-/**
- * Entspricht Sub Tagesreport()
- */
-function runTagesreport() {
+function libProcessSelectedFile(fileId) {
+  return StundenerfassungPlano.processSelectedFile(fileId);
+}
+
+function libProcessStundenerfassung(dateStr) {
+  return StundenerfassungPlano.processStundenerfassung(dateStr);
+}
+
+function libDeleteStundenerfassung(dateStr) {
+  return StundenerfassungPlano.deleteStundenerfassung(dateStr);
+}
+
+function libSyncStundenerfassung(dateStr) {
+  return StundenerfassungPlano.syncStundenerfassung(dateStr);
+}
+
+function libGetStundenerfassungFileName() {
+  return StundenerfassungPlano.getStundenerfassungFileName();
+}
+
+/* =========================================================================
+   KAPAZITÄTENÜBERSICHT TAGESSTEUERUNG
+   Basis: Schichtmodelle aus Plano Backup
+   Wichtig: Es werden nur echte Plano-Tätigkeits-/Skill-Zeitblöcke gezählt.
+   Keine Fallback-Berechnung über die komplette Arbeitszeit, keine Pause.
+   ========================================================================= */
+
+function getCapacityOverviewData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const wsTagesplanung = ss.getSheetByName("Tagesplanung");
-  const wsDatenbank = ss.getSheetByName("Datenbank");
-  const wsMapping = ss.getSheetByName("Mapping");
+  const sheetSchicht = ss.getSheetByName('Schichtmodelle');
 
-  if (!wsTagesplanung || !wsDatenbank || !wsMapping) throw new Error("Blätter fehlen.");
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  const datumZumSuchen = wsTagesplanung.getRange("H6").getValue();
-  const rowIndex = findRowByDate(wsDatenbank, datumZumSuchen);
+  if (!sheetSchicht || sheetSchicht.getLastRow() < 2) {
+    return {
+      success: true,
+      updatedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
+      sourceRows: 0,
+      totalHours: 0,
+      remainingHours: 0,
+      usedHours: 0,
+      employeeCount: 0,
+      activeNowCount: 0,
+      foundSkills: [],
+      areas: []
+    };
+  }
 
-  const fieldsToBackup = ["C16", "C19", "C20", "C21", "C22"];
-  const values = fieldsToBackup.map(f => wsMapping.getRange(f).getValue());
+  const colsToLoad = Math.min(sheetSchicht.getLastColumn(), 6);
+  const rows = sheetSchicht.getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad).getValues();
 
-  wsDatenbank.getRange(rowIndex, 7, 1, values.length).setValues([values]);
+  const groupMap = new Map();
 
-  return "Tagesreport Daten übernommen.";
-}
+  let totalHoursAll = 0;
+  let remainingHoursAll = 0;
+  let activeNowCount = 0;
+  let sourceSegments = 0;
 
-// --- RESET (Clear All) ---
+  rows.forEach(row => {
+    const rawActivities = colsToLoad >= 6 ? String(row[5] || "").trim() : "";
+    const segments = parseCapacitySkillSegments(rawActivities);
 
-/**
- * Löscht Inhalte in Mapping und Tagesplanung
- */
-function clearAllFields() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const wsMapping = ss.getSheetByName("Mapping");
-  const wsTagesplanung = ss.getSheetByName("Tagesplanung");
+    if (segments.length === 0) return;
 
-  if (!wsMapping || !wsTagesplanung) throw new Error("Blatt 'Mapping' oder 'Tagesplanung' fehlt.");
+    segments.forEach(segment => {
+      const rawSkill = String(segment.activity || "").trim();
 
-  const rangesMapping = ["C3", "C6", "C9:C11", "C16", "C19:C22"];
-  wsMapping.getRangeList(rangesMapping).clearContent();
+      if (!rawSkill || isCapacityIgnoredActivity(rawSkill)) return;
 
-  const rangesSkill = [
-    "B29:L30", "B32:L32", "B35", "B37", "B39", 
-    "B42:L43", "B45:L46", "B48:L49", "B51:L52"
+      const capacitySkill = mapCapacitySkillGroup(rawSkill);
+
+      if (!capacitySkill || capacitySkill === "-" || capacitySkill.toLowerCase() === "ohne skill") return;
+
+      const duration = calculateCapacitySegmentDuration(segment.start, segment.end, nowMinutes);
+
+      if (duration.totalHours <= 0) return;
+
+      if (!groupMap.has(capacitySkill)) {
+        groupMap.set(capacitySkill, {
+          area: capacitySkill,
+          totalHours: 0,
+          remainingHours: 0,
+          usedHours: 0,
+          activeNowCount: 0,
+          originalSkills: new Set()
+        });
+      }
+
+      const group = groupMap.get(capacitySkill);
+
+      group.totalHours += duration.totalHours;
+      group.remainingHours += duration.remainingHours;
+      group.usedHours += duration.usedHours;
+      group.originalSkills.add(rawSkill);
+
+      if (duration.isActiveNow) {
+        group.activeNowCount += 1;
+        activeNowCount += 1;
+      }
+
+      totalHoursAll += duration.totalHours;
+      remainingHoursAll += duration.remainingHours;
+      sourceSegments += 1;
+    });
+  });
+
+  const preferredOrder = [
+    "1st Level Filiale",
+    "2nd Level Filiale",
+    "One 1st Level",
+    "One 2nd Level"
   ];
-  wsMapping.getRangeList(rangesSkill).clearContent();
 
-  const rangesPlanung = [
-    "C56:C57", 
-    "F63:G63", "I63:L63", "N63:S63", 
-    "F66:G66", "I66:L66", "N66:S66", 
-    "M57:Q57", "Q50:Q53", "S50:S53"
-  ];
-  wsMapping.getRangeList(rangesPlanung).clearContent();
+  const areas = Array.from(groupMap.values()).map(group => ({
+    area: group.area,
+    totalHours: Math.round(group.totalHours * 100) / 100,
+    remainingHours: Math.round(group.remainingHours * 100) / 100,
+    usedHours: Math.round(group.usedHours * 100) / 100,
+    activeNowCount: group.activeNowCount,
+    originalSkills: Array.from(group.originalSkills).sort()
+  })).sort((a, b) => {
+    const aIdx = preferredOrder.indexOf(a.area);
+    const bIdx = preferredOrder.indexOf(b.area);
 
-  return "Alle Eingabefelder (Mapping & Tagesplanung) wurden geleert.";
-}
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
 
-// --- HELPER ---
+    return a.area.localeCompare(b.area);
+  });
 
-function findRowByDate(sheet, dateObj) {
-  const data = sheet.getRange("A:A").getValues();
-  for (let i = 0; i < data.length; i++) {
-    if (data[i][0] instanceof Date && isSameDay(data[i][0], dateObj)) {
-      return i + 1;
-    }
-  }
-  throw new Error("Datum " + Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "dd.MM.yyyy") + " in Datenbank Spalte A nicht gefunden.");
-}
-
-function isSameDay(d1, d2) {
-  return d1.getFullYear() === d2.getFullYear() &&
-         d1.getMonth() === d2.getMonth() &&
-         d1.getDate() === d2.getDate();
-}
-
-function convertExcelToGoogleSheet(file) {
-  const resource = {
-    name: "Temp_Report_Convert_" + new Date().getTime(),
-    mimeType: MimeType.GOOGLE_SHEETS,
-    parents: [DriveApp.getRootFolder().getId()] 
+  return {
+    success: true,
+    updatedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
+    sourceRows: sourceSegments,
+    totalHours: Math.round(totalHoursAll * 100) / 100,
+    remainingHours: Math.round(remainingHoursAll * 100) / 100,
+    usedHours: Math.round((totalHoursAll - remainingHoursAll) * 100) / 100,
+    employeeCount: 0,
+    activeNowCount: activeNowCount,
+    foundSkills: areas.map(a => a.area),
+    areas: areas
   };
-  
-  const optionalArgs = {
-    supportsAllDrives: true
-  };
-  
-  const driveFile = Drive.Files.copy(resource, file.getId(), optionalArgs);
-  return driveFile.id;
 }
 
-function openDialog(mode, titleSuffix) {
-  var template = HtmlService.createTemplateFromFile('Dialog');
-  template.mode = mode;
-  
-  var html = template.evaluate()
-      .setWidth(500)
-      .setHeight(600)
-      .setTitle('Daten Import: ' + titleSuffix);
-      
-  SpreadsheetApp.getUi().showModalDialog(html, 'Daten Import (' + titleSuffix + ')');
-}
+function parseCapacitySkillSegments(rawActivities) {
+  const segments = [];
 
-function showImportDialogLevel1() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  if (sheet.getName() !== 'Mapping') {
-    SpreadsheetApp.getUi().alert('1st Level Backlog Import kann nur auf dem Arbeitsblatt "Mapping" ausgeführt werden.');
-    return;
-  }
-  openDialog('level1', '1st Level');
-}
+  if (!rawActivities) return segments;
 
-function showImportDialogLevel2() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  if (sheet.getName() !== 'Mapping') {
-    SpreadsheetApp.getUi().alert('2nd Level Backlog Import kann nur auf dem Arbeitsblatt "Mapping" ausgeführt werden.');
-    return;
-  }
-  openDialog('level2', '2nd Level');
-}
+  try {
+    const parsed = JSON.parse(rawActivities);
 
-function processTextData(formObject) {
-  var config = {
-    'DEU_Filiale':          { countCell: 'B29', dateCell: 'B30' },
-    'DEU_Onlineshop':       { countCell: 'C29', dateCell: 'C30' },
-    'DEU_LIDL_PLUS':        { countCell: 'E29', dateCell: 'E30' },
-    'DEU_Datenschutz':      { countCell: 'F29', dateCell: null },
-    'DEU_Produkt':          { countCell: 'G29', dateCell: 'G30' },
-    'DEU_SOCIAL':           { countCell: 'H29', dateCell: null },
-    'DEU_LIDL':             { countCell: 'B32', dateCell: null },
-    'DEU_Klärungsskill':    { countCell: 'C32', dateCell: null },
-    'DEU_MSG_Facebook_1st': { countCell: 'H32', dateCell: null },
-    'DEU_Brief':            { countCell: 'B35', dateCell: null },
-    'DEU_Unternehmen':      { countCell: 'B37', dateCell: null },
-    'DEU_Vorgangsnummer':   { countCell: 'B39', dateCell: null }
-  };
+    if (Array.isArray(parsed)) {
+      parsed.forEach(item => {
+        const time = String(item.time || "").trim();
+        const activity = String(item.activity || "").trim();
 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  sheet.getRange('E32').clearContent();
-  return parseAndFill(formObject, config, "1st Level");
-}
+        if (!activity || isCapacityIgnoredActivity(activity)) return;
 
-function processTextData2ndLevel(formObject) {
-  var config = {
-    'DEU_Filiale':            { countCell: 'B42', dateCell: 'B43' },
-    'DEU_Onlineshop':         { countCell: 'C42', dateCell: 'C43' },
-    'DEU_LIDL_PLUS':          { countCell: 'E42', dateCell: 'E43' },
-    'DEU_Datenschutz':        { countCell: 'F42', dateCell: 'F43' },
-    'DEU_Vorwärtslogistik':   { countCell: 'G42', dateCell: 'G43' },
-    'DEU_Rückwärtslogistik':  { countCell: 'H42', dateCell: 'H43' },
-    'DEU_Marketing_Coupon':   { countCell: 'K42', dateCell: 'K43' },
-    'DEU_Generic_2_2ndLevel': { countCell: 'B45', dateCell: null },
-    'DEU_Generic_1_2ndLevel': { countCell: 'C45', dateCell: null },
-    'DEU_Generic_3_2ndLevel': { countCell: 'E45', dateCell: null },
-    'DEU_Generic_7_2ndLevel': { countCell: 'G45', dateCell: null },
-    'DEU_Generic_8_2ndLevel': { countCell: 'H45', dateCell: null },
-    'DEU_Generic_10_2ndLevel':{ countCell: 'I45', dateCell: null },
-    'DEU_Generic_6_2ndLevel': { countCell: 'J45', dateCell: null },
-    'DEU_Klärungsskill':      { countCell: 'B48', dateCell: null },
-    'DEU_Fremdsprache':       { countCell: 'C48', dateCell: null },
-    'DEU_PAA':                { countCell: 'B51', dateCell: 'B52' },
-    'DEU_SSO':                { countCell: 'C51', dateCell: 'C52' },
-    'DEU_SOCIAL':             { countCell: 'L42', dateCell: 'L43' }
-  };
-  return parseAndFill(formObject, config, "2nd Level");
-}
+        const range = parseTimeRangeToMinutes(time);
 
-function parseAndFill(formObject, config, levelName) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var rawText = formObject.pastedText;
-  var refDateString = formObject.refDate;
-  
-  var referenceDate = new Date(refDateString);
-  if (isNaN(referenceDate.getTime())) {
-    return "Fehler: Ungültiges Datum gewählt.";
-  }
-
-  var lines = rawText.split(/\r?\n/);
-  var currentLabel = null;
-  var processedCount = 0;
-  var foundConfigKeys = {};
-
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim();
-    if (line === "") continue;
-
-    if (line.startsWith("DEU_")) {
-      currentLabel = line;
-    } else if (currentLabel && /^\d+/.test(line)) {
-      var regex = /^(\d+).*?(\d+)d,\s*(\d+)h\s*(\d+)\s*min/;
-      var match = line.match(regex);
-
-      if (match) {
-        var count = match[1];
-        var days = parseInt(match[2], 10);
-        var hours = parseInt(match[3], 10);
-        var mins = parseInt(match[4], 10);
-
-        var configKey = currentLabel;
-        var setting = config[configKey];
-        
-        if (!setting) {
-           var foundKey = Object.keys(config).find(k => k.toLowerCase() === currentLabel.toLowerCase());
-           if (foundKey) {
-             configKey = foundKey;
-             setting = config[configKey];
-           }
+        if (range) {
+          segments.push({
+            start: range.start,
+            end: range.end,
+            activity: activity
+          });
         }
+      });
 
-        if (setting) {
-          foundConfigKeys[configKey] = true;
-          if (setting.countCell) {
-            sheet.getRange(setting.countCell).setValue(count);
-          }
-          if (setting.dateCell) {
-            var durationMs = (days * 24 * 60 * 60 * 1000) + (hours * 60 * 60 * 1000) + (mins * 60 * 1000);
-            var calcDate = new Date(referenceDate.getTime() - durationMs);
-            sheet.getRange(setting.dateCell).setValue(calcDate).setNumberFormat("dd.MM.yyyy");
-          }
-          processedCount++;
-        }
-      }
-      currentLabel = null;
+      return segments;
+    }
+  } catch (e) {
+    // Fallback auf Textparser
+  }
+
+  const regex = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s+([\s\S]*?)(?=\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}|$)/g;
+  let match;
+
+  while ((match = regex.exec(rawActivities)) !== null) {
+    const time = `${match[1]}-${match[2]}`;
+    const activity = String(match[3] || "").replace(/\n/g, " ").trim();
+
+    if (!activity || isCapacityIgnoredActivity(activity)) continue;
+
+    const range = parseTimeRangeToMinutes(time);
+
+    if (range) {
+      segments.push({
+        start: range.start,
+        end: range.end,
+        activity: activity
+      });
     }
   }
 
-  var allKeys = Object.keys(config);
-  for (var k = 0; k < allKeys.length; k++) {
-    var key = allKeys[k];
-    if (!foundConfigKeys[key]) {
-      var setting = config[key];
-      if (setting.countCell) {
-        sheet.getRange(setting.countCell).setValue(0);
-      }
-      if (setting.dateCell) {
-        sheet.getRange(setting.dateCell).setValue(referenceDate).setNumberFormat("dd.MM.yyyy");
-      }
-    }
+  return segments;
+}
+
+function calculateCapacitySegmentDuration(startMinutes, endMinutes, nowMinutes) {
+  const totalMinutes = Math.max(0, endMinutes - startMinutes);
+
+  let adjustedNow = nowMinutes;
+
+  if (endMinutes > 1440 && adjustedNow < startMinutes) {
+    adjustedNow += 1440;
   }
 
-  SpreadsheetApp.flush();
-  SpreadsheetApp.getUi().alert("Bitte die Briefversand Vorgänge aus Gmail manuell erfassen.");
-  return levelName + ": Fertig. " + processedCount + " Werte aus Text übernommen. Rest auf 0 gesetzt.";
+  let remainingMinutes = 0;
+  let isActiveNow = false;
+
+  if (adjustedNow < startMinutes) {
+    remainingMinutes = totalMinutes;
+  } else if (adjustedNow >= startMinutes && adjustedNow < endMinutes) {
+    remainingMinutes = Math.max(0, endMinutes - adjustedNow);
+    isActiveNow = true;
+  }
+
+  const usedMinutes = Math.max(0, totalMinutes - remainingMinutes);
+
+  return {
+    totalHours: totalMinutes / 60,
+    remainingHours: remainingMinutes / 60,
+    usedHours: usedMinutes / 60,
+    isActiveNow: isActiveNow
+  };
+}
+
+function parseTimeRangeToMinutes(timeRange) {
+  if (!timeRange) return null;
+
+  const match = String(timeRange).match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+
+  if (!match) return null;
+
+  const start = Number(match[1]) * 60 + Number(match[2]);
+  let end = Number(match[3]) * 60 + Number(match[4]);
+
+  if (end <= start) {
+    end += 1440;
+  }
+
+  return {
+    start: start,
+    end: end
+  };
+}
+
+function isCapacityIgnoredActivity(activity) {
+  const a = String(activity || "").toLowerCase().trim();
+
+  return (
+    !a ||
+    a === "-" ||
+    a.includes("pause") ||
+    a.includes("break") ||
+    a.includes("systemstörung") ||
+    a.includes("systemstoerung") ||
+    a.includes("störung") ||
+    a.includes("stoerung") ||
+    a.includes("meeting") ||
+    a.includes("coaching") ||
+    a.includes("coaching lks de") ||
+    a.includes("schulung") ||
+    a.includes("schulung lks") ||
+    a.includes("paypal") ||
+    a.includes("briefdruck") ||
+    a.includes("andere tätigkeiten") ||
+    a.includes("andere taetigkeiten") ||
+    a.includes("trainer") ||
+    a.includes("quality mng") ||
+    a.includes("wissen & training") ||
+    a.includes("training") ||
+    a.includes("bot")
+  );
+}
+
+function mapCapacitySkillGroup(skill) {
+  const original = String(skill || "").trim();
+  const s = original.toLowerCase();
+
+  if (!s || s === "-" || s === "ohne skill") return "";
+
+  const hasFiliale = s.includes("filiale");
+  const hasOnlineshop = s.includes("onlineshop") || s.includes("online shop");
+  const hasLidlPlus = s.includes("lidl plus") || s.includes("lidlplus");
+  const hasTelefon = s.includes("telefon");
+  const has1st = s.includes("1st") || s.includes("first");
+  const has2nd = s.includes("2nd") || s.includes("second");
+  const hasOne = s.includes("one");
+  const hasKleineLines = s.includes("kleine line") || s.includes("kleine lines") || s.includes("kleinelines");
+
+  if (hasOne && has1st) {
+    return "One 1st Level";
+  }
+
+  if (hasOne && has2nd) {
+    return "One 2nd Level";
+  }
+
+  if (
+    (has1st && (hasOnlineshop || hasLidlPlus)) ||
+    (hasTelefon && (hasOnlineshop || hasLidlPlus))
+  ) {
+    return "One 1st Level";
+  }
+
+  if (
+    has2nd &&
+    (hasOnlineshop || hasLidlPlus)
+  ) {
+    return "One 2nd Level";
+  }
+
+  if (
+    (has2nd && hasFiliale) ||
+    hasKleineLines
+  ) {
+    return "2nd Level Filiale";
+  }
+
+  if (
+    (has1st && hasFiliale) ||
+    (hasTelefon && hasFiliale) ||
+    s.includes("telefon filiale/lidl") ||
+    (hasTelefon && s.includes("lidl") && !hasLidlPlus)
+  ) {
+    return "1st Level Filiale";
+  }
+
+  return original;
 }
