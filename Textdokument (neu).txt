@@ -1,24 +1,364 @@
-Super, sieht schon mal sehr sehr gut aus.
-Lasse das genau so.
-Entferne mir die Menüpunkte " Backup
- Erfassung
- Overview" Das soll nicht mehr da stehen.
+/* =========================================================================
+   KAPAZITÄTENÜBERSICHT TAGESSTEUERUNG
+   Basis: Schichtmodelle + Data_DB
+   ========================================================================= */
 
-Das Panel für die Steuerung soll auch genau so bleiben, das sieht super gut aus auch vom Design.
-Kannst du noch machen, dass es einklappbar ist?
+function getCapacityOverviewData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetDB = ss.getSheetByName('Data_DB');
+  const sheetSchicht = ss.getSheetByName('Schichtmodelle');
 
-Das Panel Steuerung soll umbenannt werden in "Administration" (am besten hier auch so ein ICON)
+  if (!sheetSchicht || sheetSchicht.getLastRow() < 2) {
+    return {
+      success: true,
+      updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
+      sourceRows: 0,
+      totalHours: 0,
+      remainingHours: 0,
+      activeNowCount: 0,
+      employeeCount: 0,
+      areas: []
+    };
+  }
 
-Dann soll es noch ein Panel zur STEUERUNG geben, etwas was dann mit Steuerung zutun hat, auch zuklappbar machen.
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-Hier soll ein Menüpunkt Tagesplanung hinzukommen, erstmal quasi ohne Funktion
+  const skillMap = new Map();
 
-Ein weiterer Punkt soll hier dann die Kapazitätenübersicht sein, wenn darauf geklickt wird, soll ein neues Dialog Overlay im gleichen Style geöffnet werden
+  if (sheetDB && sheetDB.getLastRow() > 1) {
+    const dbData = sheetDB.getRange(2, 1, sheetDB.getLastRow() - 1, 5).getValues();
 
-Er soll dann aus dem Plano Backup, so wie wir es in Tagessteuerung aktuell auslesen, die aktuellen Stunden je Bereich anzeigen also als Stundenoverlay bzw. Kapazitätenübersicht
+    dbData.forEach(row => {
+      const nachname = String(row[0] || "").trim();
+      const vorname = String(row[1] || "").trim();
+      const skill = String(row[4] || "").trim();
 
-Da soll dann für den gesamten Tag angezeigt werden, dann wie viel Reststunden ab Zeitpunkt jetzt
+      if (nachname && vorname) {
+        const key = `${vorname} ${nachname}`.toLowerCase();
+        skillMap.set(key, skill || "Ohne Skill");
+      }
+    });
+  }
 
-Wichtiger Punkt, die Skills 1st Level Filiale, Telefon Filiale/Lidl zusammen rechnen und als 1st Level Filiale ausgebe so wie 2nd Level Filiale und Telefon kleine Lines zusammen als 2nd Level Filiale ausgeben.
-Dann für One 1st Level Onlineshop, 1st Level Lidl Plus, Telefon Onlineshop, Telefon Lidl Plus als One 1st Level und One 2nd Level ist dann 2nd Level Onlineshop und 2nd Level Lidl Plus
-Übelege dir ein smartes overlay für die Tagessteuerung zur Auswertung der Kapazitätenübersicht in Verbindung mit dem Plano Backup hier in der Überstundenliste so wie wir den Tag importieren.
+  const colsToLoad = Math.min(sheetSchicht.getLastColumn(), 6);
+  const rows = sheetSchicht.getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad).getValues();
+
+  const groupMap = new Map();
+
+  let totalHoursAll = 0;
+  let remainingHoursAll = 0;
+  let activeNowCount = 0;
+  let employeeCount = 0;
+
+  rows.forEach(row => {
+    const nachname = String(row[0] || "").trim();
+    const vorname = String(row[1] || "").trim();
+
+    if (!nachname || !vorname) return;
+
+    const key = `${vorname} ${nachname}`.toLowerCase();
+    const originalSkill = skillMap.get(key) || "Ohne Skill";
+    const capacityArea = mapCapacitySkillGroup(originalSkill);
+
+    const shiftTime = colsToLoad >= 3 ? String(row[2] || "").trim() : "";
+    const pauseText = colsToLoad >= 5 ? String(row[4] || "").trim() : "";
+    const rawActivities = colsToLoad >= 6 ? String(row[5] || "").trim() : "";
+
+    const capacity = calculateEmployeeCapacityFromShift(shiftTime, pauseText, rawActivities, nowMinutes);
+
+    if (capacity.totalHours <= 0 && capacity.remainingHours <= 0) return;
+
+    if (!groupMap.has(capacityArea)) {
+      groupMap.set(capacityArea, {
+        area: capacityArea,
+        totalHours: 0,
+        remainingHours: 0,
+        employeeCount: 0,
+        activeNowCount: 0,
+        originalSkills: new Set()
+      });
+    }
+
+    const group = groupMap.get(capacityArea);
+
+    group.totalHours += capacity.totalHours;
+    group.remainingHours += capacity.remainingHours;
+    group.employeeCount += 1;
+    group.originalSkills.add(originalSkill);
+
+    if (capacity.isActiveNow) {
+      group.activeNowCount += 1;
+      activeNowCount += 1;
+    }
+
+    totalHoursAll += capacity.totalHours;
+    remainingHoursAll += capacity.remainingHours;
+    employeeCount += 1;
+  });
+
+  const preferredOrder = [
+    "1st Level Filiale",
+    "2nd Level Filiale",
+    "One 1st Level",
+    "One 2nd Level"
+  ];
+
+  const areas = Array.from(groupMap.values()).map(group => ({
+    area: group.area,
+    totalHours: Math.round(group.totalHours * 100) / 100,
+    remainingHours: Math.round(group.remainingHours * 100) / 100,
+    usedHours: Math.round((group.totalHours - group.remainingHours) * 100) / 100,
+    employeeCount: group.employeeCount,
+    activeNowCount: group.activeNowCount,
+    originalSkills: Array.from(group.originalSkills).sort()
+  })).sort((a, b) => {
+    const aIdx = preferredOrder.indexOf(a.area);
+    const bIdx = preferredOrder.indexOf(b.area);
+
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
+
+    return a.area.localeCompare(b.area);
+  });
+
+  return {
+    success: true,
+    updatedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
+    sourceRows: rows.length,
+    totalHours: Math.round(totalHoursAll * 100) / 100,
+    remainingHours: Math.round(remainingHoursAll * 100) / 100,
+    usedHours: Math.round((totalHoursAll - remainingHoursAll) * 100) / 100,
+    activeNowCount: activeNowCount,
+    employeeCount: employeeCount,
+    areas: areas
+  };
+}
+
+function calculateEmployeeCapacityFromShift(shiftTime, pauseText, rawActivities, nowMinutes) {
+  const segments = parseCapacitySegments(rawActivities);
+
+  if (segments.length > 0) {
+    let totalMinutes = 0;
+    let remainingMinutes = 0;
+    let isActiveNow = false;
+
+    segments.forEach(seg => {
+      const duration = Math.max(0, seg.end - seg.start);
+
+      totalMinutes += duration;
+
+      let adjustedNow = nowMinutes;
+
+      if (seg.end > 1440 && adjustedNow < seg.start) {
+        adjustedNow += 1440;
+      }
+
+      if (adjustedNow >= seg.start && adjustedNow < seg.end) {
+        isActiveNow = true;
+        remainingMinutes += Math.max(0, seg.end - adjustedNow);
+      } else if (adjustedNow < seg.start) {
+        remainingMinutes += duration;
+      }
+    });
+
+    return {
+      totalHours: totalMinutes / 60,
+      remainingHours: remainingMinutes / 60,
+      isActiveNow: isActiveNow
+    };
+  }
+
+  const fallback = parseTimeRangeToMinutes(shiftTime);
+
+  if (!fallback) {
+    return {
+      totalHours: 0,
+      remainingHours: 0,
+      isActiveNow: false
+    };
+  }
+
+  const pauseMinutes = parsePauseToMinutes(pauseText);
+  const totalMinutes = Math.max(0, fallback.end - fallback.start - pauseMinutes);
+
+  let adjustedNow = nowMinutes;
+
+  if (fallback.end > 1440 && adjustedNow < fallback.start) {
+    adjustedNow += 1440;
+  }
+
+  let remainingMinutes = 0;
+  let isActiveNow = false;
+
+  if (adjustedNow < fallback.start) {
+    remainingMinutes = totalMinutes;
+  } else if (adjustedNow >= fallback.start && adjustedNow < fallback.end) {
+    isActiveNow = true;
+
+    const elapsedMinutes = Math.max(0, adjustedNow - fallback.start);
+    remainingMinutes = Math.max(0, totalMinutes - elapsedMinutes);
+  }
+
+  return {
+    totalHours: totalMinutes / 60,
+    remainingHours: remainingMinutes / 60,
+    isActiveNow: isActiveNow
+  };
+}
+
+function parseCapacitySegments(rawActivities) {
+  const segments = [];
+
+  if (!rawActivities) return segments;
+
+  try {
+    const parsed = JSON.parse(rawActivities);
+
+    if (Array.isArray(parsed)) {
+      parsed.forEach(item => {
+        const time = String(item.time || "").trim();
+        const activity = String(item.activity || "").trim();
+
+        if (isCapacityPauseActivity(activity)) return;
+
+        const range = parseTimeRangeToMinutes(time);
+
+        if (range) {
+          segments.push(range);
+        }
+      });
+
+      return segments;
+    }
+  } catch (e) {
+    // Fallback auf Textparser
+  }
+
+  const regex = /(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s+([\s\S]*?)(?=\d{2}:\d{2}\s*-\s*\d{2}:\d{2}|$)/g;
+  let match;
+
+  while ((match = regex.exec(rawActivities)) !== null) {
+    const time = `${match[1]}-${match[2]}`;
+    const activity = String(match[3] || "").replace(/\n/g, " ").trim();
+
+    if (isCapacityPauseActivity(activity)) continue;
+
+    const range = parseTimeRangeToMinutes(time);
+
+    if (range) {
+      segments.push(range);
+    }
+  }
+
+  return segments;
+}
+
+function parseTimeRangeToMinutes(timeRange) {
+  if (!timeRange) return null;
+
+  const match = String(timeRange).match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+
+  if (!match) return null;
+
+  const start = Number(match[1]) * 60 + Number(match[2]);
+  let end = Number(match[3]) * 60 + Number(match[4]);
+
+  if (end <= start) {
+    end += 1440;
+  }
+
+  return {
+    start: start,
+    end: end
+  };
+}
+
+function parsePauseToMinutes(pauseText) {
+  if (!pauseText) return 0;
+
+  const raw = String(pauseText).trim().toLowerCase();
+
+  if (!raw || raw === "-" || raw === "0") return 0;
+
+  const timeMatch = raw.match(/(\d{1,2}):(\d{2})/);
+
+  if (timeMatch) {
+    return Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+  }
+
+  const minMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(min|minute|minuten)/);
+
+  if (minMatch) {
+    return Number(String(minMatch[1]).replace(",", "."));
+  }
+
+  const decimal = Number(raw.replace(",", "."));
+
+  if (!isNaN(decimal)) {
+    if (decimal > 0 && decimal <= 8) {
+      return decimal * 60;
+    }
+
+    return decimal;
+  }
+
+  return 0;
+}
+
+function isCapacityPauseActivity(activity) {
+  const a = String(activity || "").toLowerCase();
+
+  return (
+    !a ||
+    a === "-" ||
+    a.includes("pause") ||
+    a.includes("break")
+  );
+}
+
+function mapCapacitySkillGroup(skill) {
+  const original = String(skill || "Ohne Skill").trim();
+  const s = original.toLowerCase();
+
+  const hasFiliale = s.includes("filiale");
+  const hasOnlineshop = s.includes("onlineshop");
+  const hasLidlPlus = s.includes("lidl plus") || s.includes("lidlplus");
+  const hasTelefon = s.includes("telefon");
+  const has1st = s.includes("1st") || s.includes("first");
+  const has2nd = s.includes("2nd") || s.includes("second");
+  const hasKleineLines = s.includes("kleine line") || s.includes("kleine lines");
+
+  if (
+    (has1st && hasFiliale) ||
+    (hasTelefon && hasFiliale) ||
+    s.includes("telefon filiale/lidl") ||
+    (hasTelefon && s.includes("lidl") && !hasLidlPlus)
+  ) {
+    return "1st Level Filiale";
+  }
+
+  if (
+    (has2nd && hasFiliale) ||
+    hasKleineLines
+  ) {
+    return "2nd Level Filiale";
+  }
+
+  if (
+    (has1st && (hasOnlineshop || hasLidlPlus)) ||
+    (hasTelefon && (hasOnlineshop || hasLidlPlus))
+  ) {
+    return "One 1st Level";
+  }
+
+  if (
+    has2nd &&
+    (hasOnlineshop || hasLidlPlus)
+  ) {
+    return "One 2nd Level";
+  }
+
+  return original || "Sonstiges";
+}
