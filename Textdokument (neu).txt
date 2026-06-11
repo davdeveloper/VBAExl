@@ -1,552 +1,623 @@
-function openPlanoStundenerfassungModal() {
-    const modal = document.getElementById('planoStundenerfassungModal');
-    const list = document.getElementById('plano-st-files-list');
-
-    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
-
-    modal.classList.remove('hidden');
-
-    setTimeout(() => {
-      modal.classList.remove('opacity-0');
-      document.getElementById('planoStundenerfassungModalContent').classList.remove('scale-95');
-      document.getElementById('planoStundenerfassungModalContent').classList.add('scale-100');
-    }, 10);
-
-    google.script.run
-      .withSuccessHandler(files => {
-        list.innerHTML = '';
-
-        if (!files || files.length === 0) {
-          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
-          return;
-        }
-
-        files.forEach(f => {
-          const d = new Date(f.dateCreated);
-          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
-          list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-200 transition group">
-              <div>
-                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <i class="fa-solid fa-database text-modern-green"></i> ${f.name}
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
-              </div>
-              <button onclick="runPlanoStundenerfassungImport('${f.id}', this)" class="bg-white border border-gray-300 text-modern-green px-3 py-1.5 rounded text-xs font-bold hover:bg-modern-green hover:text-white transition shadow-sm">
-                Datenbank Import
-              </button>
-            </div>`;
-        });
-      })
-      .withFailureHandler(err => {
-        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message}</div>`;
-      })
-      .getPlanoFilesList();
-  }
-
-  function closePlanoStundenerfassungModal() {
-    const modal = document.getElementById('planoStundenerfassungModal');
-
-    modal.classList.add('opacity-0');
-    document.getElementById('planoStundenerfassungModalContent').classList.remove('scale-100');
-    document.getElementById('planoStundenerfassungModalContent').classList.add('scale-95');
-
-    setTimeout(() => {
-      modal.classList.add('hidden');
-    }, 300);
-  }
-
-  function runPlanoStundenerfassungImport(fileId, btnEl) {
-    const oldContent = btnEl.innerHTML;
-
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importiere...';
-    btnEl.disabled = true;
-    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
-
-    const allBtns = document.getElementById('plano-st-files-list').querySelectorAll('button');
-    allBtns.forEach(b => b.disabled = true);
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        closePlanoStundenerfassungModal();
-        alert(response);
-      })
-      .withFailureHandler(function(error) {
-        btnEl.innerHTML = oldContent;
-        btnEl.disabled = false;
-        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
-        allBtns.forEach(b => b.disabled = false);
-        alert("Kritischer Fehler: " + error.message);
-      })
-      .libProcessSelectedFile(fileId);
-  }
-
-  function openUebermittelnModal() {
-    const modal = document.getElementById('uebermittelnModal');
-
-    modal.classList.remove('hidden');
-
-    setTimeout(() => {
-      modal.classList.remove('opacity-0');
-      document.getElementById('uebermittelnModalContent').classList.remove('scale-95');
-      document.getElementById('uebermittelnModalContent').classList.add('scale-100');
-    }, 10);
-
-    document.getElementById('st-filename-display').innerText = "Lade Dateinamen aus Einstellungen...";
-
-    google.script.run
-      .withSuccessHandler(name => {
-        document.getElementById('st-filename-display').innerText = name;
-      })
-      .withFailureHandler(err => {
-        document.getElementById('st-filename-display').innerText = "Fehler beim Laden";
-      })
-      .libGetStundenerfassungFileName();
-  }
-
-  function closeUebermittelnModal() {
-    const modal = document.getElementById('uebermittelnModal');
-
-    modal.classList.add('opacity-0');
-    document.getElementById('uebermittelnModalContent').classList.remove('scale-100');
-    document.getElementById('uebermittelnModalContent').classList.add('scale-95');
-
-    setTimeout(() => {
-      modal.classList.add('hidden');
-    }, 300);
-  }
-
-  function toggleUebermittelnButtons(disabled) {
-    document.getElementById('btn-st-transfer').disabled = disabled;
-    document.getElementById('btn-st-delete').disabled = disabled;
-    document.getElementById('btn-st-sync').disabled = disabled;
-    document.getElementById('uebermitteln-date').disabled = disabled;
-  }
-
-  function startTransfer() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle ein Datum aus.");
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-transfer');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Übermittlung läuft...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Erfolgreich! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + err.message);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libProcessStundenerfassung(dateVal);
-  }
-
-  function startDelete() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle ein Datum aus.");
-      return;
-    }
-
-    if (!confirm("Möchtest du wirklich alle eingetragenen Zeiten für dieses Datum in der Stundenerfassung löschen?")) {
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-delete');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lösche Daten...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Gelöscht! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + err.message);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libDeleteStundenerfassung(dateVal);
-  }
-
-  function startSync() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle irgendein Datum aus dem Monat.");
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-sync');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Synchronisiere...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Erfolgreich! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + err.message);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libSyncStundenerfassung(dateVal);
-  }
-
-  function openPlanoImportModal() {
-    const modal = document.getElementById('planoModal');
-    const list = document.getElementById('plano-files-list');
-
-    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
-
-    modal.classList.remove('hidden');
-
-    setTimeout(() => {
-      modal.classList.remove('opacity-0');
-      document.getElementById('planoModalContent').classList.remove('scale-95');
-      document.getElementById('planoModalContent').classList.add('scale-100');
-    }, 10);
-
-    google.script.run
-      .withSuccessHandler(files => {
-        list.innerHTML = '';
-
-        if (!files || files.length === 0) {
-          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
-          return;
-        }
-
-        files.forEach(f => {
-          const d = new Date(f.dateCreated);
-          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
-          list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition group">
-              <div>
-                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <i class="fa-solid fa-file-excel text-green-600"></i> ${f.name}
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
-              </div>
-              <button onclick="runPlanoImport('${f.id}', this)" class="bg-white border border-gray-300 text-lidl-blue px-3 py-1.5 rounded text-xs font-bold hover:bg-lidl-blue hover:text-white transition shadow-sm">
-                Importieren
-              </button>
-            </div>`;
-        });
-      })
-      .withFailureHandler(err => {
-        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message}</div>`;
-      })
-      .getPlanoFilesList();
-  }
-
-  function closePlanoModal() {
-    const modal = document.getElementById('planoModal');
-
-    modal.classList.add('opacity-0');
-    document.getElementById('planoModalContent').classList.remove('scale-100');
-    document.getElementById('planoModalContent').classList.add('scale-95');
-
-    setTimeout(() => {
-      modal.classList.add('hidden');
-    }, 300);
-  }
-
-  function runPlanoImport(fileId, btnEl) {
-    const oldContent = btnEl.innerHTML;
-
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lade...';
-    btnEl.disabled = true;
-    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
-
-    const allBtns = document.getElementById('plano-files-list').querySelectorAll('button');
-
-    allBtns.forEach(b => b.disabled = true);
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        closePlanoModal();
-
-        if (response.success) {
-          alert("Import erfolgreich! " + response.count + " Schichten importiert.\nDie Seite wird nun aktualisiert.");
-          document.getElementById('loader').classList.remove('hidden');
-
-          google.script.run
-            .withSuccessHandler(onDataLoaded)
-            .withFailureHandler(onDataError)
-            .getData();
-        } else {
-          alert("Import fehlgeschlagen: " + response.message);
-        }
-      })
-      .withFailureHandler(function(error) {
-        btnEl.innerHTML = oldContent;
-        btnEl.disabled = false;
-        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
-
-        allBtns.forEach(b => b.disabled = false);
-
-        alert("Kritischer Fehler: " + error.message);
-      })
-      .importSelectedPlano(fileId);
-  }
-
-  function renderControl(data) {
-    const listFrueh = document.getElementById('list-frueh');
-    const listMittel = document.getElementById('list-mittel');
-    const listSpaet = document.getElementById('list-spaet');
-
-    let allActivities = new Set();
-
-    const sorted = [...data].sort((a, b) => {
-      if (activeControlSort === 'plus') return b.stundenSaldo - a.stundenSaldo;
-      if (activeControlSort === 'minus') return a.stundenSaldo - b.stundenSaldo;
-
-      if (activeControlSort === 'time') {
-        const timeA = parseStartTimeMinutes(getRelevantTimeStr(a, activeActivityFilter));
-        const timeB = parseStartTimeMinutes(getRelevantTimeStr(b, activeActivityFilter));
-
-        return timeA - timeB;
-      }
-
-      return 0;
-    });
-
-    sorted.forEach(e => {
-      if (e.schicht && e.schicht.activities && e.schicht.activities.length > 0) {
-        e.schicht.activities.forEach(act => allActivities.add(act));
-      }
-    });
-
-    buildActivityFilters(Array.from(allActivities).sort());
-
-    listFrueh.innerHTML = '';
-    listMittel.innerHTML = '';
-    listSpaet.innerHTML = '';
-
-    let cF = 0;
-    let cM = 0;
-    let cS = 0;
-
-    let sF = 0;
-    let sM = 0;
-    let sS = 0;
-
-    sorted.forEach(e => {
-      if (e.schicht && e.schicht.type) {
-        let showItem = true;
-
-        if (activeActivityFilter !== 'Alle') {
-          if (!e.schicht.activities || !e.schicht.activities.includes(activeActivityFilter)) {
-            showItem = false;
-          }
-        }
-
-        if (showItem) {
-          const col = getBalanceColor(e.stundenSaldo);
-
-          let pauseBadge = "";
-
-          if (e.schicht.pause) {
-            pauseBadge = `<span class="bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-block" title="Pause"><i class="fa-solid fa-mug-hot mr-1"></i>${e.schicht.pause}</span>`;
-          }
-
-          let actHtml = "";
-
-          if (e.schicht.activities && e.schicht.activities.length > 0) {
-            const actsStr = e.schicht.activities.join(' • ');
-            actHtml = `<div class="text-[9px] text-gray-400 mt-1 truncate" title="${actsStr}"><i class="fa-solid fa-briefcase mr-1"></i>${actsStr}</div>`;
-          }
-
-          const displayTime = getRelevantTimeStr(e, activeActivityFilter);
-
-          let timeClass = "text-lidl-blue bg-blue-50 border border-blue-100";
-
-          if (activeActivityFilter !== 'Alle' && displayTime !== e.schicht.time) {
-            timeClass = "text-white bg-lidl-blue shadow-sm border-transparent";
-          }
-
-          const item = `
-            <div onclick="openShiftDetailsModal(${e.id})" class="p-3 border border-gray-100 rounded-xl bg-white hover:border-blue-300 hover:shadow-md cursor-pointer flex flex-col gap-1 text-sm transition-all group">
-              <div class="flex justify-between items-start">
-                <div class="overflow-hidden pr-2">
-                  <div class="font-bold text-slate-700 truncate">${e.fullName}</div>
-                  <div class="flex items-center text-[10px] text-gray-500 mt-0.5">
-                    <span class="truncate max-w-[80px]" title="${e.skill}">${e.skill}</span>
-                    <span class="mx-1 text-gray-300">|</span>
-                    <span class="font-mono font-bold ${col}">${decimalToTime(e.stundenSaldo)}</span>
-                  </div>
-                </div>
-                <div class="text-right flex flex-col items-end shrink-0">
-                  <div class="font-mono text-[10px] font-bold px-2 py-0.5 rounded ${timeClass} whitespace-nowrap">${displayTime}</div>
-                  ${pauseBadge}
-                </div>
-              </div>
-              ${actHtml}
-            </div>`;
-
-          const saldoVal = parseFloat(e.stundenSaldo) || 0;
-
-          if (e.schicht.type === "Früh") {
-            listFrueh.innerHTML += item;
-            cF++;
-            if (saldoVal > 0) sF += saldoVal;
-          } else if (e.schicht.type === "Mittel") {
-            listMittel.innerHTML += item;
-            cM++;
-            if (saldoVal > 0) sM += saldoVal;
-          } else if (e.schicht.type === "Spät") {
-            listSpaet.innerHTML += item;
-            cS++;
-            if (saldoVal > 0) sS += saldoVal;
-          }
-        }
-      }
-    });
-
-    document.getElementById('count-frueh').innerText = cF;
-    document.getElementById('sum-frueh').innerText = "+" + decimalToTime(sF) + " Std";
-
-    document.getElementById('count-mittel').innerText = cM;
-    document.getElementById('sum-mittel').innerText = "+" + decimalToTime(sM) + " Std";
-
-    document.getElementById('count-spaet').innerText = cS;
-    document.getElementById('sum-spaet').innerText = "+" + decimalToTime(sS) + " Std";
-  }
-
-  function getRelevantTimeStr(emp, filter) {
-    if (filter === 'Alle' || !emp.schicht || !emp.schicht.details || emp.schicht.details.length === 0) {
-      return emp.schicht ? emp.schicht.time : "";
-    }
-
-    const matches = emp.schicht.details.filter(d => d.activity === filter);
-
-    if (matches.length > 0) {
-      if (matches.length === 1) {
-        return matches[0].time;
-      }
-
-      let minStart = null;
-      let maxEnd = null;
-      let minStartMins = 99999;
-      let maxEndMins = -1;
-
-      matches.forEach(m => {
-        const tMatch = m.time.match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
-
-        if (tMatch) {
-          const sStr = tMatch[1];
-          const eStr = tMatch[2];
-
-          const sMins = parseInt(sStr.split(':')[0], 10) * 60 + parseInt(sStr.split(':')[1], 10);
-          let eMins = parseInt(eStr.split(':')[0], 10) * 60 + parseInt(eStr.split(':')[1], 10);
-
-          if (eMins <= sMins) {
-            eMins += 24 * 60;
-          }
-
-          if (sMins < minStartMins) {
-            minStartMins = sMins;
-            minStart = sStr;
-          }
-
-          if (eMins > maxEndMins) {
-            maxEndMins = eMins;
-            maxEnd = eStr;
-          }
-        }
-      });
-
-      if (minStart && maxEnd) {
-        return `${minStart}-${maxEnd}`;
-      }
-
-      return matches.map(m => m.time).join(', ');
-    }
-
-    return emp.schicht.time;
-  }
-
-  function parseStartTimeMinutes(timeStr) {
-    if (!timeStr) return 9999;
-
-    const match = String(timeStr).match(/(\d{2}):(\d{2})/);
-
-    if (match) {
-      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-    }
-
-    return 9999;
-  }
-
-  function buildActivityFilters(activities) {
-    const container = document.getElementById('activity-filter-container');
-
-    if (!container) return;
-
-    container.innerHTML = '';
-
-    const btnAll = document.createElement('button');
-
-    btnAll.innerText = 'Alle anzeigen';
-    btnAll.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === 'Alle' ? 'active' : 'default'}`;
-    btnAll.onclick = () => {
-      activeActivityFilter = 'Alle';
-      applyFilters();
+const TAGESPLANUNG_SHEET_NAME = 'Tagessteuerung_Planung';
+const TAGESPLANUNG_DB_SHEET_NAME = 'Datenbank_Tagessteuerung';
+const TAGESPLANUNG_PRODUCTIVITY_SHEET_NAME = 'Produktivität';
+
+const TAGESPLANUNG_TEAM_ORDER = [
+  '1st Level Filiale',
+  '2nd Level Filiale',
+  'One 1st Level',
+  'One 2nd Level'
+];
+
+const TAGESPLANUNG_BACKLOG_1ST_CONFIG = {
+  'DEU_Filiale': '1st Level Filiale',
+  'DEU_Onlineshop': 'One 1st Level',
+  'DEU_LIDL_PLUS': 'One 1st Level',
+  'DEU_Datenschutz': 'One 1st Level',
+  'DEU_Produkt': 'One 1st Level',
+  'DEU_SOCIAL': 'One 1st Level',
+  'DEU_LIDL': '1st Level Filiale',
+  'DEU_Klärungsskill': '1st Level Filiale',
+  'DEU_MSG_Facebook_1st': 'One 1st Level',
+  'DEU_Brief': '1st Level Filiale',
+  'DEU_Unternehmen': '1st Level Filiale',
+  'DEU_Vorgangsnummer': '1st Level Filiale'
+};
+
+const TAGESPLANUNG_BACKLOG_2ND_CONFIG = {
+  'DEU_Filiale': '2nd Level Filiale',
+  'DEU_Onlineshop': 'One 2nd Level',
+  'DEU_LIDL_PLUS': 'One 2nd Level',
+  'DEU_Datenschutz': 'One 2nd Level',
+  'DEU_Vorwärtslogistik': 'One 2nd Level',
+  'DEU_Rückwärtslogistik': 'One 2nd Level',
+  'DEU_Marketing_Coupon': 'One 2nd Level',
+  'DEU_Generic_2_2ndLevel': '2nd Level Filiale',
+  'DEU_Generic_1_2ndLevel': '2nd Level Filiale',
+  'DEU_Generic_3_2ndLevel': '2nd Level Filiale',
+  'DEU_Generic_7_2ndLevel': 'One 2nd Level',
+  'DEU_Generic_8_2ndLevel': 'One 2nd Level',
+  'DEU_Generic_10_2ndLevel': 'One 2nd Level',
+  'DEU_Generic_6_2ndLevel': 'One 2nd Level',
+  'DEU_Klärungsskill': '2nd Level Filiale',
+  'DEU_Fremdsprache': '2nd Level Filiale',
+  'DEU_PAA': 'One 2nd Level',
+  'DEU_SSO': 'One 2nd Level',
+  'DEU_SOCIAL': 'One 2nd Level'
+};
+
+function getTagesplanungData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  ensureTagesplanungSheets_();
+
+  const capacity = getCapacityOverviewData();
+  const productivityMap = getTagesplanungProductivityMap_();
+  const savedMap = getTagesplanungSavedMap_(today);
+  const dbBacklogMap = getTagesplanungLatestBacklogMap_(today);
+
+  const teams = TAGESPLANUNG_TEAM_ORDER.map(teamName => {
+    const capacityArea = capacity.areas.find(a => a.area === teamName) || {};
+    const saved = savedMap[teamName] || {};
+    const dbBacklog = dbBacklogMap[teamName];
+
+    const totalHours = Number(capacityArea.totalHours || 0);
+    const remainingHours = Number(capacityArea.remainingHours || 0);
+    const usedHours = Number(capacityArea.usedHours || 0);
+    const productivity = saved.productivity !== undefined && saved.productivity !== ''
+      ? Number(saved.productivity)
+      : Number(productivityMap[teamName] || 5);
+
+    const backlog = saved.backlog !== undefined && saved.backlog !== ''
+      ? Number(saved.backlog)
+      : Number(dbBacklog || 0);
+
+    const manualInflow = Number(saved.manualInflow || 0);
+    const manualOutput = Number(saved.manualOutput || 0);
+    const note = String(saved.note || '');
+
+    const possibleCases = Math.round(totalHours * productivity);
+    const possibleRemainingCases = Math.round(remainingHours * productivity);
+    const workload = backlog + manualInflow;
+    const gap = possibleRemainingCases + manualOutput - workload;
+
+    return {
+      team: teamName,
+      totalHours: round2_(totalHours),
+      remainingHours: round2_(remainingHours),
+      usedHours: round2_(usedHours),
+      productivity: round2_(productivity),
+      backlog: backlog,
+      manualInflow: manualInflow,
+      manualOutput: manualOutput,
+      possibleCases: possibleCases,
+      possibleRemainingCases: possibleRemainingCases,
+      workload: workload,
+      gap: gap,
+      status: getTagesplanungStatus_(gap),
+      note: note
     };
+  });
 
-    container.appendChild(btnAll);
+  const payload = {
+    success: true,
+    date: formatDateIso_(today),
+    dateDisplay: Utilities.formatDate(today, Session.getScriptTimeZone(), 'dd.MM.yyyy'),
+    kw: getWeekNumber(today),
+    updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm'),
+    teams: teams
+  };
 
-    activities.forEach(act => {
-      const btn = document.createElement('button');
+  writeTagesplanungCurrentState_(payload);
 
-      btn.innerText = act;
-      btn.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === act ? 'active' : 'default'}`;
-      btn.onclick = () => {
-        activeActivityFilter = act;
-        applyFilters();
-      };
+  return payload;
+}
 
-      container.appendChild(btn);
-    });
+function saveTagesplanungData(payload) {
+  ensureTagesplanungSheets_();
+
+  if (!payload) throw new Error('Keine Tagesplanung-Daten übergeben.');
+
+  const dateObj = payload.date ? parseIsoDate_(payload.date) : new Date();
+  dateObj.setHours(0, 0, 0, 0);
+
+  const normalized = {
+    success: true,
+    date: formatDateIso_(dateObj),
+    dateDisplay: Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd.MM.yyyy'),
+    kw: getWeekNumber(dateObj),
+    updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm'),
+    teams: Array.isArray(payload.teams) ? payload.teams.map(team => normalizeTagesplanungTeam_(team)) : []
+  };
+
+  writeTagesplanungCurrentState_(normalized);
+  appendTagesplanungDatabase_(normalized);
+
+  return {
+    success: true,
+    message: 'Tagesplanung gespeichert.',
+    updatedAt: normalized.updatedAt
+  };
+}
+
+function importTagesplanungBacklogFromText(level, pastedText, refDate) {
+  ensureTagesplanungSheets_();
+
+  const dateObj = refDate ? parseIsoDate_(refDate) : new Date();
+  dateObj.setHours(0, 0, 0, 0);
+
+  const config = String(level) === '2nd'
+    ? TAGESPLANUNG_BACKLOG_2ND_CONFIG
+    : TAGESPLANUNG_BACKLOG_1ST_CONFIG;
+
+  const teamBacklog = {};
+  TAGESPLANUNG_TEAM_ORDER.forEach(t => teamBacklog[t] = 0);
+
+  const lines = String(pastedText || '').split(/\r?\n/);
+  let currentLabel = null;
+  let processedCount = 0;
+
+  lines.forEach(rawLine => {
+    const line = String(rawLine || '').trim();
+
+    if (!line) return;
+
+    if (line.startsWith('DEU_')) {
+      currentLabel = line;
+      return;
+    }
+
+    if (currentLabel && /^\d+/.test(line)) {
+      const match = line.match(/^(\d+)/);
+
+      if (match) {
+        const count = Number(match[1]) || 0;
+        const mappedTeam = config[currentLabel] || null;
+
+        if (mappedTeam) {
+          teamBacklog[mappedTeam] = Number(teamBacklog[mappedTeam] || 0) + count;
+          processedCount += 1;
+        }
+      }
+
+      currentLabel = null;
+    }
+  });
+
+  const existing = getTagesplanungData();
+  existing.teams = existing.teams.map(team => {
+    const imported = Number(teamBacklog[team.team] || 0);
+
+    if (imported > 0) {
+      team.backlog = imported;
+    }
+
+    return normalizeTagesplanungTeam_(team);
+  });
+
+  writeTagesplanungCurrentState_(existing);
+  appendBacklogImportToDatabase_(dateObj, level, teamBacklog);
+
+  return {
+    success: true,
+    message: `${String(level) === '2nd' ? '2nd' : '1st'} Level Backlog importiert.`,
+    processedCount: processedCount,
+    teamBacklog: teamBacklog,
+    data: existing
+  };
+}
+
+function importTagesplanungBacklogFromMapping() {
+  ensureTagesplanungSheets_();
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Mapping');
+
+  if (!sheet) {
+    throw new Error('Blatt "Mapping" wurde nicht gefunden.');
   }
 
-  function openShiftDetailsModal(id) {
-    const emp = allData.find(d => d.id == id);
+  const backlog = {};
+  TAGESPLANUNG_TEAM_ORDER.forEach(t => backlog[t] = 0);
 
-    if (!emp || !emp.schicht) return;
+  const cellMap = [
+    { cell: 'B29', team: '1st Level Filiale' },
+    { cell: 'B32', team: '1st Level Filiale' },
+    { cell: 'B35', team: '1st Level Filiale' },
+    { cell: 'B37', team: '1st Level Filiale' },
+    { cell: 'B39', team: '1st Level Filiale' },
 
-    currentEmpId = id;
+    { cell: 'B42', team: '2nd Level Filiale' },
+    { cell: 'B45', team: '2nd Level Filiale' },
+    { cell: 'C45', team: '2nd Level Filiale' },
+    { cell: 'E45', team: '2nd Level Filiale' },
+    { cell: 'B48', team: '2nd Level Filiale' },
+    { cell: 'C48', team: '2nd Level Filiale' },
 
-    document.getElementById('shift-modal-name').innerText = emp.fullName;
-    document.getElementById('shift-modal-skill').innerText = `${emp.skill || '-'} | ${emp.tmaVorname || '-'}`;
-    document.getElementById('shift-modal-time').innerText = emp.schicht.time;
+    { cell: 'C29', team: 'One 1st Level' },
+    { cell: 'E29', team: 'One 1st Level' },
+    { cell: 'F29', team: 'One 1st Level' },
+    { cell: 'G29', team: 'One 1st Level' },
+    { cell: 'H29', team: 'One 1st Level' },
+    { cell: 'H32', team: 'One 1st Level' },
 
-    const timelineContainer = document.getElementById('shift-modal-timeline');
+    { cell: 'C42', team: 'One 2nd Level' },
+    { cell: 'E42', team: 'One 2nd Level' },
+    { cell: 'F42', team: 'One 2nd Level' },
+    { cell: 'G42', team: 'One 2nd Level' },
+    { cell: 'H42', team: 'One 2nd Level' },
+    { cell: 'K42', team: 'One 2nd Level' },
+    { cell: 'L42', team: 'One 2nd Level' },
+    { cell: 'G45', team: 'One 2nd Level' },
+    { cell: 'H45', team: 'One 2nd Level' },
+    { cell: 'I45', team: 'One 2nd Level' },
+    { cell: 'J45', team: 'One 2nd Level' },
+    { cell: 'B51', team: 'One 2nd Level' },
+    { cell: 'C51', team: 'One 2nd Level' }
+  ];
 
-    timelineContainer.innerHTML = '';
+  cellMap.forEach(item => {
+    const value = Number(sheet.getRange(item.cell).getValue()) || 0;
+    backlog[item.team] += value;
+  });
+
+  const existing = getTagesplanungData();
+  existing.teams = existing.teams.map(team => {
+    team.backlog = Number(backlog[team.team] || 0);
+    return normalizeTagesplanungTeam_(team);
+  });
+
+  writeTagesplanungCurrentState_(existing);
+  appendBacklogImportToDatabase_(new Date(), 'Mapping', backlog);
+
+  return {
+    success: true,
+    message: 'Backlog aus Mapping übernommen.',
+    teamBacklog: backlog,
+    data: existing
+  };
+}
+
+function ensureTagesplanungSheets_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let planSheet = ss.getSheetByName(TAGESPLANUNG_SHEET_NAME);
+
+  if (!planSheet) {
+    planSheet = ss.insertSheet(TAGESPLANUNG_SHEET_NAME);
+    planSheet.appendRow([
+      'Datum',
+      'KW',
+      'Team',
+      'Plano Produktivstunden',
+      'Reststunden',
+      'Vergangene Stunden',
+      'Backlog',
+      'Manueller Eingang',
+      'Manueller Output',
+      'Produktivität',
+      'Schaffbar Gesamt',
+      'Schaffbar Rest',
+      'Workload',
+      'Gap',
+      'Status',
+      'Notiz',
+      'Aktualisiert am'
+    ]);
+    planSheet.setFrozenRows(1);
+  }
+
+  let dbSheet = ss.getSheetByName(TAGESPLANUNG_DB_SHEET_NAME);
+
+  if (!dbSheet) {
+    dbSheet = ss.insertSheet(TAGESPLANUNG_DB_SHEET_NAME);
+    dbSheet.appendRow([
+      'Timestamp',
+      'Datum',
+      'KW',
+      'Typ',
+      'Team',
+      'Plano Produktivstunden',
+      'Reststunden',
+      'Vergangene Stunden',
+      'Backlog',
+      'Manueller Eingang',
+      'Manueller Output',
+      'Produktivität',
+      'Schaffbar Gesamt',
+      'Schaffbar Rest',
+      'Workload',
+      'Gap',
+      'Status',
+      'Notiz'
+    ]);
+    dbSheet.setFrozenRows(1);
+  }
+}
+
+function getTagesplanungProductivityMap_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(TAGESPLANUNG_PRODUCTIVITY_SHEET_NAME);
+  const map = {};
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return map;
+  }
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+
+  data.forEach(row => {
+    const team = String(row[0] || '').trim();
+    const value = Number(row[1]);
+
+    if (team && !isNaN(value) && value > 0) {
+      map[team] = value;
+
+      const mapped = mapCapacitySkillGroup(team);
+      if (mapped) {
+        map[mapped] = value;
+      }
+    }
+  });
+
+  return map;
+}
+
+function getTagesplanungSavedMap_(dateObj) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(TAGESPLANUNG_SHEET_NAME);
+  const map = {};
+
+  if (!sheet || sheet.getLastRow() < 2) return map;
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 17).getValues();
+
+  values.forEach(row => {
+    const rowDate = row[0];
+
+    if (rowDate instanceof Date && isSameDay_(rowDate, dateObj)) {
+      const team = String(row[2] || '').trim();
+
+      if (team) {
+        map[team] = {
+          totalHours: row[3],
+          remainingHours: row[4],
+          usedHours: row[5],
+          backlog: row[6],
+          manualInflow: row[7],
+          manualOutput: row[8],
+          productivity: row[9],
+          note: row[15]
+        };
+      }
+    }
+  });
+
+  return map;
+}
+
+function getTagesplanungLatestBacklogMap_(dateObj) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(TAGESPLANUNG_DB_SHEET_NAME);
+  const map = {};
+
+  if (!sheet || sheet.getLastRow() < 2) return map;
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 18).getValues();
+
+  values.forEach(row => {
+    const rowDate = row[1];
+
+    if (rowDate instanceof Date && isSameDay_(rowDate, dateObj)) {
+      const typ = String(row[3] || '');
+
+      if (typ.toLowerCase().includes('backlog')) {
+        const team = String(row[4] || '').trim();
+        const backlog = Number(row[8]) || 0;
+
+        if (team) {
+          map[team] = backlog;
+        }
+      }
+    }
+  });
+
+  return map;
+}
+
+function writeTagesplanungCurrentState_(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(TAGESPLANUNG_SHEET_NAME);
+
+  const dateObj = parseIsoDate_(payload.date);
+  const kw = payload.kw || getWeekNumber(dateObj);
+
+  const rows = (payload.teams || []).map(team => {
+    const normalized = normalizeTagesplanungTeam_(team);
+
+    return [
+      dateObj,
+      kw,
+      normalized.team,
+      normalized.totalHours,
+      normalized.remainingHours,
+      normalized.usedHours,
+      normalized.backlog,
+      normalized.manualInflow,
+      normalized.manualOutput,
+      normalized.productivity,
+      normalized.possibleCases,
+      normalized.possibleRemainingCases,
+      normalized.workload,
+      normalized.gap,
+      normalized.status,
+      normalized.note,
+      new Date()
+    ];
+  });
+
+  if (sheet.getLastRow() > 1) {
+    const all = sheet.getRange(2, 1, sheet.getLastRow() - 1, 17).getValues();
+    const keepRows = all.filter(row => !(row[0] instanceof Date && isSameDay_(row[0], dateObj)));
+
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 17).clearContent();
+
+    if (keepRows.length > 0) {
+      sheet.getRange(2, 1, keepRows.length, 17).setValues(keepRows);
+    }
+
+    if (rows.length > 0) {
+      sheet.getRange(2 + keepRows.length, 1, rows.length, 17).setValues(rows);
+    }
+  } else if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 17).setValues(rows);
+  }
+
+  sheet.getRange('A:A').setNumberFormat('dd.MM.yyyy');
+  sheet.getRange('D:F').setNumberFormat('0.00');
+  sheet.getRange('G:N').setNumberFormat('0.00');
+  sheet.autoResizeColumns(1, Math.min(sheet.getLastColumn(), 17));
+}
+
+function appendTagesplanungDatabase_(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(TAGESPLANUNG_DB_SHEET_NAME);
+  const dateObj = parseIsoDate_(payload.date);
+  const kw = payload.kw || getWeekNumber(dateObj);
+  const timestamp = new Date();
+
+  const rows = (payload.teams || []).map(team => {
+    const normalized = normalizeTagesplanungTeam_(team);
+
+    return [
+      timestamp,
+      dateObj,
+      kw,
+      'Planung gespeichert',
+      normalized.team,
+      normalized.totalHours,
+      normalized.remainingHours,
+      normalized.usedHours,
+      normalized.backlog,
+      normalized.manualInflow,
+      normalized.manualOutput,
+      normalized.productivity,
+      normalized.possibleCases,
+      normalized.possibleRemainingCases,
+      normalized.workload,
+      normalized.gap,
+      normalized.status,
+      normalized.note
+    ];
+  });
+
+  if (rows.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 18).setValues(rows);
+  }
+
+  sheet.getRange('A:B').setNumberFormat('dd.MM.yyyy HH:mm');
+  sheet.getRange('B:B').setNumberFormat('dd.MM.yyyy');
+  sheet.autoResizeColumns(1, Math.min(sheet.getLastColumn(), 18));
+}
+
+function appendBacklogImportToDatabase_(dateObj, level, teamBacklog) {
+  ensureTagesplanungSheets_();
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(TAGESPLANUNG_DB_SHEET_NAME);
+  const timestamp = new Date();
+  const kw = getWeekNumber(dateObj);
+
+  const rows = Object.keys(teamBacklog).map(team => [
+    timestamp,
+    dateObj,
+    kw,
+    `Backlog Import ${level}`,
+    team,
+    '',
+    '',
+    '',
+    Number(teamBacklog[team] || 0),
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    ''
+  ]);
+
+  if (rows.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 18).setValues(rows);
+  }
+}
+
+function normalizeTagesplanungTeam_(team) {
+  const teamName = String(team.team || '').trim();
+  const totalHours = Number(team.totalHours || 0);
+  const remainingHours = Number(team.remainingHours || 0);
+  const usedHours = Number(team.usedHours || Math.max(0, totalHours - remainingHours));
+  const productivity = Number(team.productivity || 5);
+  const backlog = Number(team.backlog || 0);
+  const manualInflow = Number(team.manualInflow || 0);
+  const manualOutput = Number(team.manualOutput || 0);
+  const possibleCases = Math.round(totalHours * productivity);
+  const possibleRemainingCases = Math.round(remainingHours * productivity);
+  const workload = backlog + manualInflow;
+  const gap = possibleRemainingCases + manualOutput - workload;
+
+  return {
+    team: teamName,
+    totalHours: round2_(totalHours),
+    remainingHours: round2_(remainingHours),
+    usedHours: round2_(usedHours),
+    productivity: round2_(productivity),
+    backlog: backlog,
+    manualInflow: manualInflow,
+    manualOutput: manualOutput,
+    possibleCases: possibleCases,
+    possibleRemainingCases: possibleRemainingCases,
+    workload: workload,
+    gap: gap,
+    status: getTagesplanungStatus_(gap),
+    note: String(team.note || '')
+  };
+}
+
+function getTagesplanungStatus_(gap) {
+  if (gap >= 25) return 'Grün';
+  if (gap >= 0) return 'Gelb';
+  return 'Rot';
+}
+
+function formatDateIso_(dateObj) {
+  return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function parseIsoDate_(iso) {
+  if (iso instanceof Date) {
+    return iso;
+  }
+
+  const parts = String(iso || '').split('-');
+
+  if (parts.length === 3) {
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  }
+
+  return new Date();
+}
+
+function round2_(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function isSameDay_(d1, d2) {
+  return d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+}
