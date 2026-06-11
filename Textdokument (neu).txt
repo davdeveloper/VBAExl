@@ -1,330 +1,298 @@
-<div id="dayPlanningModal" class="fixed top-0 right-0 bottom-0 left-72 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl mx-8 transform scale-95 transition-transform duration-300 flex flex-col max-h-[92vh]" id="dayPlanningModalContent">
-    <div class="bg-gradient-to-r from-lidl-blue to-blue-800 px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <div>
-        <h3 class="text-white font-bold text-lg flex items-center gap-2">
-          <i class="fa-solid fa-calendar-day"></i> Tagesplanung
-        </h3>
-        <p class="text-blue-100 text-xs mt-0.5">Plano Produktivstunden, Backlog, Produktivität und schaffbare Cases je Team</p>
-      </div>
-
-      <button onclick="closeDayPlanningModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div id="day-planning-content" class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50">
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Tagesplanung wird geladen...</p>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 border-t border-gray-200 shrink-0">
-      <div class="text-xs text-gray-400 flex items-center gap-2">
-        <i class="fa-solid fa-database text-lidl-blue"></i>
-        <span id="day-planning-save-status">Änderungen werden automatisch zwischengespeichert.</span>
-      </div>
-
-      <div class="flex flex-wrap gap-2 justify-end">
-        <button onclick="openPlanningBacklogPasteModal('1st')" class="px-4 py-2 rounded-lg bg-blue-50 text-lidl-blue border border-blue-100 hover:bg-blue-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-paste"></i> 1st Backlog einfügen
-        </button>
-        <button onclick="openPlanningBacklogPasteModal('2nd')" class="px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-paste"></i> 2nd Backlog einfügen
-        </button>
-        <button onclick="reloadDayPlanningFromServer()" class="px-4 py-2 rounded-lg bg-gray-50 text-slate-600 border border-gray-200 hover:bg-gray-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-arrows-rotate"></i> Neu laden
-        </button>
-        <button onclick="saveDayPlanningNow(false)" class="px-4 py-2 rounded-lg bg-modern-green text-white hover:bg-emerald-700 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-floppy-disk"></i> Speichern
-        </button>
-        <button onclick="closeDayPlanningModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="dayPlanningBacklogModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[350] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="dayPlanningBacklogModalContent">
-    <div class="bg-gradient-to-r from-slate-800 to-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <div>
-        <h3 class="text-white font-bold text-lg flex items-center gap-2">
-          <i class="fa-solid fa-paste"></i> Backlog importieren
-        </h3>
-        <p class="text-blue-100 text-xs mt-0.5" id="day-planning-backlog-subtitle">Backlog-Text aus Salesforce einfügen</p>
-      </div>
-      <button onclick="closePlanningBacklogPasteModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50 space-y-4">
-      <div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label class="block md:col-span-1">
-            <span class="text-[10px] uppercase font-bold text-gray-400">Referenzdatum</span>
-            <input type="date" id="day-planning-backlog-ref-date" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none">
-          </label>
-          <div class="md:col-span-2 text-xs text-gray-500 flex items-center bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <i class="fa-solid fa-circle-info text-lidl-blue mr-2"></i>
-            Der Import nutzt die gleiche Struktur wie dein alter 1st/2nd-Level-Backlog-Dialog und speichert die aggregierten Werte direkt in der Tagesplanung.
+<div class="grid grid-cols-1 gap-3">
+            <label class="block">
+              <span class="text-[10px] uppercase font-bold text-gray-400">Status</span>
+              <select data-planning-field="status" data-team-index="${index}" onchange="handleDayPlanningInput(${index})" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none bg-white">
+                <option value="offen" ${status === 'offen' ? 'selected' : ''}>Offen</option>
+                <option value="halten" ${status === 'halten' ? 'selected' : ''}>Halten möglich</option>
+                <option value="abbauen" ${status === 'abbauen' ? 'selected' : ''}>Abbau möglich</option>
+                <option value="risiko" ${status === 'risiko' ? 'selected' : ''}>Risiko</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-[10px] uppercase font-bold text-gray-400">Notiz</span>
+              <textarea data-planning-field="note" data-team-index="${index}" oninput="handleDayPlanningInput(${index})" rows="2" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none resize-none" placeholder="Kurznotiz für die Steuerung...">${planningEscape(note)}</textarea>
+            </label>
           </div>
         </div>
       </div>
+    `;
+  }
 
-      <label class="block bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-        <span class="text-[10px] uppercase font-bold text-gray-400">Backlog-Text</span>
-        <textarea id="day-planning-backlog-text" rows="14" class="mt-2 w-full border border-gray-200 rounded-xl px-3 py-3 text-sm font-mono text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none resize-none" placeholder="Hier den Salesforce Backlog Text einfügen, z. B. DEU_Filiale und darunter die Zeile mit Anzahl und Alter..."></textarea>
-      </label>
+  function handleDayPlanningInput(index) {
+    collectDayPlanningInputs();
+    recalculateDayPlanningCard(index);
+    recalculateDayPlanningTotals();
+    scheduleDayPlanningSave();
+  }
 
-      <div id="day-planning-backlog-result" class="hidden rounded-xl border p-4 text-sm"></div>
-    </div>
+  function collectDayPlanningInputs() {
+    if (!dayPlanningState || !dayPlanningState.teams) return;
 
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t border-gray-200 shrink-0">
-      <button onclick="importPlanningBacklogFromMapping()" class="px-4 py-2 rounded-lg bg-gray-50 text-slate-600 border border-gray-200 hover:bg-gray-100 font-bold text-sm transition flex items-center gap-2 justify-center">
-        <i class="fa-solid fa-table-cells"></i> Aus Mapping übernehmen
-      </button>
-      <div class="flex gap-2 justify-end">
-        <button onclick="closePlanningBacklogPasteModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-        <button onclick="submitPlanningBacklogText()" class="px-4 py-2 rounded-lg bg-lidl-blue text-white hover:bg-blue-800 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-download"></i> Importieren & speichern
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
+    dayPlanningState.teams.forEach((team, index) => {
+      const fields = document.querySelectorAll(`[data-team-index="${index}"][data-planning-field]`);
 
-<script>
-  let dayPlanningState = null;
-  let dayPlanningSaveTimer = null;
-  let dayPlanningIsSaving = false;
-  let dayPlanningBacklogLevel = '1st';
+      fields.forEach(field => {
+        const key = field.getAttribute('data-planning-field');
 
-  function openDayPlanningModal() {
-    const modal = document.getElementById('dayPlanningModal');
-    const content = document.getElementById('day-planning-content');
+        if (key === 'backlog' || key === 'productivity') {
+          team[key] = Number(field.value || 0);
+        } else {
+          team[key] = field.value || '';
+        }
+      });
+
+      team.possibleCases = Math.round(Number(team.planoHours || 0) * Number(team.productivity || 0));
+      team.possibleRemainingCases = Math.round(Number(team.remainingHours || 0) * Number(team.productivity || 0));
+      team.gap = Math.round(Number(team.possibleCases || 0) - Number(team.backlog || 0));
+      team.remainingGap = Math.round(Number(team.possibleRemainingCases || 0) - Number(team.backlog || 0));
+    });
+  }
+
+  function recalculateDayPlanningCard(index) {
+    if (!dayPlanningState || !dayPlanningState.teams || !dayPlanningState.teams[index]) return;
+
+    const team = dayPlanningState.teams[index];
+    const possible = Math.round(Number(team.planoHours || 0) * Number(team.productivity || 0));
+    const possibleRemaining = Math.round(Number(team.remainingHours || 0) * Number(team.productivity || 0));
+    const gap = possible - Number(team.backlog || 0);
+
+    const possibleEl = document.querySelector(`[data-planning-output="possible"][data-team-index="${index}"]`);
+    const possibleRemainingEl = document.querySelector(`[data-planning-output="possibleRemaining"][data-team-index="${index}"]`);
+    const gapEl = document.querySelector(`[data-planning-output="gap"][data-team-index="${index}"]`);
+
+    if (possibleEl) possibleEl.innerText = possible;
+    if (possibleRemainingEl) possibleRemainingEl.innerText = possibleRemaining;
+
+    if (gapEl) {
+      gapEl.innerText = `${gap >= 0 ? '+' : ''}${gap}`;
+      gapEl.className = `font-mono font-bold ${gap >= 0 ? 'text-modern-green' : 'text-red-600'} text-lg`;
+    }
+  }
+
+  function recalculateDayPlanningTotals() {
+    if (!dayPlanningState || !dayPlanningState.teams) return;
+
+    const totals = dayPlanningState.teams.reduce((acc, team) => {
+      acc.planoHours += Number(team.planoHours || 0);
+      acc.remainingHours += Number(team.remainingHours || 0);
+      acc.usedHours += Number(team.usedHours || 0);
+      acc.backlog += Number(team.backlog || 0);
+      acc.possibleCases += Number(team.possibleCases || 0);
+      acc.possibleRemainingCases += Number(team.possibleRemainingCases || 0);
+      return acc;
+    }, {
+      planoHours: 0,
+      remainingHours: 0,
+      usedHours: 0,
+      backlog: 0,
+      possibleCases: 0,
+      possibleRemainingCases: 0
+    });
+
+    totals.gap = Math.round(totals.possibleCases - totals.backlog);
+    totals.remainingGap = Math.round(totals.possibleRemainingCases - totals.backlog);
+    dayPlanningState.totals = totals;
+  }
+
+  function scheduleDayPlanningSave() {
+    setDayPlanningSaveStatus('Änderungen erkannt – speichere gleich automatisch...');
+
+    if (dayPlanningSaveTimer) {
+      clearTimeout(dayPlanningSaveTimer);
+    }
+
+    dayPlanningSaveTimer = setTimeout(() => {
+      saveDayPlanningNow(true);
+    }, 900);
+  }
+
+  function saveDayPlanningNow(silent) {
+    if (!dayPlanningState || dayPlanningIsSaving) return;
+
+    collectDayPlanningInputs();
+    dayPlanningIsSaving = true;
+
+    if (!silent) {
+      setDayPlanningSaveStatus('Speichere Tagesplanung...');
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        dayPlanningIsSaving = false;
+        const savedAt = res && res.savedAt ? res.savedAt : 'gerade eben';
+        setDayPlanningSaveStatus(`Gespeichert: ${savedAt}`);
+        showDayPlanningSavePill();
+      })
+      .withFailureHandler(err => {
+        dayPlanningIsSaving = false;
+        setDayPlanningSaveStatus(`Fehler beim Speichern: ${err.message || err}`);
+      })
+      .saveDayPlanningData({
+        dateKey: dayPlanningState.dateKey,
+        teams: dayPlanningState.teams,
+        backlogDetails: dayPlanningState.backlogDetails || {},
+        saveReason: silent ? 'Auto-Speicherung' : 'Manuelle Speicherung'
+      });
+  }
+
+  function openPlanningBacklogPasteModal(level) {
+    dayPlanningBacklogLevel = level || '1st';
+
+    const modal = document.getElementById('dayPlanningBacklogModal');
+    const content = document.getElementById('dayPlanningBacklogModalContent');
+    const subtitle = document.getElementById('day-planning-backlog-subtitle');
+    const text = document.getElementById('day-planning-backlog-text');
+    const result = document.getElementById('day-planning-backlog-result');
+    const refDate = document.getElementById('day-planning-backlog-ref-date');
 
     if (!modal || !content) return;
 
-    modal.classList.remove('hidden');
-
-    setTimeout(() => {
-      modal.classList.remove('opacity-0');
-      document.getElementById('dayPlanningModalContent').classList.remove('scale-95');
-      document.getElementById('dayPlanningModalContent').classList.add('scale-100');
-    }, 10);
-
-    content.innerHTML = `
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Tagesplanung wird geladen...</p>
-        <p class="text-xs mt-1">Plano Produktivstunden und gespeicherte Planung werden zusammengeführt</p>
-      </div>
-    `;
-
-    google.script.run
-      .withSuccessHandler(data => {
-        dayPlanningState = data;
-        renderDayPlanning(data);
-        setDayPlanningSaveStatus(data.savedAt ? `Letzter Speicherstand: ${data.savedAt}` : 'Noch kein Speicherstand für heute.');
-      })
-      .withFailureHandler(err => {
-        content.innerHTML = `
-          <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 text-center">
-            <i class="fa-solid fa-triangle-exclamation text-3xl mb-3"></i>
-            <h4 class="font-bold text-lg">Fehler beim Laden</h4>
-            <p class="text-sm mt-2">${err.message || err}</p>
-          </div>
-        `;
-      })
-      .getDayPlanningData();
-  }
-
-  function closeDayPlanningModal() {
-    if (dayPlanningState) {
-      collectDayPlanningInputs();
-      saveDayPlanningNow(true);
+    if (subtitle) subtitle.innerText = `${level === '2nd' ? '2nd' : '1st'} Level Backlog aus Salesforce einfügen oder aus Mapping übernehmen`;
+    if (text) text.value = '';
+    if (result) {
+      result.classList.add('hidden');
+      result.innerHTML = '';
+    }
+    if (refDate) {
+      refDate.value = dayPlanningState && dayPlanningState.dateKey ? dayPlanningState.dateKey : new Date().toISOString().slice(0, 10);
     }
 
-    const modal = document.getElementById('dayPlanningModal');
-    const modalContent = document.getElementById('dayPlanningModalContent');
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+      modal.classList.remove('opacity-0');
+      content.classList.remove('scale-95');
+      content.classList.add('scale-100');
+    }, 10);
+  }
 
-    if (!modal || !modalContent) return;
+  function closePlanningBacklogPasteModal() {
+    const modal = document.getElementById('dayPlanningBacklogModal');
+    const content = document.getElementById('dayPlanningBacklogModalContent');
+
+    if (!modal || !content) return;
 
     modal.classList.add('opacity-0');
-    modalContent.classList.remove('scale-100');
-    modalContent.classList.add('scale-95');
+    content.classList.remove('scale-100');
+    content.classList.add('scale-95');
 
     setTimeout(() => {
       modal.classList.add('hidden');
-    }, 300);
+    }, 250);
   }
 
-  function reloadDayPlanningFromServer() {
-    openDayPlanningModal();
-  }
+  function submitPlanningBacklogText() {
+    if (!dayPlanningState) return;
 
-  function renderDayPlanning(data) {
-    const content = document.getElementById('day-planning-content');
+    const pastedText = document.getElementById('day-planning-backlog-text').value || '';
+    const refDate = document.getElementById('day-planning-backlog-ref-date').value || dayPlanningState.dateKey;
 
-    if (!content) return;
-
-    if (!data || !data.success) {
-      content.innerHTML = `
-        <div class="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          <i class="fa-regular fa-folder-open text-4xl mb-3"></i>
-          <h4 class="font-bold text-slate-600 text-lg">Keine Tagesplanung geladen</h4>
-          <p class="text-sm mt-2">Bitte importiere zuerst das heutige Plano Backup.</p>
-        </div>
-      `;
+    if (!pastedText.trim()) {
+      showPlanningBacklogResult('Bitte füge zuerst Backlog-Text ein.', false);
       return;
     }
 
-    const totals = data.totals || {};
-    const gap = Number(totals.gap || 0);
-    const remainingGap = Number(totals.remainingGap || 0);
-    const gapClass = gap >= 0 ? 'text-modern-green' : 'text-red-600';
-    const remainingGapClass = remainingGap >= 0 ? 'text-modern-green' : 'text-red-600';
+    showPlanningBacklogResult('Import läuft...', true);
 
-    let html = `
-      <div class="space-y-5">
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <div class="bg-gradient-to-r from-blue-50 via-white to-yellow-50 p-4 border-b border-gray-100 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-            <div>
-              <div class="text-[10px] uppercase font-bold text-gray-400">Planungstag</div>
-              <div class="text-2xl font-bold text-slate-700 flex items-center gap-3">
-                ${data.displayDate}
-                <span class="text-xs bg-blue-50 text-lidl-blue border border-blue-100 rounded-full px-2 py-1">KW ${data.kw}</span>
-              </div>
-              <p class="text-xs text-gray-400 mt-1">Produktivität kommt aus dem Blatt <strong>Produktivität</strong>. Fehlt ein Wert, wird mit 5 Cases pro Stunde gerechnet.</p>
-            </div>
-
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 w-full xl:w-auto">
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Plano Std.</div>
-                <div class="font-mono text-xl font-bold text-slate-700">${planningDecimalToTime(totals.planoHours || 0)}</div>
-              </div>
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Rest Std.</div>
-                <div class="font-mono text-xl font-bold text-modern-green">${planningDecimalToTime(totals.remainingHours || 0)}</div>
-              </div>
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Backlog</div>
-                <div class="font-mono text-xl font-bold text-slate-700">${Math.round(Number(totals.backlog || 0))}</div>
-              </div>
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Schaffbar</div>
-                <div class="font-mono text-xl font-bold text-lidl-blue">${Math.round(Number(totals.possibleCases || 0))}</div>
-              </div>
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Gap Gesamt</div>
-                <div class="font-mono text-xl font-bold ${gapClass}">${gap >= 0 ? '+' : ''}${Math.round(gap)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="p-4 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div class="text-xs text-gray-500 flex items-center gap-2">
-              <i class="fa-solid fa-circle-info text-lidl-blue"></i>
-              Werte werden automatisch in <strong>Tagessteuerung_Planung</strong> zwischengespeichert und in <strong>Datenbank_Tagessteuerung</strong> historisiert.
-            </div>
-            <div class="text-xs font-bold ${remainingGapClass} bg-gray-50 border border-gray-100 rounded-full px-3 py-1">
-              Rest-Gap ab jetzt: ${remainingGap >= 0 ? '+' : ''}${Math.round(remainingGap)} Cases
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-4 gap-4" id="day-planning-team-grid">
-    `;
-
-    (data.teams || []).forEach((team, index) => {
-      html += renderDayPlanningTeamCard(team, index);
-    });
-
-    html += `
-        </div>
-      </div>
-    `;
-
-    content.innerHTML = html;
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res && res.success) {
+          dayPlanningState = res.data;
+          renderDayPlanning(dayPlanningState);
+          showPlanningBacklogResult(res.message || 'Backlog importiert.', true);
+          saveDayPlanningNow(true);
+          setTimeout(closePlanningBacklogPasteModal, 700);
+        } else {
+          showPlanningBacklogResult('Backlog konnte nicht importiert werden.', false);
+        }
+      })
+      .withFailureHandler(err => {
+        showPlanningBacklogResult(`Fehler beim Import: ${err.message || err}`, false);
+      })
+      .importDayPlanningBacklogFromText(dayPlanningBacklogLevel, pastedText, refDate);
   }
 
-  function renderDayPlanningTeamCard(team, index) {
-    const backlog = Number(team.backlog || 0);
-    const productivity = Number(team.productivity || 5);
-    const planoHours = Number(team.planoHours || 0);
-    const remainingHours = Number(team.remainingHours || 0);
-    const possibleCases = Math.round(planoHours * productivity);
-    const possibleRemainingCases = Math.round(remainingHours * productivity);
-    const gap = possibleCases - backlog;
-    const remainingGap = possibleRemainingCases - backlog;
-    const isOk = gap >= 0;
-    const status = team.status || 'offen';
-    const note = team.note || '';
-    const details = Array.isArray(team.backlogDetails) ? team.backlogDetails : [];
+  function importPlanningBacklogFromMapping() {
+    if (!dayPlanningState) return;
 
-    const statusClass = isOk
-      ? 'bg-emerald-50 text-modern-green border-emerald-100'
-      : 'bg-red-50 text-red-600 border-red-100';
+    showPlanningBacklogResult('Backlog wird aus Mapping übernommen...', true);
 
-    const detailHtml = details.length
-      ? `<div class="mt-2 text-[10px] text-gray-400 line-clamp-2" title="${planningEscape(details.map(d => `${d.label}: ${d.value}`).join(' | '))}">${planningEscape(details.map(d => `${d.label}: ${d.value}`).join(' • '))}</div>`
-      : '';
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res && res.success) {
+          dayPlanningState = res.data;
+          renderDayPlanning(dayPlanningState);
+          showPlanningBacklogResult(res.message || 'Backlog aus Mapping übernommen.', true);
+          saveDayPlanningNow(true);
+          setTimeout(closePlanningBacklogPasteModal, 700);
+        } else {
+          showPlanningBacklogResult('Backlog konnte nicht aus Mapping übernommen werden.', false);
+        }
+      })
+      .withFailureHandler(err => {
+        showPlanningBacklogResult(`Fehler beim Mapping-Import: ${err.message || err}`, false);
+      })
+      .importDayPlanningBacklogFromMapping();
+  }
 
-    return `
-      <div class="day-planning-card bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden" data-team-index="${index}">
-        <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-white to-blue-50">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h4 class="font-bold text-slate-700 flex items-center gap-2 truncate">
-                <i class="fa-solid fa-circle text-[7px] text-lidl-blue"></i>
-                <span title="${planningEscape(team.team)}">${planningEscape(team.team)}</span>
-              </h4>
-              <div class="text-[11px] text-gray-400 mt-1 truncate" title="${planningEscape((team.originalSkills || []).join(', '))}">
-                ${(team.originalSkills || []).length ? planningEscape((team.originalSkills || []).join(' • ')) : 'Plano Skillgruppe'}
-              </div>
-              ${detailHtml}
-            </div>
-            <div class="text-[10px] font-bold border rounded-full px-2 py-1 ${statusClass}">
-              ${isOk ? 'Schaffbar' : 'Risiko'}
-            </div>
-          </div>
-        </div>
+  function showPlanningBacklogResult(message, success) {
+    const result = document.getElementById('day-planning-backlog-result');
 
-        <div class="p-4 space-y-4">
-          <div class="grid grid-cols-2 gap-3">
-            <div class="rounded-xl bg-gray-50 border border-gray-100 p-3">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Plano Produktivstunden</div>
-              <div class="font-mono text-xl font-bold text-slate-700">${planningDecimalToTime(planoHours)}</div>
-            </div>
-            <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Reststunden</div>
-              <div class="font-mono text-xl font-bold text-modern-green">${planningDecimalToTime(remainingHours)}</div>
-            </div>
-          </div>
+    if (!result) return;
 
-          <div class="grid grid-cols-2 gap-3">
-            <label class="block">
-              <span class="text-[10px] uppercase font-bold text-gray-400">Aktueller Backlog</span>
-              <input type="number" min="0" step="1" value="${backlog}" data-planning-field="backlog" data-team-index="${index}" oninput="handleDayPlanningInput(${index})" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 font-mono font-bold text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none">
-            </label>
-            <label class="block">
-              <span class="text-[10px] uppercase font-bold text-gray-400">Produktivität</span>
-              <input type="number" min="0" step="0.1" value="${productivity}" data-planning-field="productivity" data-team-index="${index}" oninput="handleDayPlanningInput(${index})" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 font-mono font-bold text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none">
-            </label>
-          </div>
+    result.classList.remove('hidden');
 
-          <div class="grid grid-cols-3 gap-2 text-right">
-            <div class="rounded-xl border border-blue-100 bg-blue-50 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Schaffbar</div>
-              <div class="font-mono font-bold text-lidl-blue text-lg" data-planning-output="possible" data-team-index="${index}">${possibleCases}</div>
-            </div>
-            <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Rest schaffbar</div>
-              <div class="font-mono font-bold text-modern-green text-lg" data-planning-output="possibleRemaining" data-team-index="${index}">${possibleRemainingCases}</div>
-            </div>
-            <div class="rounded-xl border ${isOk ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'} p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Gap</div>
-              <div class="font-mono font-bold ${isOk ? 'text-modern-green' : 'text-red-600'} text-lg" data-planning-output="gap" data-team-index="${index}">${gap >= 0 ? '+' : ''}${gap}</div>
-            </div>
+    if (success) {
+      result.className = 'rounded-xl border p-4 text-sm bg-emerald-50 border-emerald-200 text-emerald-700';
+      result.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i>${message}`;
+    } else {
+      result.className = 'rounded-xl border p-4 text-sm bg-red-50 border-red-200 text-red-700';
+      result.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i>${message}`;
+    }
+  }
+
+  function setDayPlanningSaveStatus(text) {
+    const el = document.getElementById('day-planning-save-status');
+
+    if (el) {
+      el.innerText = text;
+    }
+  }
+
+  function showDayPlanningSavePill() {
+    const pill = document.getElementById('day-planning-save-pill');
+
+    if (!pill) return;
+
+    pill.classList.remove('hidden');
+
+    setTimeout(() => {
+      pill.classList.add('hidden');
+    }, 2500);
+  }
+
+  function planningDecimalToTime(decimalVal) {
+    decimalVal = Number(decimalVal || 0);
+
+    const isNegative = decimalVal < 0;
+    decimalVal = Math.abs(decimalVal);
+
+    let hours = Math.floor(decimalVal);
+    let minutes = Math.round((decimalVal - hours) * 60);
+
+    if (minutes === 60) {
+      hours += 1;
+      minutes = 0;
+    }
+
+    return `${isNegative ? '-' : ''}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  function planningEscape(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+</script>
