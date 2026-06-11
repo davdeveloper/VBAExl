@@ -1,180 +1,681 @@
-<div class="h-full flex flex-col bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+/**
+ * DIENSTPLANUNG MODULE
+ * Enthält die Logik für den Dienstplanungs-Tab, Quoten-Checks, Speicherung und Löschung.
+ */
+
+/* =========================================================================================
+   DATEN LADEN
+   ========================================================================================= */
+
+function getDienstplanData() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetDB = ss.getSheetByName('Data_DB');
+    let employees = [];
     
-    <div class="px-6 py-4 border-b border-gray-200 flex flex-col gap-3 bg-white shrink-0 z-20">
-        <div class="flex justify-between items-center">
-            <div class="flex items-center gap-6">
-                <div>
-                    <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        <i class="fa-solid fa-calendar-days text-modern-green"></i> Dienstplanung 2026
-                    </h2>
-                    <p class="text-sm text-gray-500">Monatsübersicht</p>
-                </div>
-                
-                <div class="hidden xl:flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200 ml-4 shadow-sm">
-                    <span class="text-xs font-bold text-gray-400 px-2 uppercase"><i class="fa-solid fa-filter mr-1"></i> Zeitraum:</span>
-                    <input type="date" id="filter-start" onchange="window.filterAndRenderDienstplan()" class="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-modern-green outline-none bg-white h-8">
-                    <span class="text-gray-400 text-xs">-</span>
-                    <input type="date" id="filter-end" onchange="window.filterAndRenderDienstplan()" class="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-modern-green outline-none bg-white h-8">
-                    <button onclick="window.clearDateFilter()" class="text-gray-400 hover:text-red-500 px-2 h-8 w-8 flex items-center justify-center rounded hover:bg-gray-200 transition" title="Filter zurücksetzen"><i class="fa-solid fa-times"></i></button>
-                </div>
-            </div>
-
-            <button id="btn-open-vacation" class="bg-modern-green text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">
-                <i class="fa-solid fa-plus-circle"></i> Urlaub eintragen
-            </button>
-        </div>
-
-        <div class="grid grid-cols-3 gap-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
-            <div class="flex flex-col border-r border-gray-200 px-2">
-                <span class="text-[10px] uppercase font-bold text-gray-400">Beantragt (Schnittmenge)</span>
-                <div class="flex items-baseline gap-2">
-                    <span id="stat-total-planned" class="text-lg font-bold text-slate-700">0</span>
-                    <span class="text-xs text-gray-500">von <span id="stat-total-capacity">0</span></span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                    <div id="stat-bar-capacity" class="bg-lidl-blue h-1.5 rounded-full" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="flex flex-col border-r border-gray-200 px-2">
-                <span class="text-[10px] uppercase font-bold text-gray-400">Bereits genommen</span>
-                <div class="flex items-baseline gap-2">
-                    <span id="stat-past" class="text-lg font-bold text-slate-600">0</span>
-                    <span class="text-xs text-gray-400">Tage</span>
-                </div>
-            </div>
-            <div class="flex flex-col px-2">
-                <span class="text-[10px] uppercase font-bold text-gray-400">Noch ausstehend</span>
-                <div class="flex items-baseline gap-2">
-                    <span id="stat-future" class="text-lg font-bold text-modern-green">0</span>
-                    <span class="text-xs text-gray-400">Tage</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="flex items-center gap-6 text-xs pt-1">
-             <span class="font-bold text-gray-400 uppercase">Legende:</span>
-             <div class="flex items-center gap-2 text-gray-600"><i class="fa-solid fa-umbrella-beach text-orange-500"></i> Urlaub</div>
-             <div class="flex items-center gap-2 text-gray-600"><i class="fa-solid fa-business-time text-blue-500"></i> Abbau</div>
-             <div class="flex items-center gap-2 text-gray-600"><i class="fa-solid fa-star text-purple-500"></i> Sonderurlaub</div>
-             <div class="flex items-center gap-2 text-gray-600"><div class="w-3 h-3 bg-purple-100 border border-purple-200 rounded-sm"></div> Feiertag</div>
-             
-             <div class="flex-1 text-right">
-                <button onclick="openHolidayModal()" class="text-gray-400 hover:text-lidl-blue transition border-b border-dotted border-gray-300 hover:border-lidl-blue">
-                    <i class="fa-solid fa-info-circle"></i> Feiertage 2026 anzeigen
-                </button>
-             </div>
-        </div>
-    </div>
-
-    <div class="px-6 pt-2 bg-white border-b border-gray-200 shrink-0 z-10 overflow-x-auto custom-scroll">
-        <div class="flex space-x-1" id="month-nav-container"></div>
-    </div>
-
-    <div class="flex-1 overflow-hidden relative flex flex-col" id="calendar-wrapper">
-        <div id="calendar-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-white z-50">
-            <i class="fa-solid fa-circle-notch fa-spin text-4xl text-modern-green mb-3"></i>
-            <p id="loader-text" class="text-gray-500 font-medium mt-3">Lade Kollegen & Kalender...</p>
-        </div>
-        <div class="flex-1 overflow-auto custom-scroll relative">
-            <table class="border-collapse w-full table-fixed">
-                <thead id="calendar-thead" class="bg-gray-50 z-10 shadow-sm text-xs uppercase font-bold text-gray-500"></thead>
-                <tbody id="calendar-body" class="text-sm text-slate-700 divide-y divide-gray-100"></tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<div id="holidayModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm transform scale-95 transition-transform duration-300 flex flex-col max-h-[80vh]" id="holidayModalContent">
-       <div class="bg-purple-100 px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0 border-b border-purple-200 relative">
-         <h3 class="text-purple-800 font-bold text-lg flex items-center gap-2"><i class="fa-regular fa-calendar-check"></i> Feiertage 2026</h3>
-         <button onclick="closeHolidayModal()" class="text-purple-400 hover:text-purple-700 w-8 h-8 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
-       </div>
-       <div class="p-6 overflow-y-auto custom-scroll">
-          <div class="space-y-3 text-sm text-slate-700">
-              <div class="text-center text-gray-400 italic">Lade Daten...</div>
-          </div>
-       </div>
-       <div class="px-6 py-3 bg-gray-50 rounded-b-2xl text-right">
-          <button onclick="closeHolidayModal()" class="px-4 py-2 bg-white border border-gray-300 rounded text-sm font-bold text-gray-600 hover:bg-gray-100">Schließen</button>
-       </div>
-    </div>
-</div>
-
-<div id="vacationModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="vacationModalContent">
-    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2"><i class="fa-solid fa-plane-departure"></i> Urlaub eintragen</h3>
-      <button onclick="closeVacationModal()" class="text-white hover:bg-emerald-600 rounded-full w-8 h-8 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-
-    <div class="p-6 space-y-5 overflow-y-auto flex-1 custom-scroll">
-      <div class="relative">
-          <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Mitarbeiter suchen</label>
-          <div class="relative">
-            <i class="fa-solid fa-search absolute left-3 top-3 text-gray-400"></i>
-            <input type="text" id="vac-search" oninput="handleEmployeeSearch(this.value)" class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-modern-green focus:border-modern-green outline-none transition" placeholder="Name eingeben...">
-          </div>
-          <div id="vac-search-results" class="hidden absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-40 overflow-y-auto z-50"></div>
-      </div>
-
-      <div id="vac-info-card" class="hidden bg-gray-50 border border-gray-200 rounded-xl p-4 grid grid-cols-2 gap-4">
-          <div><span class="text-[10px] text-gray-400 uppercase font-bold">Teamleiter (TMA)</span><div class="font-bold text-slate-700 truncate" id="vac-tma">-</div></div>
-          <div><span class="text-[10px] text-gray-400 uppercase font-bold">Team</span><div class="font-bold text-slate-700 truncate" id="vac-team">-</div></div>
-          <div class="col-span-2 border-t border-gray-200 pt-2 flex justify-between items-center">
-            <span class="text-[10px] text-gray-400 uppercase font-bold">Genehmigte Tage (Aktuell)</span>
-            <span class="font-mono font-bold text-lg text-modern-green" id="vac-count">-</span>
-          </div>
-      </div>
+    if (sheetDB && sheetDB.getLastRow() > 1) {
+      const lastCol = sheetDB.getLastColumn();
+      const colsToLoad = lastCol < 14 ? 14 : lastCol;
       
-      <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div class="bg-gray-50 border-b border-gray-200 px-4 py-3 flex justify-between items-center">
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase">Zeiträume & Art der Abwesenheit</label>
-                <p class="text-[11px] text-gray-400 mt-0.5">Jeder Zeitraum kann eine eigene Art bekommen.</p>
-            </div>
-            <button onclick="addVacationSlot()" class="text-xs text-modern-green font-bold hover:text-emerald-700 flex items-center gap-1 bg-white border border-emerald-100 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition">
-                <i class="fa-solid fa-plus"></i> Weiteren Zeitraum
-            </button>
-        </div>
-        <div id="vac-slots-container" class="p-4"></div>
-      </div>
+      const data = sheetDB.getRange(2, 1, sheetDB.getLastRow() - 1, colsToLoad).getValues();
+      
+      employees = data.map((row, index) => {
+        const nachname = String(row[0] || "").trim();
+        const vorname = String(row[1] || "").trim();
 
-      <div id="quota-container" class="hidden transition-all duration-300 space-y-2">
-          <div id="quota-loader" class="text-center py-2 text-gray-400 text-xs hidden"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Prüfe...</div>
-          <div id="user-collision-msg" class="hidden p-3 rounded-lg border text-sm flex items-center gap-2"></div>
-          <div id="quota-result" class="hidden rounded-lg p-3 border text-sm flex flex-col gap-2"></div>
-      </div>
+        if (!nachname) return null;
+        
+        let budget = 30;
 
-      <div>
-          <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Eingereicht am</label>
-          <input type="date" id="vac-submitted" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none">
-      </div>
+        if (row[13] && !isNaN(row[13]) && Number(row[13]) > 0) {
+          budget = Number(row[13]);
+        }
 
-    </div>
+        return {
+          id: index + 2,
+          nachname: nachname,
+          vorname: vorname,
+          fullName: `${nachname}, ${vorname}`, 
+          tma: String(row[3] || ""), 
+          team: String(row[4] || ""),
+          vacationBudget: budget,
+          vacationCount: 0,
+          vacations: []
+        };
+      }).filter(e => e !== null);
+    }
+    
+    employees.sort((a, b) => a.nachname.localeCompare(b.nachname));
+    
+    const sheetPlan = ss.getSheetByName('Dienstplanung');
 
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200">
-      <button onclick="closeVacationModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-      <button onclick="submitVacation()" id="btn-vac-save" class="px-6 py-2 rounded-lg bg-modern-green text-white font-bold text-sm hover:bg-emerald-700 shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed">Speichern</button>
-    </div>
-  </div>
-</div>
+    if (sheetPlan && sheetPlan.getLastRow() > 1) {
+      const lastColP = sheetPlan.getLastColumn();
 
-<div id="personModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[250] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-md transform scale-95 transition-transform duration-300 overflow-hidden" id="personModalContent">
-        <div class="bg-white border-b border-gray-100 px-6 py-4 relative">
-            <div class="pr-8"> 
-                <h3 class="font-bold text-lg text-slate-800" id="person-modal-name">-</h3>
-                <div id="person-modal-info" class="text-xs text-gray-500 mt-1 w-full">-</div>
-            </div>
-            <button onclick="closePersonModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center transition">
-                <i class="fa-solid fa-times text-lg"></i>
-            </button>
-        </div>
-        <div class="p-0 max-h-[60vh] overflow-y-auto custom-scroll" id="person-vacation-list">
-            </div>
-        <div class="bg-gray-50 px-6 py-3 border-t border-gray-100 text-right">
-            <button onclick="closePersonModal()" class="px-4 py-2 bg-white border border-gray-300 rounded text-sm font-bold text-gray-600 hover:bg-gray-100">Schließen</button>
-        </div>
-    </div>
-</div>
+      if (lastColP >= 1) {
+        const colsToLoad = lastColP < 10 ? lastColP : 10; 
+        const planData = sheetPlan.getRange(2, 1, sheetPlan.getLastRow() - 1, colsToLoad).getValues();
+        
+        const vacationCounts = {};
+        const vacationRanges = {}; 
+        
+        planData.forEach((row, rowIdx) => {
+          const rowRealIndex = rowIdx + 2; 
+          const nameKey = String(row[0] || "").toLowerCase().trim();
+          
+          if (nameKey) {
+            const daysCount = (row[7] && !isNaN(parseFloat(row[7]))) ? parseFloat(row[7]) : 0;
+
+            if (!vacationCounts[nameKey]) {
+              vacationCounts[nameKey] = 0;
+            }
+
+            vacationCounts[nameKey] += daysCount;
+
+            const startRaw = row[3]; 
+            const endRaw = row[4];   
+            const typeRaw = String(row[5] || "Urlaub"); 
+            const createdRaw = row[9]; 
+            
+            if (startRaw instanceof Date && endRaw instanceof Date) {
+              if (!vacationRanges[nameKey]) {
+                vacationRanges[nameKey] = [];
+              }
+
+              vacationRanges[nameKey].push({
+                rowId: rowRealIndex,
+                start: formatDateIso(startRaw),
+                end: formatDateIso(endRaw),
+                type: typeRaw,
+                days: daysCount, 
+                created: formatDateIso(createdRaw) 
+              });
+            }
+          }
+        });
+        
+        employees.forEach(emp => {
+          const keys = [
+            emp.fullName.toLowerCase(),
+            (emp.nachname + " " + emp.vorname).toLowerCase(),
+            (emp.vorname + " " + emp.nachname).toLowerCase()
+          ];
+
+          for (const key of keys) {
+            if (vacationCounts[key] !== undefined) {
+              emp.vacationCount = vacationCounts[key];
+            }
+
+            if (vacationRanges[key] !== undefined) {
+              emp.vacations = emp.vacations.concat(vacationRanges[key]);
+            }
+
+            if (vacationCounts[key] !== undefined) {
+              break;
+            }
+          }
+        });
+      }
+    }
+
+    return employees;
+  } catch (e) {
+    throw new Error("Server Fehler: " + e.message);
+  }
+}
+
+/**
+ * Speichert das neue Urlaubskontingent in Data_DB Spalte N.
+ */
+function updateEmployeeBudget(empId, newBudget) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetDB = ss.getSheetByName('Data_DB');
+
+  if (!sheetDB) {
+    throw new Error("DB nicht gefunden");
+  }
+  
+  const row = Number(empId);
+
+  sheetDB.getRange(row, 14).setValue(Number(newBudget));
+  
+  return true;
+}
+
+function getEmployeesForDropdown() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Data_DB');
+
+  if (!sheet) return [];
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
+
+  return data.map(r => ({
+    name: String(r[0]),
+    vorname: String(r[1]),
+    label: `${String(r[0])}, ${String(r[1])}`,
+    tma: String(r[3]),
+    team: String(r[4])
+  })).filter(e => e.name).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function getHolidaysFromSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Betriebsferien');
+  const holidays = {};
+
+  if (!sheet) return holidays;
+
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow < 4) return holidays;
+
+  const data = sheet.getRange(4, 2, lastRow - 3, 2).getValues();
+
+  data.forEach(row => {
+    const dateRaw = row[0];
+    const name = String(row[1]);
+
+    if (dateRaw instanceof Date && name) {
+      const iso = formatDateIso(dateRaw);
+
+      if (iso) {
+        holidays[iso] = name;
+      }
+    }
+  });
+
+  return holidays;
+}
+
+function getEmployeeDetails(fullNameLabel) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hours = getContractHours(fullNameLabel);
+
+  let saldo = 0;
+
+  try {
+    const sheetDB = ss.getSheetByName('Data_DB');
+    const sheetAuftrag = ss.getSheetByName('Auftrag');
+
+    if (sheetDB) {
+      const dbData = sheetDB.getDataRange().getValues();
+      const parts = fullNameLabel.split(',');
+
+      const sNachname = parts[0].trim().toLowerCase();
+      const sVorname = parts.length > 1 ? parts[1].trim().toLowerCase() : "";
+
+      let essDecimal = 0;
+
+      for (let i = 1; i < dbData.length; i++) {
+        const n = String(dbData[i][0]).trim().toLowerCase();
+        const v = String(dbData[i][1]).trim().toLowerCase();
+
+        if (n === sNachname && v === sVorname) {
+          essDecimal = timeToDecimal(dbData[i][5]);
+          break;
+        }
+      }
+
+      let plannedDecimal = 0;
+
+      if (sheetAuftrag && sheetAuftrag.getLastRow() > 1) {
+        const aData = sheetAuftrag.getRange(2, 1, sheetAuftrag.getLastRow() - 1, 6).getValues();
+
+        aData.forEach(row => {
+          const aN = String(row[0]).trim().toLowerCase();
+          const aV = String(row[1]).trim().toLowerCase();
+
+          if (aN === sNachname && aV === sVorname) {
+            plannedDecimal += timeToDecimal(row[3]);
+          }
+        });
+      }
+
+      saldo = essDecimal - plannedDecimal;
+      saldo = Math.round(saldo * 100) / 100;
+    }
+  } catch (e) {
+    saldo = 0;
+  }
+
+  return { hours: hours, saldo: saldo };
+}
+
+function getContractHours(fullName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheet = ss.getSheetByName('Schichtstunden');
+
+  if (!sheet) {
+    sheet = ss.insertSheet('Schichtstunden');
+    sheet.appendRow(['Mitarbeiter', 'Stunden']);
+    return "08:00";
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const search = fullName.toLowerCase().replace(',', '').replace(/\s+/g, '');
+
+  for (let i = 1; i < data.length; i++) {
+    const rowName = String(data[i][0]).toLowerCase().replace(',', '').replace(/\s+/g, '');
+
+    if (rowName === search || rowName.includes(search) || search.includes(rowName)) {
+      let val = data[i][1];
+
+      if (val instanceof Date) {
+        const h = String(val.getHours()).padStart(2, '0');
+        const m = String(val.getMinutes()).padStart(2, '0');
+
+        val = `${h}:${m}`;
+      }
+
+      return val ? String(val) : "08:00";
+    }
+  }
+
+  return "08:00"; 
+}
+
+function checkQuotaBatch(tmaName, employeeName, ranges) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  return _checkQuotaLogic(ss, tmaName, employeeName, ranges); 
+}
+
+function _checkQuotaLogic(ss, tmaName, employeeName, ranges) {
+  const sheetKont = ss.getSheetByName('Kontingente');
+  const sheetPlan = ss.getSheetByName('Dienstplanung');
+
+  let allWeeks = [];
+
+  ranges.forEach(r => {
+    const w = getWeeksInRange(new Date(r.start), new Date(r.end));
+    allWeeks = allWeeks.concat(w);
+  });
+
+  const uniqueWeeksMap = new Map();
+
+  allWeeks.forEach(w => {
+    uniqueWeeksMap.set(`${w.kw}-${w.year}`, w);
+  });
+
+  const weeksToCheck = Array.from(uniqueWeeksMap.values());
+  const result = { details: [], overallStatus: 'ok', userCollision: false };
+
+  if (!tmaName || weeksToCheck.length === 0) {
+    return { overallStatus: 'error', message: 'Keine gültigen Zeiträume', details: [] };
+  }
+
+  let quotaData = [];
+  let headerRow = [];
+
+  if (sheetKont) {
+    quotaData = sheetKont.getDataRange().getValues();
+    headerRow = quotaData[1];
+  }
+
+  let plannedVacations = [];
+
+  if (sheetPlan && sheetPlan.getLastRow() > 1) {
+    plannedVacations = sheetPlan.getRange(2, 1, sheetPlan.getLastRow() - 1, 5).getValues();
+  }
+
+  let targetRowIndex = -1;
+  let groupTmas = [tmaName.toLowerCase().trim()]; 
+
+  if (quotaData.length > 2) {
+    const searchTma = tmaName.toLowerCase().trim();
+
+    for (let r = 2; r < quotaData.length; r++) {
+      const cellContent = String(quotaData[r][0]); 
+      const parts = cellContent.split('/').map(s => s.trim());
+      const partsLower = parts.map(s => s.toLowerCase());
+
+      if (partsLower.some(p => p === searchTma || p.includes(searchTma) || searchTma.includes(p))) {
+        targetRowIndex = r;
+        groupTmas = partsLower;
+        break;
+      }
+    }
+  }
+
+  const empLower = employeeName ? employeeName.toLowerCase() : "";
+
+  weeksToCheck.forEach(weekInfo => {
+    const kw = weekInfo.kw;
+    const year = weekInfo.year;
+
+    let allowed = 0;
+    let limitFound = false;
+    let colIndex = -1;
+
+    for (let c = 0; c < headerRow.length; c++) {
+      const val = String(headerRow[c]);
+
+      if (val == kw || val === `KW ${kw}` || val === `KW${kw}`) {
+        colIndex = c;
+        break;
+      }
+    }
+
+    if (colIndex > -1 && targetRowIndex > -1) {
+      allowed = Number(quotaData[targetRowIndex][colIndex]);
+
+      if (isNaN(allowed)) {
+        allowed = 0;
+      }
+
+      limitFound = true;
+    } else {
+      allowed = 99;
+    }
+
+    let taken = 0;
+    const kwStartEnd = getDateRangeOfWeek(kw, year);
+
+    plannedVacations.forEach(row => {
+      const pName = String(row[0]).toLowerCase();
+      const pTma = String(row[1]).toLowerCase().trim(); 
+      const pStart = row[3];
+      const pEnd = row[4];
+
+      if (pStart instanceof Date && pEnd instanceof Date) {
+        if (pStart <= kwStartEnd.end && pEnd >= kwStartEnd.start) {
+          if (empLower && (pName === empLower || pName.includes(empLower) || empLower.includes(pName))) {
+            ranges.forEach(newR => {
+              const nStart = new Date(newR.start);
+              const nEnd = new Date(newR.end);
+
+              if (nStart <= pEnd && nEnd >= pStart) {
+                result.userCollision = true;
+              }
+            });
+          }
+
+          if (pTma) {
+            const belongsToGroup = groupTmas.some(gTma => pTma.includes(gTma) || gTma.includes(pTma));
+
+            if (belongsToGroup) {
+              taken++;
+            }
+          }
+        }
+      }
+    });
+
+    let status = 'ok';
+
+    if (limitFound && taken >= allowed) {
+      status = 'critical';
+    } else if (!limitFound) {
+      status = 'unknown';
+    }
+
+    if (status === 'critical') {
+      result.overallStatus = 'critical';
+    }
+
+    result.details.push({
+      kw: kw,
+      year: year,
+      allowed: limitFound ? allowed : '-',
+      taken: taken,
+      status: status
+    });
+  });
+
+  result.details.sort((a, b) => (a.year - b.year) || (a.kw - b.kw));
+
+  return result;
+}
+
+function saveVacationBatch(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheet = ss.getSheetByName('Dienstplanung');
+
+  if (!sheet) {
+    sheet = ss.insertSheet('Dienstplanung');
+  }
+
+  const entries = payload.entries || [];
+
+  let sheetAuftrag = ss.getSheetByName('Auftrag');
+
+  if (!sheetAuftrag && entries.some(e => e.type === 'Freizeitausgleich')) {
+    sheetAuftrag = ss.insertSheet('Auftrag');
+    sheetAuftrag.appendRow(['Name', 'Vorname', 'Datum', 'Stunden', 'Notizen', 'Erstellt von']);
+  }
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['Mitarbeiter', 'TMA', 'Bereich', 'Start', 'Ende', 'Art', 'KW', 'Tage', 'Eingereicht', 'Zeitstempel']);
+  }
+
+  const submitted = new Date(payload.submitted);
+  const now = new Date();
+  const rowsToAdd = [];
+
+  entries.forEach(entry => {
+    const sParts = entry.start.split('-');
+    const eParts = entry.end.split('-');
+
+    const start = new Date(sParts[0], sParts[1] - 1, sParts[2], 12, 0, 0);
+    const end = new Date(eParts[0], eParts[1] - 1, eParts[2], 12, 0, 0);
+
+    let workDays = 0;
+    let cur = new Date(start.getTime());
+
+    while (cur <= end) {
+      const day = cur.getDay();
+
+      if (entry.type === 'Freizeitausgleich' || entry.type === 'Sonderurlaub') {
+        workDays++;
+      } else {
+        if (day !== 0 && day !== 6) {
+          workDays++;
+        }
+      }
+
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const kw = getWeekNumber(start);
+
+    if (entry.type === 'Freizeitausgleich' && workDays > 0) {
+      const dailyHoursStr = entry.dailyHours || payload.dailyHours || "00:00";
+      const decimalDaily = timeToDecimal(dailyHoursStr); 
+      const totalDecimal = decimalDaily * workDays;
+      const totalTimeStr = decimalToTime(totalDecimal); 
+
+      const sStr = formatDateDe(start);
+      const eStr = formatDateDe(end);
+      const dateDisplay = (sStr === eStr) ? sStr : `${sStr} - ${eStr}`;
+
+      const nameParts = payload.name.split(',');
+      const nachname = nameParts[0].trim();
+      const vorname = nameParts.length > 1 ? nameParts[1].trim() : "";
+
+      if (sheetAuftrag) {
+        sheetAuftrag.appendRow([nachname, vorname, dateDisplay, totalTimeStr, "FZA", "Dienstplanung"]);
+        sheetAuftrag.getRange(sheetAuftrag.getLastRow(), 4).setNumberFormat("@");
+      }
+
+      updateAbbauStats(start, totalDecimal, 'add', payload.team); 
+    }
+
+    rowsToAdd.push([payload.name, payload.tma, payload.team, start, end, entry.type, kw, workDays, submitted, now]);
+  });
+
+  if (rowsToAdd.length > 0) {
+    const startRow = sheet.getLastRow() + 1;
+
+    sheet.getRange(startRow, 1, rowsToAdd.length, 10).setValues(rowsToAdd);
+    sheet.getRange(startRow, 4, rowsToAdd.length, 2).setNumberFormat("dd.MM.yyyy"); 
+    sheet.getRange(startRow, 9, rowsToAdd.length, 2).setNumberFormat("dd.MM.yyyy"); 
+  }
+
+  return true;
+}
+
+function deleteVacationEntry(rowId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Dienstplanung');
+
+  if (!sheet) return false;
+
+  const r = Number(rowId);
+  const rowData = sheet.getRange(r, 1, 1, 6).getValues()[0];
+
+  const nameFull = String(rowData[0]); 
+  const start = rowData[3];
+  const end = rowData[4];
+  const type = String(rowData[5]);
+  const team = String(rowData[2]); 
+
+  if (type === 'Freizeitausgleich') {
+    const sheetAuftrag = ss.getSheetByName('Auftrag');
+
+    if (sheetAuftrag) {
+      const sStr = formatDateDe(start);
+      const eStr = formatDateDe(end);
+      const dateSearch = (sStr === eStr) ? sStr : `${sStr} - ${eStr}`;
+
+      const nameParts = nameFull.split(',');
+      const nachname = nameParts[0].trim().toLowerCase();
+      const vorname = nameParts.length > 1 ? nameParts[1].trim().toLowerCase() : "";
+
+      const dataA = sheetAuftrag.getDataRange().getValues();
+
+      for (let i = dataA.length - 1; i >= 1; i--) {
+        const rowA = dataA[i];
+
+        const nA = String(rowA[0]).trim().toLowerCase();
+        const vA = String(rowA[1]).trim().toLowerCase();
+
+        let dateInAuftragRaw = rowA[2];
+        let dateInAuftragStr = "";
+
+        if (dateInAuftragRaw instanceof Date) {
+          dateInAuftragStr = formatDateDe(dateInAuftragRaw);
+        } else {
+          dateInAuftragStr = String(dateInAuftragRaw).trim();
+        }
+
+        const notiz = String(rowA[4]).trim();
+        const creator = String(rowA[5]).trim();
+
+        if (
+          nA === nachname &&
+          vA === vorname &&
+          dateInAuftragStr === dateSearch &&
+          notiz === 'FZA' &&
+          creator === 'Dienstplanung'
+        ) {
+          const hoursStr = rowA[3];
+          const hoursDec = timeToDecimal(hoursStr); 
+
+          updateAbbauStats(start, hoursDec, 'remove', team); 
+          sheetAuftrag.deleteRow(i + 1);
+          break; 
+        }
+      }
+    }
+  }
+
+  sheet.deleteRow(r);
+
+  return true;
+}
+
+function formatDateIso(dateObj) {
+  if (!dateObj) return null;
+
+  let d = dateObj;
+
+  if (!(d instanceof Date)) {
+    d = new Date(dateObj); 
+  }
+
+  if (isNaN(d.getTime())) return null;
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+
+  return `${y}-${m}-${da}`;
+}
+
+function formatDateDe(dateObj) {
+  if (!dateObj) return "";
+
+  let d = dateObj;
+
+  if (!(d instanceof Date)) {
+    d = new Date(dateObj);
+  }
+
+  if (isNaN(d.getTime())) return String(dateObj);
+
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+
+  return `${day}.${month}.${year}`;
+}
+
+function getWeekNumber(d) {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function getWeeksInRange(startDate, endDate) {
+  let weeks = [];
+  let current = new Date(startDate);
+
+  const day = current.getDay() || 7; 
+
+  if (day !== 1) {
+    current.setHours(-24 * (day - 1));
+  }
+
+  while (current <= endDate) {
+    const kw = getWeekNumber(current);
+    const year = current.getFullYear();
+
+    if (!weeks.some(w => w.kw === kw && w.year === year)) {
+      weeks.push({ kw: kw, year: year });
+    }
+
+    current.setDate(current.getDate() + 7);
+  }
+
+  const endKw = getWeekNumber(endDate);
+  const endYear = endDate.getFullYear();
+
+  if (!weeks.some(w => w.kw === endKw && w.year === endYear)) {
+    weeks.push({ kw: endKw, year: endYear });
+  }
+
+  return weeks;
+}
+
+function getDateRangeOfWeek(w, y) {
+  var simple = new Date(y, 0, 1 + (w - 1) * 7);
+  var dow = simple.getDay();
+  var ISOweekStart = simple;
+
+  if (dow <= 4) {
+    ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+  } else {
+    ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+  }
+
+  const end = new Date(ISOweekStart);
+  end.setDate(end.getDate() + 6);
+
+  return { start: ISOweekStart, end: end };
+}
