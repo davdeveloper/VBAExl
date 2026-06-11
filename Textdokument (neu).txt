@@ -1,1183 +1,424 @@
-/**
- * Erstellt das Menü.
- */
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('⚡ Dashboard')
-    .addItem('Dashboard öffnen', 'showDashboard')
-    .addToUi();
-}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
+  <button onclick="toggleControlPanel('admin-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
+    <div>
+      <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
+        <i class="fa-solid fa-user-shield text-lidl-blue"></i> Administration
+      </h3>
+      <p class="text-[11px] text-gray-400 mt-0.5">Import, Übermittlung und Plano-Analyse</p>
+    </div>
 
-/**
- * Öffnet das Dashboard.
- */
-function showDashboard() {
-  var html = HtmlService.createTemplateFromFile('Dashboard')
-    .evaluate()
-    .setWidth(1850)
-    .setHeight(950)
-    .setTitle('Überstundenliste Dashboard');
+    <div class="flex items-center gap-2 text-gray-400">
+      <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
+      <i id="admin-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
+    </div>
+  </button>
 
-  SpreadsheetApp.getUi().showModalDialog(html, 'Überstundenliste Dashboard');
-}
+  <div id="admin-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+    <button onclick="openImportTypeModal()" id="btn-import-modal-open" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
+        <i class="fa-solid fa-file-import"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate">Plano Backup importieren</div>
+        <div class="text-[11px] text-gray-400 truncate">Tagesdaten oder Stundenerfassung übernehmen</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
+    </button>
 
-/**
- * Holt den Inhalt der Dienstplanung.html für das Frontend.
- */
-function getDienstplanungFragment() {
-  return HtmlService.createTemplateFromFile('Dienstplanung').evaluate().getContent();
-}
+    <button onclick="openUebermittelnModal()" class="group relative overflow-hidden bg-white border border-emerald-100 rounded-xl p-3 hover:border-modern-green hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-50 text-modern-green flex items-center justify-center shrink-0 group-hover:bg-modern-green group-hover:text-white transition">
+        <i class="fa-solid fa-paper-plane"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate">Stundenerfassung übermitteln</div>
+        <div class="text-[11px] text-gray-400 truncate">Tag löschen, übertragen oder Monat synchronisieren</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-modern-green transition"></i>
+    </button>
 
-/**
- * ZENTRALE BERECHTIGUNG
- * Prüft differenziert nach Zugriff, Admin-Status und Dienstplaner-Status.
- */
-function getUserPermissions(email) {
-  if (!email) return { hasAccess: false, isAdmin: false, isDienstplaner: false };
+    <a href="https://docs.google.com/spreadsheets/d/1aq-TtGaW4yzRqKng_ZLT1sNmmNVi9BqAbrdYgj5FQrg/edit?gid=986034657#gid=986034657"
+       target="_blank"
+       rel="noopener noreferrer"
+       class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gray-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
+        <i class="fa-solid fa-up-right-from-square"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate">Plano Overview öffnen</div>
+        <div class="text-[11px] text-gray-400 truncate">Monatsübersicht und Analyse in Google Sheets</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-slate-600 transition"></i>
+    </a>
+  </div>
+</div>
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const searchEmail = String(email).toLowerCase().trim();
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
+  <button onclick="toggleControlPanel('steering-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-slate-50 via-white to-blue-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
+    <div>
+      <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
+        <i class="fa-solid fa-gauge-high text-lidl-blue"></i> Steuerung
+      </h3>
+      <p class="text-[11px] text-gray-400 mt-0.5">Operative Tagesplanung und Kapazitätssteuerung</p>
+    </div>
 
-  let hasAccess = false;
-  let isAdmin = false;
-  let isDienstplaner = false;
+    <div class="flex items-center gap-2 text-gray-400">
+      <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
+      <i id="steering-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
+    </div>
+  </button>
 
-  const sheetTS = ss.getSheetByName('Tagessteuerung');
+  <div id="steering-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+    <button onclick="openDayPlanningModal()" class="group relative overflow-hidden bg-white border border-yellow-100 rounded-xl p-3 hover:border-lidl-yellow hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-yellow-50 text-yellow-600 flex items-center justify-center shrink-0 group-hover:bg-lidl-yellow group-hover:text-lidl-blue transition">
+        <i class="fa-solid fa-calendar-day"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate flex items-center gap-2">
+          Tagesplanung
+          <span id="day-planning-save-pill" class="hidden text-[9px] bg-emerald-50 text-modern-green border border-emerald-100 rounded-full px-2 py-0.5 uppercase">gespeichert</span>
+        </div>
+        <div class="text-[11px] text-gray-400 truncate">Backlog, Produktivität und schaffbare Cases je Team</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-yellow-600 transition"></i>
+    </button>
 
-  if (sheetTS && sheetTS.getLastRow() > 1) {
-    const data = sheetTS.getRange(2, 1, sheetTS.getLastRow() - 1, 2).getValues();
+    <button onclick="openCapacityOverviewModal()" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
+        <i class="fa-solid fa-chart-simple"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate">Kapazitätenübersicht</div>
+        <div class="text-[11px] text-gray-400 truncate">Stunden und Restkapazität je Skill</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
+    </button>
+  </div>
+</div>
 
-    for (let i = 0; i < data.length; i++) {
-      const rowEmail = String(data[i][0]).toLowerCase().trim();
+<div class="flex justify-between items-center shrink-0 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+  <div class="flex gap-2 items-center">
+    <span class="text-xs font-bold text-gray-400 uppercase mr-2">
+      <i class="fa-solid fa-arrow-down-up-across-line"></i> Sortierung:
+    </span>
 
-      if (rowEmail === searchEmail) {
-        hasAccess = true;
+    <button onclick="setControlSort('plus')" id="btn-ctrl-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
+      <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
+    </button>
+    <button onclick="setControlSort('minus')" id="btn-ctrl-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+      <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
+    </button>
+    <button onclick="setControlSort('time')" id="btn-ctrl-time" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+      <i class="fa-regular fa-clock"></i> Zeit (Tätigkeit)
+    </button>
+  </div>
 
-        const rowRole = String(data[i][1] || "").toLowerCase().trim();
+  <div class="hidden xl:flex items-center gap-2 text-xs text-gray-400">
+    <i class="fa-solid fa-circle-info text-lidl-blue"></i>
+    <span>Sortierung wirkt auf die Schichtkarten darunter</span>
+  </div>
+</div>
 
-        if (rowRole.includes('tagessteuerung') || rowRole.includes('dienstplanung')) {
-          isAdmin = true;
-        }
+<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex items-start gap-4">
+  <span class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap mt-1.5">
+    <i class="fa-solid fa-list-check"></i> Tätigkeiten:
+  </span>
+  <div id="activity-filter-container" class="flex flex-wrap gap-2 items-center"></div>
+</div>
 
-        if (rowRole.includes('dienstplanung')) {
-          isDienstplaner = true;
-        }
-      }
+<div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-bold text-sm text-slate-700 uppercase">Frühschicht</h3>
+        <span class="text-xs font-bold bg-blue-100 text-lidl-blue px-2 py-0.5 rounded" id="count-frueh">0</span>
+      </div>
+      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+        <span>Verfügbar:</span>
+        <span class="text-modern-green" id="sum-frueh">00:00 Std</span>
+      </div>
+    </div>
+    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-frueh"></div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-bold text-sm text-slate-700 uppercase">Mittelschicht</h3>
+        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" id="count-mittel">0</span>
+      </div>
+      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+        <span>Verfügbar:</span>
+        <span class="text-modern-green" id="sum-mittel">00:00 Std</span>
+      </div>
+    </div>
+    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-mittel"></div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-bold text-sm text-slate-700 uppercase">Spätschicht</h3>
+        <span class="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded" id="count-spaet">0</span>
+      </div>
+      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+        <span>Verfügbar:</span>
+        <span class="text-modern-green" id="sum-spaet">00:00 Std</span>
+      </div>
+    </div>
+    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-spaet"></div>
+  </div>
+</div>
+
+<div id="shift-radar-widget" class="fixed bottom-6 right-6 z-[100] flex flex-col items-end transition-all duration-300">
+  <div id="shift-radar-panel" class="hidden w-80 bg-white rounded-2xl shadow-2xl border border-blue-100 mb-4 overflow-hidden flex-col origin-bottom-right transition-all">
+    <div class="bg-gradient-to-r from-lidl-blue to-blue-800 p-4 flex justify-between items-center text-white shrink-0">
+      <div class="flex items-center gap-2 font-bold text-sm">
+        <i class="fa-solid fa-satellite-dish animate-pulse"></i> Live-Schicht-Radar
+      </div>
+      <span class="text-[10px] font-mono font-bold bg-white/20 px-2 py-0.5 rounded-full" id="radar-time">--:--</span>
+    </div>
+    <div class="p-0 max-h-72 overflow-y-auto custom-scroll bg-slate-50" id="radar-list"></div>
+  </div>
+
+  <button onclick="toggleRadar()" class="bg-lidl-blue text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl hover:bg-blue-800 hover:scale-105 transition-all flex items-center justify-center text-2xl relative cursor-pointer">
+    <i class="fa-solid fa-stopwatch"></i>
+    <span id="radar-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white hidden">0</span>
+  </button>
+</div>
+
+<div id="importTypeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 flex flex-col" id="importTypeModalContent">
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-file-import"></i> Import-Typ wählen
+      </h3>
+      <button onclick="closeImportTypeModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-4">
+      <p class="text-sm text-gray-600">Für welchen Bereich möchtest du das Plano Backup importieren?</p>
+
+      <button onclick="closeImportTypeModal(); openPlanoImportModal();" class="w-full bg-blue-50 border border-blue-200 text-lidl-blue hover:bg-lidl-blue hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
+        <i class="fa-solid fa-clock"></i> Heutiger Tag
+      </button>
+
+      <button onclick="closeImportTypeModal(); openPlanoStundenerfassungModal();" class="w-full bg-emerald-50 border border-emerald-200 text-modern-green hover:bg-modern-green hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
+        <i class="fa-solid fa-database"></i> Stundenerfassung -/ Plano Overview
+      </button>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
+      <button onclick="closeImportTypeModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<div id="planoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoModalContent">
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-file-excel"></i> Tagessteuerung Import
+      </h3>
+      <button onclick="closePlanoModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
+      <p class="text-sm text-gray-600 mb-4">Wähle die Datei für den heutigen Tag:</p>
+      <div id="plano-files-list" class="space-y-2">
+        <div class="text-center text-gray-400 py-4">
+          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
+      <button onclick="closePlanoModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<div id="planoStundenerfassungModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoStundenerfassungModalContent">
+    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-database"></i> Stundenerfassung Import
+      </h3>
+      <button onclick="closePlanoStundenerfassungModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
+      <p class="text-sm text-gray-600 mb-4">Wähle die Backup-Datei zur Übertragung in die Datenbank:</p>
+      <div id="plano-st-files-list" class="space-y-2">
+        <div class="text-center text-gray-400 py-4">
+          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
+      <button onclick="closePlanoStundenerfassungModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<div id="uebermittelnModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col" id="uebermittelnModalContent">
+    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-paper-plane"></i> Stundenerfassung übermitteln
+      </h3>
+      <button onclick="closeUebermittelnModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-5">
+      <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+        <span class="text-[10px] text-modern-green font-bold uppercase block mb-1">Aktuelle Zieldatei aus Einstellungen</span>
+        <strong id="st-filename-display" class="text-emerald-800 text-sm">Wird geladen...</strong>
+      </div>
+
+      <div class="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-xl text-xs font-bold flex items-start gap-2">
+        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-orange-500 text-lg"></i>
+        <p>WICHTIG: Übermittle die Daten immer als HEUTE für HEUTE oder GESTERN für GESTERN.</p>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Datum für die Übermittlung</label>
+        <input type="date" id="uebermitteln-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none bg-white">
+      </div>
+
+      <div class="space-y-3 pt-2">
+        <button id="btn-st-transfer" onclick="startTransfer()" class="w-full bg-modern-green text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-emerald-700 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-upload"></i> Übermittlung starten
+        </button>
+
+        <button id="btn-st-delete" onclick="startDelete()" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-red-600 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-trash-can"></i> Tag aus Stundenerfassung löschen
+        </button>
+
+        <button id="btn-st-sync" onclick="startSync()" class="w-full bg-lidl-blue text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-arrows-rotate"></i> Ganzen Monat synchronisieren
+        </button>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
+      <button onclick="closeUebermittelnModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<?!= include('Tagesplanung'); ?>
+
+<div id="capacityOverviewModal" class="fixed top-0 right-0 bottom-0 left-72 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="capacityOverviewModalContent">
+
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+      <div>
+        <h3 class="text-white font-bold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-chart-simple"></i> Kapazitätenübersicht
+        </h3>
+        <p class="text-blue-100 text-xs mt-0.5">Stunden und Restkapazität aus dem aktuellen Plano Backup</p>
+      </div>
+
+      <button onclick="closeCapacityOverviewModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div id="capacity-overview-content" class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50">
+      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
+        <p class="font-medium">Kapazitäten werden berechnet...</p>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center border-t border-gray-200 shrink-0">
+      <div class="text-xs text-gray-400">
+        <i class="fa-solid fa-circle-info text-lidl-blue mr-1"></i>
+        Reststunden werden ab aktueller Uhrzeit berechnet. Nicht produktive Tätigkeiten werden ausgeschlossen.
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="openCapacityOverviewModal(true)" class="px-4 py-2 rounded-lg bg-blue-50 text-lidl-blue border border-blue-100 hover:bg-blue-100 font-bold text-sm transition flex items-center gap-2">
+          <i class="fa-solid fa-arrows-rotate"></i> Aktualisieren
+        </button>
+        <button onclick="closeCapacityOverviewModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="shiftDetailsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="shiftDetailsModalContent">
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0 relative">
+      <div>
+        <h3 class="text-white font-bold text-lg" id="shift-modal-name">-</h3>
+        <p class="text-blue-200 text-xs" id="shift-modal-skill">-</p>
+      </div>
+      <div class="bg-white/20 px-3 py-1 rounded border border-white/30 text-white font-mono font-bold" id="shift-modal-time">--:--</div>
+      <button onclick="closeShiftDetailsModal()" class="absolute top-4 right-4 text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-0 overflow-y-auto flex-1 custom-scroll bg-gray-50">
+      <div id="shift-modal-timeline" class="p-6"></div>
+    </div>
+
+    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center shrink-0 border-t border-gray-200">
+      <button onclick="openEditModal(currentEmpId)" class="px-4 py-2 bg-blue-50 text-lidl-blue border border-blue-200 rounded-lg text-sm font-bold hover:bg-blue-100 transition flex items-center gap-2">
+        <i class="fa-solid fa-pen-to-square"></i> ESS Daten bearbeiten
+      </button>
+      <button onclick="closeShiftDetailsModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let capacityOverviewCache = null;
+  let capacitySkillFilter = 'Alle';
+
+  function toggleControlPanel(panelId) {
+    const body = document.getElementById(panelId + '-body');
+    const icon = document.getElementById(panelId + '-icon');
+
+    if (!body) return;
+
+    body.classList.toggle('hidden');
+
+    if (icon) {
+      icon.classList.toggle('rotate-180');
     }
   }
 
-  if (!isAdmin) {
-    const sheetDB = ss.getSheetByName('Data_DB');
+  function openImportTypeModal() {
+    const modal = document.getElementById('importTypeModal');
 
-    if (sheetDB && sheetDB.getLastRow() > 1) {
-      const lastRow = sheetDB.getLastRow();
-      const dataDB = sheetDB.getRange(2, 1, lastRow - 1, 14).getValues();
+    modal.classList.remove('hidden');
 
-      const isDienstplanerInDB = dataDB.some(row => {
-        const dbEmail = String(row[13] || "").trim().toLowerCase();
-        const skill = String(row[4] || "").trim().toLowerCase();
-
-        return dbEmail === searchEmail && skill === 'dienstplanung';
-      });
-
-      if (isDienstplanerInDB) {
-        hasAccess = true;
-        isAdmin = true;
-        isDienstplaner = true;
-      }
-    }
+    setTimeout(() => {
+      modal.classList.remove('opacity-0');
+      document.getElementById('importTypeModalContent').classList.remove('scale-95');
+      document.getElementById('importTypeModalContent').classList.add('scale-100');
+    }, 10);
   }
 
-  return { hasAccess, isAdmin, isDienstplaner };
-}
+  function closeImportTypeModal() {
+    const modal = document.getElementById('importTypeModal');
 
-/**
- * Hauptfunktion: Daten laden.
- */
-function getData() {
-  try {
-    const userEmail = Session.getActiveUser().getEmail().toLowerCase();
-    const permissions = getUserPermissions(userEmail);
+    modal.classList.add('opacity-0');
+    document.getElementById('importTypeModalContent').classList.remove('scale-100');
+    document.getElementById('importTypeModalContent').classList.add('scale-95');
 
-    if (!permissions.hasAccess) {
-      throw new Error("⛔ Zugriff verweigert: Ihre E-Mail (" + userEmail + ") ist nicht berechtigt.");
-    }
-
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    let sheetDB = ss.getSheetByName('Data_DB');
-    let sheetAuftrag = ss.getSheetByName('Auftrag');
-    let sheetTS = ss.getSheetByName('Tagessteuerung');
-    let sheetSchicht = ss.getSheetByName('Schichtmodelle');
-    let sheetAbbau = ss.getSheetByName('AbbauKW');
-
-    if (!sheetDB) throw new Error('Blatt "Data_DB" fehlt.');
-
-    if (!sheetAuftrag) {
-      sheetAuftrag = ss.insertSheet('Auftrag');
-      sheetAuftrag.appendRow(['Name', 'Vorname', 'Datum', 'Stunden', 'Notizen', 'Erstellt von']);
-    }
-
-    if (!sheetSchicht) {
-      sheetSchicht = ss.insertSheet('Schichtmodelle');
-      sheetSchicht.appendRow(['Nachname', 'Vorname', 'Schichtzeit', 'Typ', 'Pause', 'Taetigkeiten']);
-    }
-
-    processAuftragExpiry(sheetDB, sheetAuftrag);
-
-    const lastRow = sheetDB.getLastRow();
-
-    if (lastRow < 2) {
-      return {
-        employees: [],
-        stats: {},
-        currentWeek: getWeekNumber(new Date()),
-        currentYear: new Date().getFullYear(),
-        isAdmin: permissions.isAdmin,
-        isDienstplaner: permissions.isDienstplaner,
-        abbauHistory: []
-      };
-    }
-
-    const data = sheetDB.getRange(2, 1, lastRow - 1, 14).getValues();
-    const rawAuftraege = getAuftraege(sheetAuftrag);
-
-    const tsNames = new Set();
-
-    if (sheetTS && sheetTS.getLastRow() > 1) {
-      const tsData = sheetTS.getRange(2, 3, sheetTS.getLastRow() - 1, 1).getValues();
-
-      tsData.forEach(r => {
-        const full = String(r[0]).trim();
-
-        if (full) {
-          tsNames.add(full.split(' ')[0].toLowerCase());
-        }
-      });
-    }
-
-    const shiftMap = new Map();
-
-    if (sheetSchicht.getLastRow() > 1) {
-      const lastColS = sheetSchicht.getLastColumn();
-      const colsToLoad = Math.min(lastColS, 6);
-
-      if (colsToLoad >= 1) {
-        const sData = sheetSchicht
-          .getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad)
-          .getValues();
-
-        sData.forEach(r => {
-          const key = (String(r[1] || "").trim() + " " + String(r[0] || "").trim()).toLowerCase();
-
-          let activitiesArr = [];
-          let detailsArr = [];
-
-          const rawActivities = colsToLoad >= 6 ? String(r[5] || "").trim() : "";
-
-          if (rawActivities) {
-            try {
-              const parsed = JSON.parse(rawActivities);
-
-              if (Array.isArray(parsed)) {
-                detailsArr = parsed
-                  .map(item => ({
-                    time: String(item.time || "").trim(),
-                    activity: String(item.activity || "").trim()
-                  }))
-                  .filter(item => item.time || item.activity);
-
-                detailsArr.forEach(item => {
-                  const activity = item.activity.trim();
-
-                  if (
-                    activity &&
-                    activity !== '-' &&
-                    !activity.toLowerCase().includes('pause') &&
-                    !activitiesArr.includes(activity)
-                  ) {
-                    activitiesArr.push(activity);
-                  }
-                });
-              }
-            } catch (jsonErr) {
-              const parts = rawActivities.split(/(?=\d{2}:\d{2}\s*-\s*\d{2}:\d{2})/);
-
-              parts.forEach(p => {
-                const match = p.match(/(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\s+(.+)/);
-
-                if (match) {
-                  const time = match[1].replace(/\s/g, '').trim();
-                  const activity = match[2].replace(/\n/g, '').trim();
-
-                  if (activity) {
-                    detailsArr.push({
-                      time: time,
-                      activity: activity
-                    });
-
-                    if (
-                      !activity.toLowerCase().includes('pause') &&
-                      !activitiesArr.includes(activity)
-                    ) {
-                      activitiesArr.push(activity);
-                    }
-                  }
-                }
-              });
-
-              if (activitiesArr.length === 0) {
-                activitiesArr = rawActivities
-                  .split(',')
-                  .map(a => a.trim())
-                  .filter(a => a);
-              }
-            }
-          }
-
-          shiftMap.set(key, {
-            time: colsToLoad >= 3 ? String(r[2] || "") : "",
-            type: colsToLoad >= 4 ? String(r[3] || "") : "",
-            pause: colsToLoad >= 5 ? String(r[4] || "") : "",
-            activities: activitiesArr,
-            details: detailsArr
-          });
-        });
-      }
-    }
-
-    let abbauRaw = [];
-
-    if (sheetAbbau && sheetAbbau.getLastRow() > 1) {
-      const rows = sheetAbbau.getDataRange().getValues();
-      const headers = rows[0];
-
-      for (let r = 1; r < rows.length; r++) {
-        const rowData = rows[r];
-        const rYear = rowData[0];
-        const rKw = rowData[1];
-
-        for (let c = 3; c < rowData.length; c++) {
-          const val = Number(rowData[c]);
-          const teamName = String(headers[c]);
-
-          if (val !== 0 && teamName) {
-            abbauRaw.push({
-              y: rYear,
-              kw: rKw,
-              val: val,
-              team: teamName,
-              tma: ""
-            });
-          }
-        }
-      }
-    }
-
-    const formattedData = data.map((row, index) => {
-      if (!row[0]) return null;
-
-      const austrittRaw = row[12];
-      let isAustritt = false;
-
-      if (austrittRaw) {
-        let aDate = null;
-
-        if (austrittRaw instanceof Date) {
-          aDate = austrittRaw;
-        } else if (typeof austrittRaw === 'string' && austrittRaw.trim() !== "") {
-          const parts = extractDates(austrittRaw);
-
-          if (parts.length > 0) {
-            aDate = parts[0];
-          }
-        }
-
-        if (aDate) {
-          aDate.setHours(0, 0, 0, 0);
-
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          if (aDate <= today) {
-            isAustritt = true;
-          }
-        }
-      }
-
-      if (isAustritt) return null;
-
-      const nachname = String(row[0] || "").trim();
-      const vorname = String(row[1] || "").trim();
-      const dbKey = (vorname + " " + nachname).toLowerCase();
-
-      const myAuftraege = rawAuftraege
-        .filter(a =>
-          a.name.toLowerCase() === nachname.toLowerCase() &&
-          a.vorname.toLowerCase() === vorname.toLowerCase()
-        )
-        .map(a => {
-          let isTs = false;
-
-          if (a.erstelltVon) {
-            const creatorFirst = a.erstelltVon.split(' ')[0].toLowerCase();
-
-            if (tsNames.has(creatorFirst)) {
-              isTs = true;
-            }
-          }
-
-          return { ...a, isTsRelevant: isTs };
-        });
-
-      const rawEss = row[5];
-      const essDecimal = timeToDecimal(rawEss);
-      const plannedDecimal = myAuftraege.reduce((sum, order) => sum + (order.stunden || 0), 0);
-
-      let saldoDecimal = essDecimal - plannedDecimal;
-      saldoDecimal = Math.round(saldoDecimal * 100) / 100;
-
-      const shiftInfo = shiftMap.get(dbKey) || {
-        time: "",
-        type: "",
-        pause: "",
-        activities: [],
-        details: []
-      };
-
-      const austrittDisplay = row[12] instanceof Date ? formatDateCompat(row[12]) : "";
-
-      return {
-        id: index + 2,
-        nachname: nachname,
-        vorname: vorname,
-        fullName: `${vorname} ${nachname}`,
-        tmaVorname: String(row[3] || "Ohne TMA"),
-        skill: String(row[4] || "-"),
-        stundenEss: rawEss,
-        stundenSaldo: saldoDecimal,
-        letzteAktualisierung: row[6] ? formatDateCompat(row[6]) : "-",
-        notizen: String(row[11] || ""),
-        austrittDatum: austrittDisplay,
-        auftraege: myAuftraege,
-        schicht: shiftInfo
-      };
-    }).filter(item => item !== null);
-
-    return {
-      employees: formattedData,
-      currentWeek: getWeekNumber(new Date()),
-      currentYear: new Date().getFullYear(),
-      isAdmin: permissions.isAdmin,
-      isDienstplaner: permissions.isDienstplaner,
-      abbauHistory: abbauRaw
-    };
-
-  } catch (e) {
-    Logger.log("Fehler in getData: " + e.toString());
-    throw e;
+    setTimeout(() => {
+      modal.classList.add('hidden');
+    }, 300);
   }
-}
-
-/**
- * Cleanup Logic.
- */
-function processAuftragExpiry(sheetDB, sheetAuftrag) {
-  const lastRowA = sheetAuftrag.getLastRow();
-
-  if (lastRowA < 2) return;
-
-  const dbDataRange = sheetDB.getDataRange();
-  const dbData = dbDataRange.getValues();
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const dbMap = new Map();
-
-  for (let i = 1; i < dbData.length; i++) {
-    const key = (String(dbData[i][1]).trim() + " " + String(dbData[i][0]).trim()).toLowerCase();
-    dbMap.set(key, i);
-  }
-
-  const auftragData = sheetAuftrag.getRange(2, 1, lastRowA - 1, 6).getValues();
-
-  let dbDirty = false;
-  let auftragDirty = false;
-
-  const validAuftraege = [];
-
-  auftragData.forEach(row => {
-    const n = String(row[0]);
-    const v = String(row[1]);
-    const rawDate = row[2];
-    const hoursVal = row[3];
-    const notiz = row[4];
-    const creator = row[5];
-
-    let dates = [];
-
-    if (rawDate instanceof Date) {
-      dates.push(rawDate);
-    } else {
-      dates = extractDates(String(rawDate));
-    }
-
-    let isExpired = false;
-
-    if (dates.length > 0) {
-      const lastDate = dates[dates.length - 1];
-      lastDate.setHours(0, 0, 0, 0);
-
-      if (lastDate < today) {
-        isExpired = true;
-      }
-    }
-
-    let processed = false;
-
-    if (isExpired) {
-      const dbKey = (v.trim() + " " + n.trim()).toLowerCase();
-
-      if (dbMap.has(dbKey)) {
-        const dbIdx = dbMap.get(dbKey);
-
-        const currentEssStr = dbData[dbIdx][5];
-        const currentEssDec = timeToDecimal(currentEssStr);
-        const orderHoursDec = timeToDecimal(hoursVal);
-        const newEssDec = currentEssDec - orderHoursDec;
-
-        dbData[dbIdx][5] = decimalToTime(newEssDec);
-        dbData[dbIdx][6] = today;
-
-        dbDirty = true;
-        processed = true;
-        auftragDirty = true;
-      }
-    }
-
-    if (!processed) {
-      validAuftraege.push([n, v, rawDate, hoursVal, notiz, creator]);
-    }
-  });
-
-  if (dbDirty) {
-    const dataToWrite = dbData.slice(1);
-    const rangeFG = sheetDB.getRange(2, 6, dataToWrite.length, 2);
-
-    rangeFG.setNumberFormat("@");
-
-    const valuesFG = rangeFG.getValues();
-
-    let rangeDirty = false;
-
-    for (let i = 0; i < dataToWrite.length; i++) {
-      const newF = dataToWrite[i][5];
-      const newG = dataToWrite[i][6];
-
-      if (valuesFG[i][0] !== newF) {
-        valuesFG[i][0] = newF;
-        valuesFG[i][1] = newG;
-        rangeDirty = true;
-      }
-    }
-
-    if (rangeDirty) {
-      rangeFG.setValues(valuesFG);
-    }
-  }
-
-  if (auftragDirty) {
-    sheetAuftrag.getRange(2, 1, lastRowA - 1, 6).clearContent();
-
-    if (validAuftraege.length > 0) {
-      sheetAuftrag.getRange(2, 1, validAuftraege.length, 6).setValues(validAuftraege);
-    }
-
-    SpreadsheetApp.flush();
-  }
-}
-
-function getAuftraege(sheet) {
-  const lastRow = sheet.getLastRow();
-
-  if (lastRow < 2) return [];
-
-  const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
-
-  return data.map((row, idx) => ({
-    rowId: idx + 2,
-    name: String(row[0]),
-    vorname: String(row[1]),
-    datum: formatDateCompat(row[2]),
-    stunden: timeToDecimal(row[3]),
-    stundenDisplay: row[3],
-    notizen: String(row[4]),
-    erstelltVon: String(row[5] || "")
-  }));
-}
-
-function addAuftrag(data) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  let sheetAuftrag = ss.getSheetByName('Auftrag');
-
-  if (!sheetAuftrag) {
-    sheetAuftrag = ss.insertSheet('Auftrag');
-  }
-
-  const userEmail = Session.getActiveUser().getEmail();
-  const editorName = getEditorNameFromEmail(userEmail);
-  const lastRow = sheetAuftrag.getLastRow() + 1;
-
-  sheetAuftrag.getRange(lastRow, 4).setNumberFormat("@");
-
-  sheetAuftrag.getRange(lastRow, 1, 1, 6).setValues([[
-    data.nachname.trim(),
-    data.vorname.trim(),
-    data.datum,
-    data.stunden,
-    data.notizen,
-    editorName
-  ]]);
-
-  const team = getEmployeeTeam(data.nachname, data.vorname);
-
-  updateAbbauStats(data.datum, timeToDecimal(data.stunden), 'add', team);
-
-  SpreadsheetApp.flush();
-
-  return getData();
-}
-
-function deleteAuftrag(rowId) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Auftrag');
-
-  if (sheet) {
-    const r = Number(rowId);
-    const val = sheet.getRange(r, 1, 1, 6).getValues()[0];
-    const team = getEmployeeTeam(val[0], val[1]);
-
-    updateAbbauStats(val[2], timeToDecimal(val[3]), 'remove', team);
-
-    sheet.deleteRow(r);
-  }
-
-  return getData();
-}
-
-function updateEmployeeBase(formData) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Data_DB');
-  const row = parseInt(formData.id, 10);
-
-  const essCell = sheet.getRange(row, 6);
-
-  essCell.setNumberFormat("@");
-  essCell.setValue(formData.stundenEss);
-
-  sheet.getRange(row, 7).setValue(new Date()).setNumberFormat("dd.MM.yyyy");
-  sheet.getRange(row, 12).setValue(formData.notizen);
-
-  if (formData.austrittDatum) {
-    const parts = formData.austrittDatum.split('-');
-    const d = new Date(parts[0], parts[1] - 1, parts[2]);
-
-    sheet.getRange(row, 13).setValue(d).setNumberFormat("dd.MM.yyyy");
-  } else {
-    sheet.getRange(row, 13).setValue("");
-  }
-
-  SpreadsheetApp.flush();
-
-  return getData();
-}
-
-function getEditorNameFromEmail(email) {
-  if (!email) return "";
-
-  try {
-    const localPart = email.split('@')[0];
-    const parts = localPart.split('.');
-
-    if (parts.length > 0) {
-      const firstNamePart = parts[0].replace(/_/g, ' ');
-
-      return firstNamePart.replace(/\b\w/g, l => l.toUpperCase());
-    }
-
-    return email;
-  } catch (e) {
-    return email;
-  }
-}
-
-function extractDates(str) {
-  const regex = /(\d{1,2})\.(\d{1,2})\.(\d{4})/g;
-  const matches = [];
-
-  let match;
-
-  while ((match = regex.exec(str)) !== null) {
-    matches.push(new Date(match[3], match[2] - 1, match[1]));
-  }
-
-  return matches.sort((a, b) => a - b);
-}
-
-function formatDateCompat(dateObj) {
-  if (!dateObj) return "-";
-
-  let d = null;
-
-  if (dateObj instanceof Date) {
-    d = dateObj;
-  } else if (typeof dateObj === 'string') {
-    if (dateObj.match(/[A-Za-z]{3}\s[A-Za-z]{3}\s\d{2}/) || dateObj.includes("GMT")) {
-      const tryD = new Date(dateObj);
-
-      if (!isNaN(tryD.getTime())) {
-        d = tryD;
-      } else {
-        return dateObj;
-      }
-    } else {
-      return dateObj;
-    }
-  }
-
-  if (d && !isNaN(d.getTime())) {
-    return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy");
-  }
-
-  return String(dateObj);
-}
-
-function getWeekNumber(d) {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-
-  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-}
-
-function doGet(e) {
-  const userEmail = Session.getActiveUser().getEmail();
-  const permissions = getUserPermissions(userEmail);
-
-  if (permissions.hasAccess) {
-    return HtmlService
-      .createTemplateFromFile('Dashboard')
-      .evaluate()
-      .setTitle('Überstundenliste Dashboard')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  }
-
-  return HtmlService
-    .createHtmlOutput('Zugriff verweigert')
-    .setTitle("Zugriff verweigert");
-}
-
-function checkAccess(email) {
-  return getUserPermissions(email).hasAccess;
-}
-
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
-}
-
-/* =========================================================================
-   HILFSFUNKTIONEN FÜR ZEIT-UMRECHNUNG
-   ========================================================================= */
-
-function timeToDecimal(timeStr) {
-  if (timeStr === null || timeStr === undefined || timeStr === "") return 0;
-
-  if (typeof timeStr === 'number') return timeStr;
-
-  if (timeStr instanceof Date) {
-    const h = timeStr.getHours();
-    const m = timeStr.getMinutes();
-
-    return h + (m / 60);
-  }
-
-  timeStr = String(timeStr).trim();
-
-  let isNegative = timeStr.startsWith("-");
-
-  if (isNegative) {
-    timeStr = timeStr.substring(1);
-  }
-
-  const parts = timeStr.split(':');
-
-  if (parts.length < 2) {
-    return parseFloat(timeStr) || 0;
-  }
-
-  const hours = parseInt(parts[0], 10);
-  const minutes = parseInt(parts[1], 10);
-
-  let decimal = hours + (minutes / 60);
-
-  return isNegative ? -decimal : decimal;
-}
-
-function decimalToTime(decimalVal) {
-  if (decimalVal === null || decimalVal === undefined || decimalVal === "") return "00:00";
-
-  decimalVal = Number(decimalVal) || 0;
-
-  const isNegative = decimalVal < 0;
-
-  decimalVal = Math.abs(decimalVal);
-
-  let hours = Math.floor(decimalVal);
-  let minutes = Math.round((decimalVal - hours) * 60);
-
-  if (minutes === 60) {
-    hours += 1;
-    minutes = 0;
-  }
-
-  const hStr = String(hours).padStart(2, '0');
-  const mStr = String(minutes).padStart(2, '0');
-
-  return (isNegative ? "-" : "") + hStr + ":" + mStr;
-}
-
-function updateAbbauStats(dateStr, hoursDecimal, operation, teamName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  let sheet = ss.getSheetByName('AbbauKW');
-
-  if (!sheet) {
-    sheet = ss.insertSheet('AbbauKW');
-    sheet.appendRow(['Jahr', 'KW', 'Gesamt']);
-    sheet.setFrozenRows(1);
-    sheet.setFrozenColumns(2);
-  }
-
-  let dateObj = dateStr instanceof Date ? dateStr : extractDates(String(dateStr))[0];
-
-  if (!dateObj) return;
-
-  const year = dateObj.getFullYear();
-  const kw = getWeekNumber(dateObj);
-  const team = teamName || "Sonstiges";
-
-  const lastCol = sheet.getLastColumn();
-  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-
-  let colIndex = -1;
-
-  for (let c = 0; c < headers.length; c++) {
-    if (String(headers[c]).toLowerCase() === String(team).toLowerCase()) {
-      colIndex = c + 1;
-      break;
-    }
-  }
-
-  if (colIndex === -1) {
-    colIndex = lastCol + 1;
-    sheet.getRange(1, colIndex).setValue(team).setFontWeight("bold");
-  }
-
-  const lastRow = sheet.getLastRow();
-
-  let rowIndex = -1;
-
-  if (lastRow > 1) {
-    const timeData = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
-
-    for (let r = 0; r < timeData.length; r++) {
-      if (timeData[r][0] == year && timeData[r][1] == kw) {
-        rowIndex = r + 2;
-        break;
-      }
-    }
-  }
-
-  if (rowIndex === -1) {
-    sheet.appendRow([year, kw, 0]);
-    rowIndex = sheet.getLastRow();
-  }
-
-  const cell = sheet.getRange(rowIndex, colIndex);
-  const oldVal = Number(cell.getValue()) || 0;
-
-  let newVal = oldVal;
-
-  if (operation === 'add') {
-    newVal += hoursDecimal;
-  } else {
-    newVal -= hoursDecimal;
-  }
-
-  newVal = Math.round(newVal * 100) / 100;
-
-  cell.setValue(newVal);
-}
-
-function getEmployeeTeam(nachname, vorname) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheetDB = ss.getSheetByName('Data_DB');
-
-  if (!sheetDB) return "Unbekannt";
-
-  const data = sheetDB.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    if (
-      String(data[i][0]).toLowerCase().trim() === String(nachname).toLowerCase().trim() &&
-      String(data[i][1]).toLowerCase().trim() === String(vorname).toLowerCase().trim()
-    ) {
-      return String(data[i][4]);
-    }
-  }
-
-  return "Unbekannt";
-}
-
-/* =========================================================================
-   WRAPPER FÜR BIBLIOTHEK: StundenerfassungPlano
-   ========================================================================= */
-
-function libProcessSelectedFile(fileId) {
-  return StundenerfassungPlano.processSelectedFile(fileId);
-}
-
-function libProcessStundenerfassung(dateStr) {
-  return StundenerfassungPlano.processStundenerfassung(dateStr);
-}
-
-function libDeleteStundenerfassung(dateStr) {
-  return StundenerfassungPlano.deleteStundenerfassung(dateStr);
-}
-
-function libSyncStundenerfassung(dateStr) {
-  return StundenerfassungPlano.syncStundenerfassung(dateStr);
-}
-
-function libGetStundenerfassungFileName() {
-  return StundenerfassungPlano.getStundenerfassungFileName();
-}
-
-/* =========================================================================
-   KAPAZITÄTENÜBERSICHT TAGESSTEUERUNG
-   Basis: Schichtmodelle aus Plano Backup
-   Wichtig: Es werden nur echte Plano-Tätigkeits-/Skill-Zeitblöcke gezählt.
-   Keine Fallback-Berechnung über die komplette Arbeitszeit, keine Pause.
-   ========================================================================= */
-
-function getCapacityOverviewData() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheetSchicht = ss.getSheetByName('Schichtmodelle');
-
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-  if (!sheetSchicht || sheetSchicht.getLastRow() < 2) {
-    return {
-      success: true,
-      updatedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
-      sourceRows: 0,
-      totalHours: 0,
-      remainingHours: 0,
-      usedHours: 0,
-      employeeCount: 0,
-      activeNowCount: 0,
-      foundSkills: [],
-      areas: []
-    };
-  }
-
-  const colsToLoad = Math.min(sheetSchicht.getLastColumn(), 6);
-  const rows = sheetSchicht.getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad).getValues();
-
-  const groupMap = new Map();
-
-  let totalHoursAll = 0;
-  let remainingHoursAll = 0;
-  let activeNowCount = 0;
-  let sourceSegments = 0;
-
-  rows.forEach(row => {
-    const rawActivities = colsToLoad >= 6 ? String(row[5] || "").trim() : "";
-    const segments = parseCapacitySkillSegments(rawActivities);
-
-    if (segments.length === 0) return;
-
-    segments.forEach(segment => {
-      const rawSkill = String(segment.activity || "").trim();
-
-      if (!rawSkill || isCapacityIgnoredActivity(rawSkill)) return;
-
-      const capacitySkill = mapCapacitySkillGroup(rawSkill);
-
-      if (!capacitySkill || capacitySkill === "-" || capacitySkill.toLowerCase() === "ohne skill") return;
-
-      const duration = calculateCapacitySegmentDuration(segment.start, segment.end, nowMinutes);
-
-      if (duration.totalHours <= 0) return;
-
-      if (!groupMap.has(capacitySkill)) {
-        groupMap.set(capacitySkill, {
-          area: capacitySkill,
-          totalHours: 0,
-          remainingHours: 0,
-          usedHours: 0,
-          activeNowCount: 0,
-          originalSkills: new Set()
-        });
-      }
-
-      const group = groupMap.get(capacitySkill);
-
-      group.totalHours += duration.totalHours;
-      group.remainingHours += duration.remainingHours;
-      group.usedHours += duration.usedHours;
-      group.originalSkills.add(rawSkill);
-
-      if (duration.isActiveNow) {
-        group.activeNowCount += 1;
-        activeNowCount += 1;
-      }
-
-      totalHoursAll += duration.totalHours;
-      remainingHoursAll += duration.remainingHours;
-      sourceSegments += 1;
-    });
-  });
-
-  const preferredOrder = [
-    "1st Level Filiale",
-    "2nd Level Filiale",
-    "One 1st Level",
-    "One 2nd Level"
-  ];
-
-  const areas = Array.from(groupMap.values()).map(group => ({
-    area: group.area,
-    totalHours: Math.round(group.totalHours * 100) / 100,
-    remainingHours: Math.round(group.remainingHours * 100) / 100,
-    usedHours: Math.round(group.usedHours * 100) / 100,
-    activeNowCount: group.activeNowCount,
-    originalSkills: Array.from(group.originalSkills).sort()
-  })).sort((a, b) => {
-    const aIdx = preferredOrder.indexOf(a.area);
-    const bIdx = preferredOrder.indexOf(b.area);
-
-    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-    if (aIdx !== -1) return -1;
-    if (bIdx !== -1) return 1;
-
-    return a.area.localeCompare(b.area);
-  });
-
-  return {
-    success: true,
-    updatedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
-    sourceRows: sourceSegments,
-    totalHours: Math.round(totalHoursAll * 100) / 100,
-    remainingHours: Math.round(remainingHoursAll * 100) / 100,
-    usedHours: Math.round((totalHoursAll - remainingHoursAll) * 100) / 100,
-    employeeCount: 0,
-    activeNowCount: activeNowCount,
-    foundSkills: areas.map(a => a.area),
-    areas: areas
-  };
-}
-
-function parseCapacitySkillSegments(rawActivities) {
-  const segments = [];
-
-  if (!rawActivities) return segments;
-
-  try {
-    const parsed = JSON.parse(rawActivities);
-
-    if (Array.isArray(parsed)) {
-      parsed.forEach(item => {
-        const time = String(item.time || "").trim();
-        const activity = String(item.activity || "").trim();
-
-        if (!activity || isCapacityIgnoredActivity(activity)) return;
-
-        const range = parseTimeRangeToMinutes(time);
-
-        if (range) {
-          segments.push({
-            start: range.start,
-            end: range.end,
-            activity: activity
-          });
-        }
-      });
-
-      return segments;
-    }
-  } catch (e) {
-    // Fallback auf Textparser
-  }
-
-  const regex = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s+([\s\S]*?)(?=\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}|$)/g;
-  let match;
-
-  while ((match = regex.exec(rawActivities)) !== null) {
-    const time = `${match[1]}-${match[2]}`;
-    const activity = String(match[3] || "").replace(/\n/g, " ").trim();
-
-    if (!activity || isCapacityIgnoredActivity(activity)) continue;
-
-    const range = parseTimeRangeToMinutes(time);
-
-    if (range) {
-      segments.push({
-        start: range.start,
-        end: range.end,
-        activity: activity
-      });
-    }
-  }
-
-  return segments;
-}
-
-function calculateCapacitySegmentDuration(startMinutes, endMinutes, nowMinutes) {
-  const totalMinutes = Math.max(0, endMinutes - startMinutes);
-
-  let adjustedNow = nowMinutes;
-
-  if (endMinutes > 1440 && adjustedNow < startMinutes) {
-    adjustedNow += 1440;
-  }
-
-  let remainingMinutes = 0;
-  let isActiveNow = false;
-
-  if (adjustedNow < startMinutes) {
-    remainingMinutes = totalMinutes;
-  } else if (adjustedNow >= startMinutes && adjustedNow < endMinutes) {
-    remainingMinutes = Math.max(0, endMinutes - adjustedNow);
-    isActiveNow = true;
-  }
-
-  const usedMinutes = Math.max(0, totalMinutes - remainingMinutes);
-
-  return {
-    totalHours: totalMinutes / 60,
-    remainingHours: remainingMinutes / 60,
-    usedHours: usedMinutes / 60,
-    isActiveNow: isActiveNow
-  };
-}
-
-function parseTimeRangeToMinutes(timeRange) {
-  if (!timeRange) return null;
-
-  const match = String(timeRange).match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
-
-  if (!match) return null;
-
-  const start = Number(match[1]) * 60 + Number(match[2]);
-  let end = Number(match[3]) * 60 + Number(match[4]);
-
-  if (end <= start) {
-    end += 1440;
-  }
-
-  return {
-    start: start,
-    end: end
-  };
-}
-
-function isCapacityIgnoredActivity(activity) {
-  const a = String(activity || "").toLowerCase().trim();
-
-  return (
-    !a ||
-    a === "-" ||
-    a.includes("pause") ||
-    a.includes("break") ||
-    a.includes("systemstörung") ||
-    a.includes("systemstoerung") ||
-    a.includes("störung") ||
-    a.includes("stoerung") ||
-    a.includes("meeting") ||
-    a.includes("coaching") ||
-    a.includes("coaching lks de") ||
-    a.includes("schulung") ||
-    a.includes("schulung lks") ||
-    a.includes("paypal") ||
-    a.includes("briefdruck") ||
-    a.includes("andere tätigkeiten") ||
-    a.includes("andere taetigkeiten") ||
-    a.includes("trainer") ||
-    a.includes("quality mng") ||
-    a.includes("wissen & training") ||
-    a.includes("training") ||
-    a.includes("bot")
-  );
-}
-
-function mapCapacitySkillGroup(skill) {
-  const original = String(skill || "").trim();
-  const s = original.toLowerCase();
-
-  if (!s || s === "-" || s === "ohne skill") return "";
-
-  const hasFiliale = s.includes("filiale");
-  const hasOnlineshop = s.includes("onlineshop") || s.includes("online shop");
-  const hasLidlPlus = s.includes("lidl plus") || s.includes("lidlplus");
-  const hasTelefon = s.includes("telefon");
-  const has1st = s.includes("1st") || s.includes("first");
-  const has2nd = s.includes("2nd") || s.includes("second");
-  const hasOne = s.includes("one");
-  const hasKleineLines = s.includes("kleine line") || s.includes("kleine lines") || s.includes("kleinelines");
-
-  if (hasOne && has1st) {
-    return "One 1st Level";
-  }
-
-  if (hasOne && has2nd) {
-    return "One 2nd Level";
-  }
-
-  if (
-    (has1st && (hasOnlineshop || hasLidlPlus)) ||
-    (hasTelefon && (hasOnlineshop || hasLidlPlus))
-  ) {
-    return "One 1st Level";
-  }
-
-  if (
-    has2nd &&
-    (hasOnlineshop || hasLidlPlus)
-  ) {
-    return "One 2nd Level";
-  }
-
-  if (
-    (has2nd && hasFiliale) ||
-    hasKleineLines
-  ) {
-    return "2nd Level Filiale";
-  }
-
-  if (
-    (has1st && hasFiliale) ||
-    (hasTelefon && hasFiliale) ||
-    s.includes("telefon filiale/lidl") ||
-    (hasTelefon && s.includes("lidl") && !hasLidlPlus)
-  ) {
-    return "1st Level Filiale";
-  }
-
-  return original;
-}
