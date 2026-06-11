@@ -1,4 +1,2418 @@
-function toggleControlPanel(panelId) {
+Hier ist jetzt mein Dashboard.html
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              lidl: { blue: '#0050AA', yellow: '#F0C300', red: '#E60000', gray: '#f4f4f4', dark: '#1e293b' },
+              modern: { green: '#059669' }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body { font-family: 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; }
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: #f1f1f1; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      .loader { border: 4px solid #f3f3f3; border-top: 4px solid #0050AA; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      .filter-chip { transition: all 0.2s; font-size: 0.75rem; border: 1px solid transparent; }
+      .filter-chip.default { background-color: white; border: 1px solid #e2e8f0; color: #475569; }
+      .filter-chip.default:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+      .filter-chip.active { background-color: #0050AA; color: white; border-color: #0050AA; box-shadow: 0 2px 4px rgba(0,80,170,0.2); }
+      .filter-chip.disabled { opacity: 0.3; cursor: not-allowed; background-color: #f1f5f9 !important; color: #94a3b8 !important; border-color: #e2e8f0 !important; }
+      .btn-overdue.active { background-color: #ef4444; color: white; border-color: #ef4444; }
+      .act-filter-chip { font-size: 0.7rem; transition: all 0.2s; }
+      .act-filter-chip.active { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+      .act-filter-chip.default { background-color: white; color: #64748b; border-color: #cbd5e1; }
+    </style>
+  </head>
+
+  <body class="flex flex-col h-screen overflow-hidden text-slate-800">
+
+    <header class="relative z-[100] h-16 bg-white shadow-sm border-b border-gray-200 shrink-0 flex justify-between items-center px-6">
+      <div class="flex items-center gap-3">
+        <div class="bg-lidl-blue text-lidl-yellow w-10 h-10 rounded-lg flex items-center justify-center text-xl font-bold shadow-sm">
+          <i class="fa-solid fa-clock"></i>
+        </div>
+        <h1 class="text-lidl-blue font-bold text-xl tracking-tight uppercase">Überstundenliste</h1>
+      </div>
+
+      <nav class="flex items-center bg-gray-100 p-1 rounded-lg relative z-50">
+        <button onclick="switchPage('dashboard')" id="nav-dashboard" class="px-6 py-2 rounded-md text-base font-bold transition-all flex items-center gap-2 cursor-pointer relative z-50">
+          <i class="fa-solid fa-chart-pie"></i> Dashboard
+        </button>
+        <button onclick="switchPage('directory')" id="nav-directory" class="px-6 py-2 rounded-md text-base font-bold transition-all flex items-center gap-2 cursor-pointer relative z-50">
+          <i class="fa-solid fa-address-book"></i> Verzeichnis
+        </button>
+        <button onclick="switchPage('control')" id="nav-control" style="display:none !important;" class="px-6 py-2 rounded-md text-base font-bold transition-all flex items-center gap-2 cursor-pointer relative z-50 text-lidl-blue">
+          <i class="fa-solid fa-user-gear"></i> Tagessteuerung
+        </button>
+        <button onclick="switchPage('dienstplanung')" id="nav-dienstplanung" style="display:none !important;" class="px-6 py-2 rounded-md text-base font-bold transition-all flex items-center gap-2 cursor-pointer relative z-50 text-modern-green">
+          <i class="fa-solid fa-calendar-days"></i> Dienstplanung
+        </button>
+      </nav>
+
+      <div class="relative w-80 z-50">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </span>
+        <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Suche..." class="w-full py-2 pl-9 pr-4 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-full focus:ring-2 focus:ring-lidl-blue focus:bg-white transition-all">
+        <div id="searchResults" class="hidden absolute top-full right-0 w-96 mt-2 bg-white rounded-lg shadow-xl border border-gray-100 max-h-60 overflow-y-auto z-50"></div>
+      </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative z-0">
+      <aside class="w-72 bg-slate-50 border-r border-gray-200 flex flex-col z-20 shrink-0 overflow-hidden">
+        <div class="p-4 bg-white border-b border-gray-100 shadow-sm">
+          <div class="flex justify-between items-center mb-1">
+            <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
+              <i class="fa-solid fa-filter text-lidl-blue"></i> Filter
+            </h3>
+            <button onclick="resetFilters()" class="text-xs text-blue-500 hover:text-blue-700 font-medium cursor-pointer">Filter entfernen</button>
+          </div>
+          <p class="text-[10px] text-gray-400">Filter wirken auf Dashboard & Verzeichnis</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 space-y-6 custom-scroll">
+          <div>
+            <h4 class="text-xs font-bold text-gray-500 uppercase mb-3 pl-1 border-l-2 border-lidl-blue">Teams / Skill</h4>
+            <div id="filter-teams-container" class="flex flex-wrap gap-2"></div>
+          </div>
+
+          <div class="pt-4 border-t border-gray-100 mt-4">
+            <h4 class="text-xs font-bold text-gray-500 uppercase mb-3 pl-1 border-l-2 border-lidl-blue">TMA</h4>
+            <div id="filter-tma-container" class="flex flex-wrap gap-2"></div>
+
+            <div class="mt-4 bg-gray-50 p-2 rounded border border-gray-200">
+              <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Status Legende</p>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-green-500"></div><span class="text-[10px] text-gray-500">Aktuell (&lt; 7 Tage)</span></div>
+                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-orange-400"></div><span class="text-[10px] text-gray-500">Überfällig (&gt; 7 Tage)</span></div>
+                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-red-600"></div><span class="text-[10px] text-gray-500">Kritisch (&gt; 14 Tage)</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="flex-1 relative overflow-hidden bg-gray-50/50 flex flex-col z-10">
+        <div id="loader" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div class="loader mb-4"></div>
+          <p class="text-gray-500 font-medium">Daten werden geladen...</p>
+        </div>
+
+        <div id="error-state" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center bg-white">
+          <i class="fa-solid fa-triangle-exclamation text-4xl text-red-500 mb-4"></i>
+          <h3 class="font-bold text-lg">Fehler beim Laden</h3>
+          <p id="error-msg" class="text-sm mt-2 text-gray-500">Unbekannter Fehler</p>
+          <button onclick="loadData()" class="mt-4 px-4 py-2 bg-lidl-blue text-white rounded hover:bg-blue-700">Erneut versuchen</button>
+        </div>
+
+        <div class="flex-1 overflow-auto p-6" id="content-scroll-area">
+
+          <div id="stats-row-template" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
+
+              <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between group hover:shadow-md transition-all h-full">
+                <div class="flex justify-between items-center mb-2">
+                  <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Gesamt Minus</p>
+                  <div class="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-sm">
+                    <i class="fa-regular fa-clock"></i>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <h3 class="text-3xl font-bold text-red-600 leading-none" data-stat="total-minus">00:00</h3>
+                  <p class="text-[10px] text-gray-400 mt-1">Alle negativen Stunden</p>
+                </div>
+                <div class="border-t border-gray-100 pt-3 text-[10px] text-gray-500 flex items-center gap-1 mt-auto">
+                  <span class="font-bold text-gray-400 uppercase">Anzahl Kollegen:</span>
+                  <span data-stat="count-minus" class="font-bold text-slate-600">0</span>
+                </div>
+              </div>
+
+              <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between group hover:shadow-md transition-all h-full">
+                <div class="flex justify-between items-start mb-2">
+                  <div>
+                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Gesamt Plus</p>
+                    <div class="flex items-baseline gap-2 mt-1">
+                      <h3 class="text-3xl font-bold text-modern-green leading-none" data-stat="total-plus">00:00</h3>
+                      <span class="text-sm text-gray-500 font-semibold">Ø <span data-stat="avg-plus">00:00</span></span>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-0.5">Alle positiven Stunden</p>
+                  </div>
+                  <div class="w-8 h-8 rounded-full bg-emerald-50 text-modern-green flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-clock"></i>
+                  </div>
+                </div>
+                <div class="border-t border-gray-100 pt-3 mt-auto flex flex-col gap-1.5">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase">Anzahl Kollegen:</span>
+                  <div class="flex gap-4 text-[10px] font-medium text-gray-500">
+                    <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> &gt;40h: <b data-stat="crit-total">0</b></div>
+                    <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span> 10-40h: <b data-stat="crit-mid">0</b></div>
+                    <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> &lt;10h: <b data-stat="crit-low">0</b></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between border-l-4 border-blue-400 group hover:shadow-md transition-all h-full">
+                <div class="flex justify-between items-center mb-2">
+                  <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Geplanter Abbau</p>
+                  <div class="w-8 h-8 rounded-full bg-blue-50 text-lidl-blue flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-calendar-check"></i>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <h3 class="text-3xl font-bold text-lidl-blue leading-none" data-stat="total-abbau">00:00</h3>
+                  <p class="text-[10px] text-gray-400 mt-1">Summe aller geplanten Stunden</p>
+                </div>
+
+                <div class="border-t border-gray-100 pt-3 mt-auto">
+                  <div class="grid grid-cols-3 gap-2 text-center divide-x divide-gray-100">
+
+                    <div class="flex flex-col items-center justify-center group/item">
+                      <span class="text-[9px] text-gray-400 uppercase font-bold mb-0.5">KW <span data-stat="kw-last-num">0</span></span>
+                      <span class="text-sm font-mono font-bold text-gray-500 group-hover/item:text-slate-700 transition-colors" data-stat="kw-last-val">00:00</span>
+                    </div>
+
+                    <div class="flex flex-col items-center justify-center bg-blue-50 rounded-lg py-1 border border-blue-100 relative overflow-hidden">
+                      <div class="absolute top-0 left-0 w-full h-0.5 bg-lidl-blue"></div>
+                      <span class="text-[9px] text-lidl-blue uppercase font-bold mb-0.5">KW <span data-stat="kw-curr-num">0</span></span>
+                      <span class="text-sm font-mono font-bold text-lidl-blue" data-stat="kw-curr-val">00:00</span>
+                    </div>
+
+                    <div class="flex flex-col items-center justify-center group/item">
+                      <span class="text-[9px] text-gray-400 uppercase font-bold mb-0.5">KW <span data-stat="kw-next-num">0</span></span>
+                      <span class="text-sm font-mono font-bold text-gray-500 group-hover/item:text-slate-700 transition-colors" data-stat="kw-next-val">00:00</span>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div id="page-dashboard" class="space-y-6 max-w-[1800px] mx-auto">
+            <div id="dash-stats-container"></div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6" style="height: calc(100vh - 300px); min-height: 500px;">
+
+              <div class="flex flex-col gap-4 h-full">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-1/2">
+                  <div class="px-5 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h3 class="font-bold text-sm text-slate-700 uppercase">Top 15 Überstunden</h3>
+                    <div class="w-2 h-2 rounded-full bg-modern-green"></div>
+                  </div>
+                  <div class="overflow-x-auto overflow-y-auto flex-1 custom-scroll">
+                    <table class="w-full text-left text-sm">
+                      <thead class="sticky top-0 bg-white shadow-sm z-10 text-xs text-gray-400 font-bold uppercase">
+                        <tr>
+                          <th class="px-4 py-2 bg-white">Name</th>
+                          <th class="px-4 py-2 text-right bg-white">Saldo</th>
+                        </tr>
+                      </thead>
+                      <tbody id="top15-plus-body" class="divide-y divide-gray-50"></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-1/2">
+                  <div class="px-5 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h3 class="font-bold text-sm text-slate-700 uppercase">Top 15 Minusstunden</h3>
+                    <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                  </div>
+                  <div class="overflow-x-auto overflow-y-auto flex-1 custom-scroll">
+                    <table class="w-full text-left text-sm">
+                      <thead class="sticky top-0 bg-white shadow-sm z-10 text-xs text-gray-400 font-bold uppercase">
+                        <tr>
+                          <th class="px-4 py-2 bg-white">Name</th>
+                          <th class="px-4 py-2 text-right bg-white">Saldo</th>
+                        </tr>
+                      </thead>
+                      <tbody id="top15-minus-body" class="divide-y divide-gray-50"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+                <div class="px-5 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h3 class="font-bold text-sm text-slate-700 uppercase">Verteilung nach Team</h3>
+                  <i class="fa-solid fa-users text-gray-300"></i>
+                </div>
+                <div class="overflow-x-auto overflow-y-auto flex-1 custom-scroll">
+                  <table class="w-full text-left text-sm">
+                    <thead class="sticky top-0 bg-white shadow-sm z-10 text-xs text-gray-400 font-bold uppercase">
+                      <tr>
+                        <th class="px-4 py-2 bg-white">Team</th>
+                        <th class="px-4 py-2 text-right text-red-500 bg-white">Minus</th>
+                        <th class="px-4 py-2 text-right text-modern-green bg-white">Plus</th>
+                        <th class="px-4 py-2 text-right text-gray-500 bg-white" title="Durchschnitt der Plus-Stunden">Ø</th>
+                      </tr>
+                    </thead>
+                    <tbody id="team-stats-body" class="divide-y divide-gray-50"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+                <div class="px-5 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h3 class="font-bold text-sm text-slate-700 uppercase">Verteilung nach TMA</h3>
+                  <i class="fa-solid fa-user-tie text-gray-300"></i>
+                </div>
+                <div class="overflow-x-auto overflow-y-auto flex-1 custom-scroll">
+                  <table class="w-full text-left text-sm">
+                    <thead class="sticky top-0 bg-white shadow-sm z-10 text-xs text-gray-400 font-bold uppercase">
+                      <tr>
+                        <th class="px-4 py-2 bg-white">TMA</th>
+                        <th class="px-4 py-2 text-right text-red-500 bg-white">Minus</th>
+                        <th class="px-4 py-2 text-right text-modern-green bg-white">Plus</th>
+                        <th class="px-4 py-2 text-right text-gray-500 bg-white" title="Durchschnitt der Plus-Stunden">Ø</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tma-stats-body" class="divide-y divide-gray-50"></tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div id="page-directory" class="hidden h-full flex flex-col max-w-[1800px] mx-auto space-y-4">
+            <div id="dir-stats-container"></div>
+
+            <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex justify-between items-center">
+              <div class="text-sm text-gray-500 flex items-center gap-4">
+                <span class="bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600">
+                  <span id="directory-count">0</span> Einträge
+                </span>
+
+                <button onclick="toggleOverdue()" id="btn-overdue" class="btn-overdue flex items-center gap-2 px-3 py-1 rounded-lg border border-red-200 text-xs font-bold hover:bg-red-50 text-red-600 transition">
+                  <i class="fa-solid fa-clock-rotate-left"></i> Überfällige Aktualisierung (&gt;7 Tage)
+                </button>
+
+                <button onclick="triggerReminder()" id="btn-send-reminder" class="hidden flex items-center gap-2 px-3 py-1 rounded-lg bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 shadow-sm transition transform active:scale-95">
+                  <i class="fa-regular fa-bell"></i> Erinnerung versenden
+                </button>
+              </div>
+
+              <div class="flex gap-2">
+                <button onclick="setDirectorySort('plus')" id="btn-sort-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
+                  <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
+                </button>
+                <button onclick="setDirectorySort('minus')" id="btn-sort-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+                  <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
+                </button>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
+              <div class="px-6 py-3 bg-gray-50 border-b border-gray-100 grid grid-cols-12 gap-4 text-xs font-bold text-gray-500 uppercase">
+                <div class="col-span-4">Kollege-/in</div>
+                <div class="col-span-1 text-right">Saldo</div>
+                <div class="col-span-1 text-right">ESS</div>
+                <div class="col-span-3">Team</div>
+                <div class="col-span-1">TMA</div>
+                <div class="col-span-2 text-right">Stand</div>
+              </div>
+              <div id="directory-list-container" class="overflow-y-auto flex-1 divide-y divide-gray-50 custom-scroll"></div>
+            </div>
+          </div>
+
+          <div id="page-control" class="hidden h-full flex flex-col max-w-[1800px] mx-auto space-y-4">
+
+<div id="page-control" class="hidden h-full flex flex-col max-w-[1800px] mx-auto space-y-4">
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
+    <button onclick="toggleControlPanel('admin-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
+      <div>
+        <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
+          <i class="fa-solid fa-user-shield text-lidl-blue"></i> Administration
+        </h3>
+        <p class="text-[11px] text-gray-400 mt-0.5">Import, Übermittlung und Plano-Analyse</p>
+      </div>
+
+      <div class="flex items-center gap-2 text-gray-400">
+        <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
+        <i id="admin-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
+      </div>
+    </button>
+
+    <div id="admin-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+      <button onclick="openImportTypeModal()" id="btn-import-modal-open" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
+          <i class="fa-solid fa-file-import"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-slate-700 truncate">Plano Backup importieren</div>
+          <div class="text-[11px] text-gray-400 truncate">Tagesdaten oder Stundenerfassung übernehmen</div>
+        </div>
+        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
+      </button>
+
+      <button onclick="openUebermittelnModal()" class="group relative overflow-hidden bg-white border border-emerald-100 rounded-xl p-3 hover:border-modern-green hover:shadow-md transition text-left flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-modern-green flex items-center justify-center shrink-0 group-hover:bg-modern-green group-hover:text-white transition">
+          <i class="fa-solid fa-paper-plane"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-slate-700 truncate">Stundenerfassung übermitteln</div>
+          <div class="text-[11px] text-gray-400 truncate">Tag löschen, übertragen oder Monat synchronisieren</div>
+        </div>
+        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-modern-green transition"></i>
+      </button>
+
+      <a href="https://docs.google.com/spreadsheets/d/1aq-TtGaW4yzRqKng_ZLT1sNmmNVi9BqAbrdYgj5FQrg/edit?gid=986034657#gid=986034657"
+         target="_blank"
+         rel="noopener noreferrer"
+         class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gray-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
+          <i class="fa-solid fa-up-right-from-square"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-slate-700 truncate">Plano Overview öffnen</div>
+          <div class="text-[11px] text-gray-400 truncate">Monatsübersicht und Analyse in Google Sheets</div>
+        </div>
+        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-slate-600 transition"></i>
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
+    <button onclick="toggleControlPanel('steering-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-slate-50 via-white to-blue-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
+      <div>
+        <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
+          <i class="fa-solid fa-gauge-high text-lidl-blue"></i> Steuerung
+        </h3>
+        <p class="text-[11px] text-gray-400 mt-0.5">Operative Tagesplanung und Kapazitätssteuerung</p>
+      </div>
+
+      <div class="flex items-center gap-2 text-gray-400">
+        <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
+        <i id="steering-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
+      </div>
+    </button>
+
+    <div id="steering-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <button type="button" class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3 cursor-default">
+        <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
+          <i class="fa-solid fa-calendar-day"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-slate-700 truncate flex items-center gap-2">
+            Tagesplanung
+            <span class="text-[9px] bg-gray-100 text-gray-400 border border-gray-200 rounded-full px-2 py-0.5 uppercase">bald</span>
+          </div>
+          <div class="text-[11px] text-gray-400 truncate">Platzhalter für operative Tagesplanung</div>
+        </div>
+      </button>
+
+      <button onclick="openCapacityOverviewModal()" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
+          <i class="fa-solid fa-chart-simple"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-slate-700 truncate">Kapazitätenübersicht</div>
+          <div class="text-[11px] text-gray-400 truncate">Stunden je Bereich aus dem Plano Backup</div>
+        </div>
+        <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="flex justify-between items-center shrink-0 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+    <div class="flex gap-2 items-center">
+      <span class="text-xs font-bold text-gray-400 uppercase mr-2">
+        <i class="fa-solid fa-arrow-down-up-across-line"></i> Sortierung:
+      </span>
+
+      <button onclick="setControlSort('plus')" id="btn-ctrl-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
+        <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
+      </button>
+      <button onclick="setControlSort('minus')" id="btn-ctrl-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+        <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
+      </button>
+      <button onclick="setControlSort('time')" id="btn-ctrl-time" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+        <i class="fa-regular fa-clock"></i> Zeit (Tätigkeit)
+      </button>
+    </div>
+
+    <div class="hidden xl:flex items-center gap-2 text-xs text-gray-400">
+      <i class="fa-solid fa-circle-info text-lidl-blue"></i>
+      <span>Sortierung wirkt auf die Schichtkarten darunter</span>
+    </div>
+  </div>
+
+  <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex items-start gap-4">
+    <span class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap mt-1.5">
+      <i class="fa-solid fa-list-check"></i> Tätigkeiten:
+    </span>
+    <div id="activity-filter-container" class="flex flex-wrap gap-2 items-center"></div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+        <div class="flex justify-between items-center mb-1">
+          <h3 class="font-bold text-sm text-slate-700 uppercase">Frühschicht</h3>
+          <span class="text-xs font-bold bg-blue-100 text-lidl-blue px-2 py-0.5 rounded" id="count-frueh">0</span>
+        </div>
+        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+          <span>Verfügbar:</span>
+          <span class="text-modern-green" id="sum-frueh">00:00 Std</span>
+        </div>
+      </div>
+      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-frueh"></div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+        <div class="flex justify-between items-center mb-1">
+          <h3 class="font-bold text-sm text-slate-700 uppercase">Mittelschicht</h3>
+          <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" id="count-mittel">0</span>
+        </div>
+        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+          <span>Verfügbar:</span>
+          <span class="text-modern-green" id="sum-mittel">00:00 Std</span>
+        </div>
+      </div>
+      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-mittel"></div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+        <div class="flex justify-between items-center mb-1">
+          <h3 class="font-bold text-sm text-slate-700 uppercase">Spätschicht</h3>
+          <span class="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded" id="count-spaet">0</span>
+        </div>
+        <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+          <span>Verfügbar:</span>
+          <span class="text-modern-green" id="sum-spaet">00:00 Std</span>
+        </div>
+      </div>
+      <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-spaet"></div>
+    </div>
+  </div>
+
+            <div id="shift-radar-widget" class="fixed bottom-6 right-6 z-[100] flex flex-col items-end transition-all duration-300">
+              <div id="shift-radar-panel" class="hidden w-80 bg-white rounded-2xl shadow-2xl border border-blue-100 mb-4 overflow-hidden flex-col origin-bottom-right transition-all">
+                <div class="bg-gradient-to-r from-lidl-blue to-blue-800 p-4 flex justify-between items-center text-white shrink-0">
+                  <div class="flex items-center gap-2 font-bold text-sm">
+                    <i class="fa-solid fa-satellite-dish animate-pulse"></i> Live-Schicht-Radar
+                  </div>
+                  <span class="text-[10px] font-mono font-bold bg-white/20 px-2 py-0.5 rounded-full" id="radar-time">--:--</span>
+                </div>
+                <div class="p-0 max-h-72 overflow-y-auto custom-scroll bg-slate-50" id="radar-list"></div>
+              </div>
+
+              <button onclick="toggleRadar()" class="bg-lidl-blue text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl hover:bg-blue-800 hover:scale-105 transition-all flex items-center justify-center text-2xl relative cursor-pointer">
+                <i class="fa-solid fa-stopwatch"></i>
+                <span id="radar-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white hidden">0</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="page-dienstplanung" class="hidden h-full flex flex-col max-w-[1800px] mx-auto space-y-4">
+            <div id="dienstplanung-content-area" class="h-full flex flex-col">
+              <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-gray-300"></i>
+                <p>Lade Kollegen & Kalender...</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+
+    <?!= include('AbsenceModal'); ?>
+    <?!= include('EarlyLeaveModal'); ?>
+    <?!= include('LateArrivalModal'); ?>
+    <?!= include('MissingColleagueModal'); ?>
+
+    <div id="reminderModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="reminderModalContent">
+        <div class="bg-orange-500 px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+          <h3 class="text-white font-bold text-lg flex items-center gap-2">
+            <i class="fa-regular fa-bell"></i> Erinnerung versenden (Vorschau)
+          </h3>
+          <button onclick="closeReminderModal()" class="text-white hover:bg-orange-700 rounded-full w-8 h-8 flex items-center justify-center transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-1 custom-scroll space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Empfänger (BCC) - <span id="rem-count">0</span> TMA(s)</label>
+            <div id="rem-tma-container" class="flex flex-wrap gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg min-h-[60px]"></div>
+            <p class="text-[10px] text-gray-400 mt-1">Klicke auf das X, um einen Teamleiter von dieser Erinnerung auszuschließen.</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Betreff</label>
+            <input type="text" id="rem-subject" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 outline-none font-bold">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-400 uppercase mb-1">E-Mail Text</label>
+            <textarea id="rem-body" rows="12" class="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-orange-500 outline-none custom-scroll resize-none text-gray-700"></textarea>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
+          <button onclick="closeReminderModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+          <button onclick="executeReminderSend()" id="btn-execute-rem" class="px-6 py-2 rounded-lg bg-orange-500 text-white font-bold text-sm hover:bg-orange-600 shadow-sm transition flex items-center gap-2">
+            <i class="fa-regular fa-paper-plane"></i> E-Mail jetzt senden
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="importTypeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 flex flex-col" id="importTypeModalContent">
+        <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center">
+          <h3 class="text-white font-bold text-lg flex items-center gap-2">
+            <i class="fa-solid fa-file-import"></i> Import-Typ wählen
+          </h3>
+          <button onclick="closeImportTypeModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <p class="text-sm text-gray-600">Für welchen Bereich möchtest du das Plano Backup importieren?</p>
+
+          <button onclick="closeImportTypeModal(); openPlanoImportModal();" class="w-full bg-blue-50 border border-blue-200 text-lidl-blue hover:bg-lidl-blue hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
+            <i class="fa-solid fa-clock"></i> Heutiger Tag
+          </button>
+
+          <button onclick="closeImportTypeModal(); openPlanoStundenerfassungModal();" class="w-full bg-emerald-50 border border-emerald-200 text-modern-green hover:bg-modern-green hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
+            <i class="fa-solid fa-database"></i> Stundenerfassung -/ Plano Overview
+          </button>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
+          <button onclick="closeImportTypeModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="planoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoModalContent">
+        <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+          <h3 class="text-white font-bold text-lg flex items-center gap-2">
+            <i class="fa-solid fa-file-excel"></i> Tagessteuerung Import
+          </h3>
+          <button onclick="closePlanoModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-1 custom-scroll">
+          <p class="text-sm text-gray-600 mb-4">Wähle die Datei für den heutigen Tag:</p>
+          <div id="plano-files-list" class="space-y-2">
+            <div class="text-center text-gray-400 py-4">
+              <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
+          <button onclick="closePlanoModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="planoStundenerfassungModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoStundenerfassungModalContent">
+        <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+          <h3 class="text-white font-bold text-lg flex items-center gap-2">
+            <i class="fa-solid fa-database"></i> Stundenerfassung Import
+          </h3>
+          <button onclick="closePlanoStundenerfassungModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-1 custom-scroll">
+          <p class="text-sm text-gray-600 mb-4">Wähle die Backup-Datei zur Übertragung in die Datenbank:</p>
+          <div id="plano-st-files-list" class="space-y-2">
+            <div class="text-center text-gray-400 py-4">
+              <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
+          <button onclick="closePlanoStundenerfassungModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="uebermittelnModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col" id="uebermittelnModalContent">
+        <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center">
+          <h3 class="text-white font-bold text-lg flex items-center gap-2">
+            <i class="fa-solid fa-paper-plane"></i> Stundenerfassung übermitteln
+          </h3>
+          <button onclick="closeUebermittelnModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-5">
+          <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+            <span class="text-[10px] text-modern-green font-bold uppercase block mb-1">Aktuelle Zieldatei (aus Einstellungen)</span>
+            <strong id="st-filename-display" class="text-emerald-800 text-sm">Wird geladen...</strong>
+          </div>
+
+          <div class="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-xl text-xs font-bold flex items-start gap-2">
+            <i class="fa-solid fa-triangle-exclamation mt-0.5 text-orange-500 text-lg"></i>
+            <p>WICHTIG: Übermittle die Daten immer als "HEUTE für HEUTE" oder "GESTERN für GESTERN"! Nicht "heute für gestern".</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Datum für die Übermittlung</label>
+            <input type="date" id="uebermitteln-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none bg-white">
+          </div>
+
+          <div class="space-y-3 pt-2">
+            <button id="btn-st-transfer" onclick="startTransfer()" class="w-full bg-modern-green text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-emerald-700 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-upload"></i> Übermittlung starten
+            </button>
+
+            <button id="btn-st-delete" onclick="startDelete()" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-red-600 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-trash-can"></i> Tag aus Stundenerfassung löschen
+            </button>
+
+            <button id="btn-st-sync" onclick="startSync()" class="w-full bg-lidl-blue text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-arrows-rotate"></i> Ganzen Monat synchronisieren (Backup)
+            </button>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
+          <button onclick="closeUebermittelnModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+        </div>
+      </div>
+    </div>
+    <div id="capacityOverviewModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="capacityOverviewModalContent">
+    
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+      <div>
+        <h3 class="text-white font-bold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-chart-simple"></i> Kapazitätenübersicht
+        </h3>
+        <p class="text-blue-100 text-xs mt-0.5">Auswertung aus dem aktuellen Plano Backup nach Steuerungsbereichen</p>
+      </div>
+
+      <button onclick="closeCapacityOverviewModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div id="capacity-overview-content" class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50">
+      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
+        <p class="font-medium">Kapazitäten werden berechnet...</p>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center border-t border-gray-200 shrink-0">
+      <div class="text-xs text-gray-400">
+        <i class="fa-solid fa-circle-info text-lidl-blue mr-1"></i>
+        Reststunden werden ab aktueller Uhrzeit berechnet. Pausen werden aus den Tätigkeiten ausgeschlossen.
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="openCapacityOverviewModal(true)" class="px-4 py-2 rounded-lg bg-blue-50 text-lidl-blue border border-blue-100 hover:bg-blue-100 font-bold text-sm transition flex items-center gap-2">
+          <i class="fa-solid fa-arrows-rotate"></i> Aktualisieren
+        </button>
+        <button onclick="closeCapacityOverviewModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+      </div>
+    </div>
+  </div>
+</div>
+    <div id="shiftDetailsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="shiftDetailsModalContent">
+        <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0 relative">
+          <div>
+            <h3 class="text-white font-bold text-lg" id="shift-modal-name">-</h3>
+            <p class="text-blue-200 text-xs" id="shift-modal-skill">-</p>
+          </div>
+          <div class="bg-white/20 px-3 py-1 rounded border border-white/30 text-white font-mono font-bold" id="shift-modal-time">--:--</div>
+          <button onclick="closeShiftDetailsModal()" class="absolute top-4 right-4 text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="p-0 overflow-y-auto flex-1 custom-scroll bg-gray-50">
+          <div id="shift-modal-timeline" class="p-6"></div>
+        </div>
+
+        <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center shrink-0 border-t border-gray-200">
+          <button onclick="openEditModal(currentEmpId)" class="px-4 py-2 bg-blue-50 text-lidl-blue border border-blue-200 rounded-lg text-sm font-bold hover:bg-blue-100 transition flex items-center gap-2">
+            <i class="fa-solid fa-pen-to-square"></i> ESS Daten bearbeiten
+          </button>
+          <button onclick="closeShiftDetailsModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="editModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[250] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="modalContent">
+
+        <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+          <h3 class="text-white font-bold text-lg">
+            <i class="fa-solid fa-pen-to-square mr-2"></i> Bearbeiten
+          </h3>
+          <div class="text-right">
+            <span class="text-[10px] text-blue-200 uppercase font-bold block">Voraussichtlich</span>
+            <span class="text-white font-mono font-bold text-lg" id="modal-saldo-display">00:00</span>
+          </div>
+        </div>
+
+        <div class="p-6 space-y-6 overflow-y-auto flex-1 custom-scroll">
+
+          <div class="flex gap-2 mb-2">
+            <button onclick="triggerAbsence()" id="btn-absence-report" class="hidden bg-white border border-blue-100 hover:bg-blue-50 text-lidl-blue text-xs font-bold px-3 py-1.5 rounded shadow-sm transition flex items-center gap-2 transform active:scale-95">
+              <i class="fa-regular fa-envelope"></i> Abwesenheit
+            </button>
+            <button onclick="triggerEarlyLeave()" id="btn-early-leave" class="hidden bg-white border border-blue-200 hover:bg-blue-50 text-lidl-blue text-xs font-bold px-3 py-1.5 rounded shadow-sm transition flex items-center gap-2 transform active:scale-95">
+              <i class="fa-regular fa-envelope"></i> Vorzeitiges Dienstende
+            </button>
+            <button onclick="triggerLateArrival()" id="btn-late-arrival" class="hidden bg-white border border-blue-200 hover:bg-blue-50 text-lidl-blue text-xs font-bold px-3 py-1.5 rounded shadow-sm transition flex items-center gap-2 transform active:scale-95">
+              <i class="fa-regular fa-envelope"></i> Verspätung
+            </button>
+            <button onclick="triggerMissingColleague()" id="btn-missing-colleague" class="hidden bg-white border border-blue-200 hover:bg-blue-50 text-lidl-blue text-xs font-bold px-3 py-1.5 rounded shadow-sm transition flex items-center justify-center gap-2 transform active:scale-95">
+              <i class="fa-regular fa-envelope"></i> Fehlender Kollege
+            </button>
+          </div>
+
+          <input type="hidden" id="edit-id">
+          <input type="hidden" id="edit-real-name">
+          <input type="hidden" id="edit-real-vorname">
+
+          <div class="bg-gray-50 p-3 rounded-lg border border-gray-100 grid grid-cols-3 gap-2">
+            <div class="col-span-1">
+              <span class="text-xs text-gray-400 uppercase font-bold block">Kollege-/in</span>
+              <div class="font-semibold text-slate-700 truncate" id="edit-name">-</div>
+            </div>
+            <div class="col-span-1">
+              <span class="text-xs text-gray-400 uppercase font-bold block">Team</span>
+              <div class="font-semibold text-slate-700 truncate" id="edit-skill">-</div>
+            </div>
+            <div class="col-span-1">
+              <span class="text-xs text-gray-400 uppercase font-bold block">TMA</span>
+              <div class="font-semibold text-slate-700 truncate" id="edit-tma">-</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <div class="flex-1">
+              <label class="block text-sm font-semibold text-lidl-blue mb-1">
+                Stundenkonto ESS <span class="text-[10px] font-normal text-gray-500">(Std:Min)</span>
+              </label>
+              <div class="relative">
+                <input type="text" id="edit-stundenEss" placeholder="hh:mm" maxlength="8" oninput="this.value = this.value.replace(/[^0-9:-]/g, '')" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-lidl-yellow focus:border-lidl-yellow outline-none transition-all font-mono text-lg font-semibold text-slate-700">
+                <span class="absolute right-3 top-2.5 text-gray-400 text-sm">Std.</span>
+              </div>
+            </div>
+
+            <div class="flex-[2]">
+              <div class="flex items-center gap-2 mb-1">
+                <input type="checkbox" id="chk-ess-pause" onchange="toggleNotizenField()" class="w-4 h-4 text-lidl-blue rounded focus:ring-lidl-blue cursor-pointer">
+                <label for="chk-ess-pause" class="text-xs font-bold text-gray-400 uppercase cursor-pointer select-none">ESS wird länger nicht aktualisiert</label>
+              </div>
+
+              <div id="container-notizen" class="hidden">
+                <input type="text" id="edit-notizen" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-lidl-yellow outline-none text-sm" placeholder="Grund für Pausierung...">
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-200 my-2"></div>
+
+          <div>
+            <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2">
+              <i class="fa-solid fa-calendar-check text-lidl-blue"></i> Geplanter Abbau (Vorgemerkt)
+            </h4>
+
+            <div id="auftrag-list" class="space-y-2 mb-4"></div>
+
+            <div id="container-new-abbau" class="border border-blue-200 rounded-xl overflow-hidden bg-white shadow-sm">
+              <div class="bg-blue-50 px-4 py-2 border-b border-blue-100 flex justify-between items-center">
+                <h5 class="text-xs font-bold text-lidl-blue uppercase">
+                  <i class="fa-solid fa-plus-circle mr-1"></i> Neuen Abbau planen
+                </h5>
+              </div>
+
+              <div class="p-4 grid grid-cols-12 gap-4 items-end">
+
+                <div class="col-span-2">
+                  <label class="text-[10px] text-gray-400 uppercase font-bold block mb-1">Stunden</label>
+                  <input type="text" id="new-std" placeholder="hh:mm" maxlength="6" oninput="this.value = this.value.replace(/[^0-9:]/g, '')" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:bg-white focus:border-lidl-blue focus:border-blue-100 transition-all text-center">
+                </div>
+
+                <div class="col-span-6">
+                  <label class="text-[10px] text-gray-400 uppercase font-bold block mb-1">Datum oder Zeitraum</label>
+                  <div class="relative group">
+                    <div class="flex">
+                      <input type="text" id="new-date" placeholder="Wähle..." readonly class="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-l-lg px-3 py-2 text-sm text-slate-700 cursor-pointer focus:outline-none">
+                      <button onclick="togglePicker(event, 'single')" class="shrink-0 bg-white border-y border-r border-gray-200 px-3 hover:bg-blue-50 text-gray-500 hover:text-lidl-blue text-xs font-medium transition border-l-0 picker-toggle-btn" title="Tag">+ Tag</button>
+                      <button onclick="togglePicker(event, 'range')" class="shrink-0 bg-white border-y border-r border-gray-200 px-3 hover:bg-blue-50 text-gray-500 hover:text-lidl-blue text-xs font-medium rounded-r-lg transition border-l-0 picker-toggle-btn" title="Zeitraum">+ Zeitraum</button>
+                    </div>
+
+                    <div id="picker-single" class="hidden absolute bottom-full left-0 mb-2 p-3 bg-white border border-gray-200 rounded-lg shadow-xl z-20 w-56 ring-1 ring-black/5">
+                      <div class="flex gap-2">
+                        <input type="date" id="h-single-date" class="w-full border border-gray-300 rounded px-2 py-1 text-xs">
+                        <button onclick="applyDateSingle()" class="bg-lidl-blue text-white rounded px-3 py-1 text-xs font-bold hover:bg-blue-700">OK</button>
+                      </div>
+                    </div>
+
+                    <div id="picker-range" class="hidden absolute bottom-full left-0 mb-2 p-3 bg-white border border-gray-200 rounded-lg shadow-xl z-20 w-72 ring-1 ring-black/5">
+                      <div class="flex gap-2 items-center">
+                        <input type="date" id="h-range-from" class="w-1/2 border border-gray-300 rounded px-2 py-1 text-xs">
+                        <span class="text-gray-400 text-xs font-bold">BIS</span>
+                        <input type="date" id="h-range-to" class="w-1/2 border border-gray-300 rounded px-2 py-1 text-xs">
+                        <button onclick="applyDateRange()" class="bg-lidl-blue text-white rounded px-3 py-1 text-xs font-bold hover:bg-blue-700">OK</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-span-4 flex gap-2 items-end">
+                  <div class="flex-1">
+                    <label class="text-[10px] text-gray-400 uppercase font-bold block mb-1">Notiz</label>
+                    <input type="text" id="new-note" placeholder="Grund..." class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:border-lidl-blue transition-all">
+                  </div>
+
+                  <button onclick="addNewAuftrag(this)" id="btn-add-auftrag" class="bg-lidl-blue text-white h-[38px] w-[38px] rounded-lg flex items-center justify-center hover:bg-blue-700 shadow-md hover:shadow-lg transition-all active:scale-95 shrink-0" title="Hinzufügen">
+                    <i class="fa-solid fa-plus"></i>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-between items-center shrink-0 border-t border-gray-200">
+          <div id="container-austritt" class="flex items-center gap-2">
+            <label for="edit-austritt-date" class="text-[10px] font-bold text-red-500 uppercase mb-0.5">Austritt:</label>
+            <input type="date" id="edit-austritt-date" class="border border-red-300 text-red-600 rounded px-2 py-1 text-xs focus:ring-red-500 focus:border-red-500 bg-red-50">
+          </div>
+
+          <div class="flex gap-3">
+            <button onclick="closeEditModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-medium transition text-sm h-10">Abbrechen</button>
+            <button onclick="saveBaseData(true)" id="btn-save-close" class="px-5 py-2 rounded-lg bg-lidl-blue text-white font-bold hover:bg-blue-700 shadow-sm transition text-sm h-10">Speichern & Schließen</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <?!= include('DienstplanClient'); ?>
+
+    <script>
+      let allData = [];
+      let globalStats = {};
+      let abbauStatsData = { lastKW: 0, lastVal: 0, currKW: 0, currVal: 0, nextKW: 0, nextVal: 0 };
+      let abbauHistoryData = [];
+
+      let currentPage = 'dashboard';
+      let activeSort = 'plus';
+      let activeControlSort = 'plus';
+      let activeActivityFilter = 'Alle';
+      let filterOverdue = false;
+
+      let selectedTeams = new Set();
+      let selectedTmas = new Set();
+
+      let availableTeams = [];
+      let availableTmas = [];
+
+      let currentEmpId = null;
+      let isAdmin = false;
+      let isDienstplaner = false;
+
+      let radarInterval = null;
+      let isRadarOpen = false;
+
+      let currentReminderDraft = [];
+
+      let currentWeekNum = 0;
+      let currentYearNum = 0;
+
+      window.onload = function() {
+        loadData();
+      };
+
+      function loadData() {
+        document.getElementById('error-state').classList.add('hidden');
+        document.getElementById('loader').classList.remove('hidden');
+
+        google.script.run
+          .withSuccessHandler(onDataLoaded)
+          .withFailureHandler(onDataError)
+          .getData();
+      }
+
+      function onDataError(error) {
+        document.getElementById('loader').classList.add('hidden');
+        document.getElementById('error-state').classList.remove('hidden');
+        document.getElementById('error-msg').innerText = error.message || error;
+      }
+
+      function onDataLoaded(response) {
+        allData = response.employees || [];
+        globalStats = response.stats || {};
+
+        currentWeekNum = response.currentWeek || getWeekNumber(new Date());
+        currentYearNum = response.currentYear || new Date().getFullYear();
+        abbauHistoryData = response.abbauHistory || [];
+
+        isAdmin = response.isAdmin;
+        isDienstplaner = response.isDienstplaner;
+
+        if (isAdmin) {
+          document.getElementById('nav-control').style.display = 'flex';
+        } else {
+          document.getElementById('nav-control').style.display = 'none';
+        }
+
+        if (isDienstplaner) {
+          document.getElementById('nav-dienstplanung').style.display = 'flex';
+        } else {
+          document.getElementById('nav-dienstplanung').style.display = 'none';
+        }
+
+        availableTeams = [...new Set(allData.map(d => d.skill).filter(Boolean))].sort();
+        availableTmas = [...new Set(allData.map(d => d.tmaVorname).filter(Boolean))].sort();
+
+        initFilters();
+
+        if (typeof vacEmployeeList !== 'undefined') {
+          google.script.run
+            .withSuccessHandler(list => {
+              vacEmployeeList = list;
+
+              const searchEl = document.getElementById('vac-search');
+
+              if (searchEl && searchEl.value && searchEl.value.length >= 2) {
+                handleEmployeeSearch(searchEl.value);
+              }
+            })
+            .getEmployeesForDropdown();
+        }
+
+        if (currentPage === 'control' && !isAdmin) {
+          currentPage = 'dashboard';
+        }
+
+        if (currentPage === 'dienstplanung' && !isDienstplaner) {
+          currentPage = 'dashboard';
+        }
+
+        const btnRemind = document.getElementById('btn-send-reminder');
+
+        if (btnRemind) {
+          if (isAdmin || isDienstplaner) {
+            btnRemind.classList.remove('hidden');
+          } else {
+            btnRemind.classList.add('hidden');
+          }
+        }
+
+        document.getElementById('loader').classList.add('hidden');
+
+        switchPage(currentPage);
+      }
+
+      function switchPage(pageId) {
+        currentPage = pageId;
+
+        const navs = ['dashboard', 'directory', 'control', 'dienstplanung'];
+
+        navs.forEach(n => {
+          const btn = document.getElementById('nav-' + n);
+          const pg = document.getElementById('page-' + n);
+
+          if (!btn || !pg) return;
+
+          if (n === pageId) {
+            btn.className = "px-6 py-2 rounded-md text-base font-bold bg-white text-lidl-blue shadow-sm transition-all flex items-center gap-2 cursor-pointer relative z-50";
+            pg.classList.remove('hidden');
+          } else {
+            btn.className = "px-6 py-2 rounded-md text-base font-bold text-gray-500 hover:text-lidl-blue hover:bg-white transition-all flex items-center gap-2 cursor-pointer relative z-50";
+            pg.classList.add('hidden');
+          }
+        });
+
+        if (pageId === 'dienstplanung') {
+          if (typeof dienstplanungLoaded !== 'undefined' && !dienstplanungLoaded && typeof loadDienstplanungContent === 'function') {
+            loadDienstplanungContent();
+          } else if (typeof dienstplanInitDone !== 'undefined' && !dienstplanInitDone && typeof initDienstplanView === 'function') {
+            initDienstplanView();
+          }
+        } else {
+          applyFilters();
+        }
+
+        if (pageId === 'control') {
+          updateRadar();
+
+          if (!radarInterval) {
+            radarInterval = setInterval(updateRadar, 60000);
+          }
+        } else {
+          if (radarInterval) {
+            clearInterval(radarInterval);
+            radarInterval = null;
+          }
+        }
+      }
+
+      function openImportTypeModal() {
+        const modal = document.getElementById('importTypeModal');
+
+        modal.classList.remove('hidden');
+
+        setTimeout(() => {
+          modal.classList.remove('opacity-0');
+          document.getElementById('importTypeModalContent').classList.remove('scale-95');
+          document.getElementById('importTypeModalContent').classList.add('scale-100');
+        }, 10);
+      }
+
+      function closeImportTypeModal() {
+        const modal = document.getElementById('importTypeModal');
+
+        modal.classList.add('opacity-0');
+        document.getElementById('importTypeModalContent').classList.remove('scale-100');
+        document.getElementById('importTypeModalContent').classList.add('scale-95');
+
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300);
+      }
+
+      function openPlanoStundenerfassungModal() {
+        const modal = document.getElementById('planoStundenerfassungModal');
+        const list = document.getElementById('plano-st-files-list');
+
+        list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
+
+        modal.classList.remove('hidden');
+
+        setTimeout(() => {
+          modal.classList.remove('opacity-0');
+          document.getElementById('planoStundenerfassungModalContent').classList.remove('scale-95');
+          document.getElementById('planoStundenerfassungModalContent').classList.add('scale-100');
+        }, 10);
+
+        google.script.run
+          .withSuccessHandler(files => {
+            list.innerHTML = '';
+
+            if (!files || files.length === 0) {
+              list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
+              return;
+            }
+
+            files.forEach(f => {
+              const d = new Date(f.dateCreated);
+              const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+              list.innerHTML += `
+                <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-200 transition group">
+                  <div>
+                    <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                      <i class="fa-solid fa-database text-modern-green"></i> ${f.name}
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
+                  </div>
+                  <button onclick="runPlanoStundenerfassungImport('${f.id}', this)" class="bg-white border border-gray-300 text-modern-green px-3 py-1.5 rounded text-xs font-bold hover:bg-modern-green hover:text-white transition shadow-sm">
+                    Datenbank Import
+                  </button>
+                </div>`;
+            });
+          })
+          .withFailureHandler(err => {
+            list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message}</div>`;
+          })
+          .getPlanoFilesList();
+      }
+
+      function closePlanoStundenerfassungModal() {
+        const modal = document.getElementById('planoStundenerfassungModal');
+
+        modal.classList.add('opacity-0');
+        document.getElementById('planoStundenerfassungModalContent').classList.remove('scale-100');
+        document.getElementById('planoStundenerfassungModalContent').classList.add('scale-95');
+
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300);
+      }
+
+      function runPlanoStundenerfassungImport(fileId, btnEl) {
+        const oldContent = btnEl.innerHTML;
+
+        btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importiere...';
+        btnEl.disabled = true;
+        btnEl.classList.add('opacity-75', 'cursor-not-allowed');
+
+        const allBtns = document.getElementById('plano-st-files-list').querySelectorAll('button');
+        allBtns.forEach(b => b.disabled = true);
+
+        google.script.run
+          .withSuccessHandler(function(response) {
+            closePlanoStundenerfassungModal();
+            alert(response);
+          })
+          .withFailureHandler(function(error) {
+            btnEl.innerHTML = oldContent;
+            btnEl.disabled = false;
+            btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
+            allBtns.forEach(b => b.disabled = false);
+            alert("Kritischer Fehler: " + error.message);
+          })
+          .libProcessSelectedFile(fileId);
+      }
+
+      function openUebermittelnModal() {
+        const modal = document.getElementById('uebermittelnModal');
+
+        modal.classList.remove('hidden');
+
+        setTimeout(() => {
+          modal.classList.remove('opacity-0');
+          document.getElementById('uebermittelnModalContent').classList.remove('scale-95');
+          document.getElementById('uebermittelnModalContent').classList.add('scale-100');
+        }, 10);
+
+        document.getElementById('st-filename-display').innerText = "Lade Dateinamen aus Einstellungen...";
+
+        google.script.run
+          .withSuccessHandler(name => {
+            document.getElementById('st-filename-display').innerText = name;
+          })
+          .withFailureHandler(err => {
+            document.getElementById('st-filename-display').innerText = "Fehler beim Laden";
+          })
+          .libGetStundenerfassungFileName();
+      }
+
+      function closeUebermittelnModal() {
+        const modal = document.getElementById('uebermittelnModal');
+
+        modal.classList.add('opacity-0');
+        document.getElementById('uebermittelnModalContent').classList.remove('scale-100');
+        document.getElementById('uebermittelnModalContent').classList.add('scale-95');
+
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300);
+      }
+
+      function toggleUebermittelnButtons(disabled) {
+        document.getElementById('btn-st-transfer').disabled = disabled;
+        document.getElementById('btn-st-delete').disabled = disabled;
+        document.getElementById('btn-st-sync').disabled = disabled;
+        document.getElementById('uebermitteln-date').disabled = disabled;
+      }
+
+      function startTransfer() {
+        const dateVal = document.getElementById('uebermitteln-date').value;
+
+        if (!dateVal) {
+          alert("Bitte wähle ein Datum aus.");
+          return;
+        }
+
+        toggleUebermittelnButtons(true);
+
+        const btn = document.getElementById('btn-st-transfer');
+        const oldHtml = btn.innerHTML;
+
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Übermittlung läuft...';
+
+        google.script.run
+          .withSuccessHandler(res => {
+            alert("Erfolgreich! " + res);
+            btn.innerHTML = oldHtml;
+            toggleUebermittelnButtons(false);
+            closeUebermittelnModal();
+          })
+          .withFailureHandler(err => {
+            alert("FEHLER: " + err.message);
+            btn.innerHTML = oldHtml;
+            toggleUebermittelnButtons(false);
+          })
+          .libProcessStundenerfassung(dateVal);
+      }
+
+      function startDelete() {
+        const dateVal = document.getElementById('uebermitteln-date').value;
+
+        if (!dateVal) {
+          alert("Bitte wähle ein Datum aus.");
+          return;
+        }
+
+        if (!confirm("Möchtest du wirklich alle eingetragenen Zeiten für dieses Datum in der Stundenerfassung löschen?")) {
+          return;
+        }
+
+        toggleUebermittelnButtons(true);
+
+        const btn = document.getElementById('btn-st-delete');
+        const oldHtml = btn.innerHTML;
+
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lösche Daten...';
+
+        google.script.run
+          .withSuccessHandler(res => {
+            alert("Gelöscht! " + res);
+            btn.innerHTML = oldHtml;
+            toggleUebermittelnButtons(false);
+            closeUebermittelnModal();
+          })
+          .withFailureHandler(err => {
+            alert("FEHLER: " + err.message);
+            btn.innerHTML = oldHtml;
+            toggleUebermittelnButtons(false);
+          })
+          .libDeleteStundenerfassung(dateVal);
+      }
+
+      function startSync() {
+        const dateVal = document.getElementById('uebermitteln-date').value;
+
+        if (!dateVal) {
+          alert("Bitte wähle irgendein Datum aus dem Monat.");
+          return;
+        }
+
+        toggleUebermittelnButtons(true);
+
+        const btn = document.getElementById('btn-st-sync');
+        const oldHtml = btn.innerHTML;
+
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Synchronisiere...';
+
+        google.script.run
+          .withSuccessHandler(res => {
+            alert("Erfolgreich! " + res);
+            btn.innerHTML = oldHtml;
+            toggleUebermittelnButtons(false);
+            closeUebermittelnModal();
+          })
+          .withFailureHandler(err => {
+            alert("FEHLER: " + err.message);
+            btn.innerHTML = oldHtml;
+            toggleUebermittelnButtons(false);
+          })
+          .libSyncStundenerfassung(dateVal);
+      }
+
+      function initFilters() {
+        const teamC = document.getElementById('filter-teams-container');
+        const tmaC = document.getElementById('filter-tma-container');
+
+        teamC.innerHTML = '';
+        tmaC.innerHTML = '';
+
+        availableTeams.forEach(t => {
+          const chip = document.createElement('button');
+
+          chip.className = "filter-chip default px-3 py-1 rounded-full";
+          chip.innerText = t;
+          chip.dataset.value = t;
+          chip.onclick = () => toggleFilter(t, 'team', chip);
+
+          teamC.appendChild(chip);
+        });
+
+        availableTmas.forEach(t => {
+          const chip = document.createElement('button');
+
+          chip.dataset.value = t;
+          chip.onclick = () => toggleFilter(t, 'tma', chip);
+
+          const colorClass = getTmaColorClass(t);
+
+          chip.className = `filter-chip px-3 py-1 rounded-full ${colorClass}`;
+          chip.innerText = t;
+
+          tmaC.appendChild(chip);
+        });
+      }
+
+      function getTmaColorClass(tma) {
+        const emps = allData.filter(d => d.tmaVorname === tma);
+
+        if (emps.length === 0) return "bg-gray-50 border-gray-200 text-gray-400";
+
+        let maxDays = 0;
+
+        emps.forEach(e => {
+          if (e.notizen && e.notizen.trim() !== "") return;
+
+          if (e.letzteAktualisierung && e.letzteAktualisierung !== '-') {
+            const parts = e.letzteAktualisierung.split('.');
+
+            if (parts.length === 3) {
+              const d = new Date(parts[2], parts[1] - 1, parts[0]);
+              const diff = (new Date() - d) / (1000 * 60 * 60 * 24);
+
+              if (diff > maxDays) {
+                maxDays = diff;
+              }
+            }
+          }
+        });
+
+        if (maxDays > 14) return "bg-red-600 text-white border-red-600 hover:opacity-90";
+        if (maxDays > 7) return "bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200";
+
+        return "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100";
+      }
+
+      function toggleFilter(val, type, element) {
+        if (element.classList.contains('disabled')) return;
+
+        const set = type === 'team' ? selectedTeams : selectedTmas;
+
+        if (set.has(val)) {
+          set.delete(val);
+
+          if (type === 'team') {
+            element.classList.remove('active');
+            element.classList.add('default');
+          } else {
+            element.classList.remove('ring-2', 'ring-blue-700', 'ring-offset-1');
+          }
+        } else {
+          set.add(val);
+
+          if (type === 'team') {
+            element.classList.remove('default');
+            element.classList.add('active');
+          } else {
+            element.classList.add('ring-2', 'ring-blue-700', 'ring-offset-1');
+          }
+        }
+
+        applyFilters();
+      }
+
+      function resetFilters() {
+        selectedTeams.clear();
+        selectedTmas.clear();
+
+        document.querySelectorAll('#filter-teams-container .filter-chip').forEach(el => {
+          el.classList.remove('active', 'disabled');
+          el.classList.add('default');
+        });
+
+        document.querySelectorAll('#filter-tma-container .filter-chip').forEach(el => {
+          el.classList.remove('disabled', 'ring-2', 'ring-blue-700', 'ring-offset-1');
+        });
+
+        applyFilters();
+      }
+
+      function applyFilters() {
+        let filtered = allData.filter(d => {
+          const teamMatch = selectedTeams.size === 0 || selectedTeams.has(d.skill);
+          const tmaMatch = selectedTmas.size === 0 || selectedTmas.has(d.tmaVorname);
+
+          return teamMatch && tmaMatch;
+        });
+
+        updateTmaAvailability();
+        renderStatsAndLists(filtered);
+
+        if (
+          typeof dienstplanInitDone !== 'undefined' &&
+          dienstplanInitDone &&
+          typeof window.filterAndRenderDienstplan === 'function'
+        ) {
+          window.filterAndRenderDienstplan();
+        }
+      }
+
+      function updateTmaAvailability() {
+        const tmaChips = document.querySelectorAll('#filter-tma-container .filter-chip');
+
+        if (selectedTeams.size === 0) {
+          tmaChips.forEach(c => c.classList.remove('disabled'));
+          return;
+        }
+
+        const validTmas = new Set();
+
+        allData.forEach(d => {
+          if (selectedTeams.has(d.skill) && d.tmaVorname) {
+            validTmas.add(d.tmaVorname);
+          }
+        });
+
+        tmaChips.forEach(chip => {
+          if (validTmas.has(chip.dataset.value)) {
+            chip.classList.remove('disabled');
+          } else {
+            chip.classList.add('disabled');
+
+            if (selectedTmas.has(chip.dataset.value)) {
+              selectedTmas.delete(chip.dataset.value);
+              chip.classList.remove('ring-2', 'ring-blue-700', 'ring-offset-1');
+            }
+          }
+        });
+      }
+
+      function renderStatsAndLists(data) {
+        const currKW = currentWeekNum;
+        const currY = currentYearNum;
+
+        let lastKW = currKW - 1;
+        let lastY = currY;
+
+        if (lastKW < 1) {
+          lastKW = 52;
+          lastY--;
+        }
+
+        let nextKW = currKW + 1;
+        let nextY = currY;
+
+        if (nextKW > 52) {
+          nextKW = 1;
+          nextY++;
+        }
+
+        let sumLast = 0;
+        let sumCurr = 0;
+        let sumNext = 0;
+
+        abbauHistoryData.forEach(h => {
+          const teamMatch = selectedTeams.size === 0 || selectedTeams.has(h.team);
+
+          if (teamMatch) {
+            if (h.y == lastY && h.kw == lastKW) sumLast += Number(h.val) || 0;
+            if (h.y == currY && h.kw == currKW) sumCurr += Number(h.val) || 0;
+            if (h.y == nextY && h.kw == nextKW) sumNext += Number(h.val) || 0;
+          }
+        });
+
+        const myKwStats = {
+          lastKW: lastKW,
+          lastVal: sumLast,
+          currKW: currKW,
+          currVal: sumCurr,
+          nextKW: nextKW,
+          nextVal: sumNext
+        };
+
+        const saldos = data.map(d => parseFloat(d.stundenSaldo) || 0);
+
+        const critTotal = saldos.filter(h => h > 40).length;
+        const critMid = saldos.filter(h => h >= 10 && h <= 40).length;
+        const critLow = saldos.filter(h => h > 0 && h < 10).length;
+
+        const minusArr = saldos.filter(h => h < 0);
+        const minusSum = minusArr.reduce((a, b) => a + b, 0);
+
+        const plusArr = saldos.filter(h => h > 0);
+        const plusSum = plusArr.reduce((a, b) => a + b, 0);
+        const avgPlus = plusArr.length > 0 ? plusSum / plusArr.length : 0;
+
+        let totalAbbau = 0;
+        let tsAbbau = 0;
+
+        data.forEach(emp => {
+          if (emp.auftraege) {
+            emp.auftraege.forEach(o => {
+              totalAbbau += Number(o.stunden) || 0;
+
+              if (o.isTsRelevant && isDateInWeek(o.datum, currentWeekNum, currentYearNum)) {
+                tsAbbau += Number(o.stunden) || 0;
+              }
+            });
+          }
+        });
+
+        let targetId = 'dash-stats-container';
+
+        if (currentPage === 'directory') {
+          targetId = 'dir-stats-container';
+        }
+
+        if (currentPage === 'dashboard' || currentPage === 'directory') {
+          updateStatValues(targetId, {
+            critTotal,
+            critMid,
+            critLow,
+            minusSum,
+            minusCount: minusArr.length,
+            plusSum,
+            countPlus: plusArr.length,
+            avgPlus,
+            totalAbbau,
+            tsAbbau,
+            kwStats: myKwStats
+          });
+        }
+
+        if (currentPage === 'dashboard') {
+          renderDashboardLists(data);
+        } else if (currentPage === 'directory') {
+          renderDirectoryList(data);
+        } else if (currentPage === 'control') {
+          renderControl(data);
+        }
+      }
+
+      function updateStatValues(containerId, stats) {
+        const container = document.getElementById(containerId);
+
+        if (!container) return;
+
+        if (!container.innerHTML.trim()) {
+          container.innerHTML = document.getElementById('stats-row-template').innerHTML;
+        }
+
+        const setText = (key, val) => {
+          const el = container.querySelector(`[data-stat="${key}"]`);
+
+          if (el) {
+            el.innerText = val;
+          }
+        };
+
+        setText('crit-total', stats.critTotal);
+        setText('crit-mid', stats.critMid);
+        setText('crit-low', stats.critLow);
+        setText('avg-plus', decimalToTime(stats.avgPlus));
+        setText('total-minus', decimalToTime(stats.minusSum));
+        setText('count-minus', `(${stats.minusCount} Kol.)`);
+        setText('total-plus', "+" + decimalToTime(stats.plusSum));
+        setText('count-plus', `(${stats.countPlus} Kol.)`);
+        setText('total-abbau', decimalToTime(stats.totalAbbau));
+
+        if (stats.kwStats) {
+          setText('kw-last-num', stats.kwStats.lastKW);
+          setText('kw-last-val', decimalToTime(stats.kwStats.lastVal));
+          setText('kw-curr-num', stats.kwStats.currKW);
+          setText('kw-curr-val', decimalToTime(stats.kwStats.currVal));
+          setText('kw-next-num', stats.kwStats.nextKW);
+          setText('kw-next-val', decimalToTime(stats.kwStats.nextVal));
+        }
+      }
+
+      function renderDashboardLists(data) {
+        renderTable(
+          'top15-plus-body',
+          [...data].filter(d => d.stundenSaldo > 0).sort((a, b) => b.stundenSaldo - a.stundenSaldo).slice(0, 15)
+        );
+
+        renderTable(
+          'top15-minus-body',
+          [...data].filter(d => d.stundenSaldo < 0).sort((a, b) => a.stundenSaldo - b.stundenSaldo).slice(0, 15)
+        );
+
+        const grp = prop => {
+          const g = {};
+
+          data.forEach(d => {
+            const n = d[prop] || "Ohne";
+
+            if (!g[n]) {
+              g[n] = { m: 0, p: 0, cP: 0 };
+            }
+
+            const v = parseFloat(d.stundenSaldo) || 0;
+
+            if (v < 0) {
+              g[n].m += v;
+            } else if (v > 0) {
+              g[n].p += v;
+              g[n].cP++;
+            }
+          });
+
+          return Object.keys(g)
+            .map(k => ({ name: k, ...g[k] }))
+            .sort((a, b) => b.p - a.p);
+        };
+
+        const rGrp = (id, arr) => {
+          const tb = document.getElementById(id);
+
+          if (!tb) return;
+
+          tb.innerHTML = '';
+
+          arr.forEach(x => {
+            let avgStr = "-";
+
+            if (x.p > 0 && x.cP > 0) {
+              avgStr = decimalToTime(x.p / x.cP);
+            }
+
+            tb.innerHTML += `
+              <tr class="hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors">
+                <td class="px-4 py-2 font-medium text-slate-700 truncate max-w-[120px] text-xs">${x.name}</td>
+                <td class="px-4 py-2 text-right text-red-600 font-mono text-xs">${x.m ? decimalToTime(x.m) : '-'}</td>
+                <td class="px-4 py-2 text-right text-modern-green font-mono font-semibold text-xs">${x.p ? '+' + decimalToTime(x.p) : '-'}</td>
+                <td class="px-4 py-2 text-right text-gray-500 font-mono text-xs bg-gray-50/50">${avgStr}</td>
+              </tr>`;
+          });
+        };
+
+        rGrp('team-stats-body', grp('skill'));
+        rGrp('tma-stats-body', grp('tmaVorname'));
+      }
+
+      function renderDirectoryList(data) {
+        let f = [...data];
+
+        if (filterOverdue) {
+          f = f.filter(e => isOverdue(e.letzteAktualisierung));
+        }
+
+        f.sort((a, b) => activeSort === 'plus'
+          ? b.stundenSaldo - a.stundenSaldo
+          : a.stundenSaldo - b.stundenSaldo
+        );
+
+        document.getElementById('directory-count').innerText = f.length;
+
+        const c = document.getElementById('directory-list-container');
+
+        c.innerHTML = '';
+
+        f.forEach(e => {
+          const ov = isOverdue(e.letzteAktualisierung) ? 'text-red-500 font-bold' : 'text-gray-400';
+          const col = getBalanceColor(e.stundenSaldo);
+
+          let displayEss = e.stundenEss;
+
+          if (typeof displayEss === 'number') {
+            displayEss = decimalToTime(displayEss);
+          }
+
+          c.innerHTML += `
+            <div onclick="openEditModal(${e.id})" class="px-6 py-3 grid grid-cols-12 gap-4 items-center hover:bg-blue-50/50 transition-colors cursor-pointer group text-sm border-b border-gray-50">
+              <div class="col-span-4 font-medium text-slate-700 flex gap-2">
+                <div class="w-6 h-6 rounded-full bg-gray-100 text-xs flex items-center justify-center font-bold">${getInitials(e.fullName)}</div>
+                <span class="truncate">${e.fullName}</span>
+              </div>
+              <div class="col-span-1 text-right font-bold font-mono ${col}">${decimalToTime(e.stundenSaldo)}</div>
+              <div class="col-span-1 text-right font-mono text-gray-500">${displayEss || '00:00'}</div>
+              <div class="col-span-3 text-gray-500 truncate">${e.skill}</div>
+              <div class="col-span-1 text-gray-500 truncate">${e.tmaVorname}</div>
+              <div class="col-span-2 text-right text-xs ${ov}">${e.letzteAktualisierung}</div>
+            </div>`;
+        });
+      }
+
+      function renderControl(data) {
+        const listFrueh = document.getElementById('list-frueh');
+        const listMittel = document.getElementById('list-mittel');
+        const listSpaet = document.getElementById('list-spaet');
+
+        let allActivities = new Set();
+
+        const sorted = [...data].sort((a, b) => {
+          if (activeControlSort === 'plus') return b.stundenSaldo - a.stundenSaldo;
+          if (activeControlSort === 'minus') return a.stundenSaldo - b.stundenSaldo;
+
+          if (activeControlSort === 'time') {
+            const timeA = parseStartTimeMinutes(getRelevantTimeStr(a, activeActivityFilter));
+            const timeB = parseStartTimeMinutes(getRelevantTimeStr(b, activeActivityFilter));
+
+            return timeA - timeB;
+          }
+
+          return 0;
+        });
+
+        sorted.forEach(e => {
+          if (e.schicht && e.schicht.activities && e.schicht.activities.length > 0) {
+            e.schicht.activities.forEach(act => allActivities.add(act));
+          }
+        });
+
+        buildActivityFilters(Array.from(allActivities).sort());
+
+        listFrueh.innerHTML = '';
+        listMittel.innerHTML = '';
+        listSpaet.innerHTML = '';
+
+        let cF = 0;
+        let cM = 0;
+        let cS = 0;
+
+        let sF = 0;
+        let sM = 0;
+        let sS = 0;
+
+        sorted.forEach(e => {
+          if (e.schicht && e.schicht.type) {
+            let showItem = true;
+
+            if (activeActivityFilter !== 'Alle') {
+              if (!e.schicht.activities || !e.schicht.activities.includes(activeActivityFilter)) {
+                showItem = false;
+              }
+            }
+
+            if (showItem) {
+              const col = getBalanceColor(e.stundenSaldo);
+
+              let pauseBadge = "";
+
+              if (e.schicht.pause) {
+                pauseBadge = `<span class="bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-block" title="Pause"><i class="fa-solid fa-mug-hot mr-1"></i>${e.schicht.pause}</span>`;
+              }
+
+              let actHtml = "";
+
+              if (e.schicht.activities && e.schicht.activities.length > 0) {
+                const actsStr = e.schicht.activities.join(' • ');
+                actHtml = `<div class="text-[9px] text-gray-400 mt-1 truncate" title="${actsStr}"><i class="fa-solid fa-briefcase mr-1"></i>${actsStr}</div>`;
+              }
+
+              const displayTime = getRelevantTimeStr(e, activeActivityFilter);
+
+              let timeClass = "text-lidl-blue bg-blue-50 border border-blue-100";
+
+              if (activeActivityFilter !== 'Alle' && displayTime !== e.schicht.time) {
+                timeClass = "text-white bg-lidl-blue shadow-sm border-transparent";
+              }
+
+              const item = `
+                <div onclick="openShiftDetailsModal(${e.id})" class="p-3 border border-gray-100 rounded-xl bg-white hover:border-blue-300 hover:shadow-md cursor-pointer flex flex-col gap-1 text-sm transition-all group">
+                  <div class="flex justify-between items-start">
+                    <div class="overflow-hidden pr-2">
+                      <div class="font-bold text-slate-700 truncate">${e.fullName}</div>
+                      <div class="flex items-center text-[10px] text-gray-500 mt-0.5">
+                        <span class="truncate max-w-[80px]" title="${e.skill}">${e.skill}</span>
+                        <span class="mx-1 text-gray-300">|</span>
+                        <span class="font-mono font-bold ${col}">${decimalToTime(e.stundenSaldo)}</span>
+                      </div>
+                    </div>
+                    <div class="text-right flex flex-col items-end shrink-0">
+                      <div class="font-mono text-[10px] font-bold px-2 py-0.5 rounded ${timeClass} whitespace-nowrap">${displayTime}</div>
+                      ${pauseBadge}
+                    </div>
+                  </div>
+                  ${actHtml}
+                </div>`;
+
+              const saldoVal = parseFloat(e.stundenSaldo) || 0;
+
+              if (e.schicht.type === "Früh") {
+                listFrueh.innerHTML += item;
+                cF++;
+                if (saldoVal > 0) sF += saldoVal;
+              } else if (e.schicht.type === "Mittel") {
+                listMittel.innerHTML += item;
+                cM++;
+                if (saldoVal > 0) sM += saldoVal;
+              } else if (e.schicht.type === "Spät") {
+                listSpaet.innerHTML += item;
+                cS++;
+                if (saldoVal > 0) sS += saldoVal;
+              }
+            }
+          }
+        });
+
+        document.getElementById('count-frueh').innerText = cF;
+        document.getElementById('sum-frueh').innerText = "+" + decimalToTime(sF) + " Std";
+
+        document.getElementById('count-mittel').innerText = cM;
+        document.getElementById('sum-mittel').innerText = "+" + decimalToTime(sM) + " Std";
+
+        document.getElementById('count-spaet').innerText = cS;
+        document.getElementById('sum-spaet').innerText = "+" + decimalToTime(sS) + " Std";
+      }
+
+      function getRelevantTimeStr(emp, filter) {
+        if (filter === 'Alle' || !emp.schicht || !emp.schicht.details || emp.schicht.details.length === 0) {
+          return emp.schicht ? emp.schicht.time : "";
+        }
+
+        const matches = emp.schicht.details.filter(d => d.activity === filter);
+
+        if (matches.length > 0) {
+          if (matches.length === 1) {
+            return matches[0].time;
+          }
+
+          let minStart = null;
+          let maxEnd = null;
+          let minStartMins = 99999;
+          let maxEndMins = -1;
+
+          matches.forEach(m => {
+            const tMatch = m.time.match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+
+            if (tMatch) {
+              const sStr = tMatch[1];
+              const eStr = tMatch[2];
+
+              const sMins = parseInt(sStr.split(':')[0], 10) * 60 + parseInt(sStr.split(':')[1], 10);
+              let eMins = parseInt(eStr.split(':')[0], 10) * 60 + parseInt(eStr.split(':')[1], 10);
+
+              if (eMins <= sMins) {
+                eMins += 24 * 60;
+              }
+
+              if (sMins < minStartMins) {
+                minStartMins = sMins;
+                minStart = sStr;
+              }
+
+              if (eMins > maxEndMins) {
+                maxEndMins = eMins;
+                maxEnd = eStr;
+              }
+            }
+          });
+
+          if (minStart && maxEnd) {
+            return `${minStart}-${maxEnd}`;
+          }
+
+          return matches.map(m => m.time).join(', ');
+        }
+
+        return emp.schicht.time;
+      }
+
+      function parseStartTimeMinutes(timeStr) {
+        if (!timeStr) return 9999;
+
+        const match = String(timeStr).match(/(\d{2}):(\d{2})/);
+
+        if (match) {
+          return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+        }
+
+        return 9999;
+      }
+
+      function buildActivityFilters(activities) {
+        const container = document.getElementById('activity-filter-container');
+
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        const btnAll = document.createElement('button');
+
+        btnAll.innerText = 'Alle anzeigen';
+        btnAll.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === 'Alle' ? 'active' : 'default'}`;
+        btnAll.onclick = () => {
+          activeActivityFilter = 'Alle';
+          applyFilters();
+        };
+
+        container.appendChild(btnAll);
+
+        activities.forEach(act => {
+          const btn = document.createElement('button');
+
+          btn.innerText = act;
+          btn.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === act ? 'active' : 'default'}`;
+          btn.onclick = () => {
+            activeActivityFilter = act;
+            applyFilters();
+          };
+
+          container.appendChild(btn);
+        });
+      }
+
+      function openPlanoImportModal() {
+        const modal = document.getElementById('planoModal');
+        const list = document.getElementById('plano-files-list');
+
+        list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
+
+        modal.classList.remove('hidden');
+
+        setTimeout(() => {
+          modal.classList.remove('opacity-0');
+          document.getElementById('planoModalContent').classList.remove('scale-95');
+          document.getElementById('planoModalContent').classList.add('scale-100');
+        }, 10);
+
+        google.script.run
+          .withSuccessHandler(files => {
+            list.innerHTML = '';
+
+            if (!files || files.length === 0) {
+              list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
+              return;
+            }
+
+            files.forEach(f => {
+              const d = new Date(f.dateCreated);
+              const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+              list.innerHTML += `
+                <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition group">
+                  <div>
+                    <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                      <i class="fa-solid fa-file-excel text-green-600"></i> ${f.name}
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
+                  </div>
+                  <button onclick="runPlanoImport('${f.id}', this)" class="bg-white border border-gray-300 text-lidl-blue px-3 py-1.5 rounded text-xs font-bold hover:bg-lidl-blue hover:text-white transition shadow-sm">
+                    Importieren
+                  </button>
+                </div>`;
+            });
+          })
+          .withFailureHandler(err => {
+            list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message}</div>`;
+          })
+          .getPlanoFilesList();
+      }
+
+      function closePlanoModal() {
+        const modal = document.getElementById('planoModal');
+
+        modal.classList.add('opacity-0');
+        document.getElementById('planoModalContent').classList.remove('scale-100');
+        document.getElementById('planoModalContent').classList.add('scale-95');
+
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300);
+      }
+
+      function runPlanoImport(fileId, btnEl) {
+        const oldContent = btnEl.innerHTML;
+
+        btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lade...';
+        btnEl.disabled = true;
+        btnEl.classList.add('opacity-75', 'cursor-not-allowed');
+
+        const allBtns = document.getElementById('plano-files-list').querySelectorAll('button');
+
+        allBtns.forEach(b => b.disabled = true);
+
+        google.script.run
+          .withSuccessHandler(function(response) {
+            closePlanoModal();
+
+            if (response.success) {
+              alert("Import erfolgreich! " + response.count + " Schichten importiert.\nDie Seite wird nun aktualisiert.");
+              document.getElementById('loader').classList.remove('hidden');
+
+              google.script.run
+                .withSuccessHandler(onDataLoaded)
+                .withFailureHandler(onDataError)
+                .getData();
+            } else {
+              alert("Import fehlgeschlagen: " + response.message);
+            }
+          })
+          .withFailureHandler(function(error) {
+            btnEl.innerHTML = oldContent;
+            btnEl.disabled = false;
+            btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
+
+            allBtns.forEach(b => b.disabled = false);
+
+            alert("Kritischer Fehler: " + error.message);
+          })
+          .importSelectedPlano(fileId);
+      }
+
+      function openShiftDetailsModal(id) {
+        const emp = allData.find(d => d.id == id);
+
+        if (!emp || !emp.schicht) return;
+
+        currentEmpId = id;
+
+        document.getElementById('shift-modal-name').innerText = emp.fullName;
+        document.getElementById('shift-modal-skill').innerText = `${emp.skill || '-'} | ${emp.tmaVorname || '-'}`;
+        document.getElementById('shift-modal-time').innerText = emp.schicht.time;
+
+        const timelineContainer = document.getElementById('shift-modal-timeline');
+
+        timelineContainer.innerHTML = '';
+
+        if (!emp.schicht.details || emp.schicht.details.length === 0) {
+          timelineContainer.innerHTML = '<div class="text-center text-gray-400 italic p-6">Keine detaillierten Tätigkeiten für diese Schicht gefunden.</div>';
+        } else {
+          let html = '<div class="relative border-l-2 border-blue-200 ml-3 space-y-6 pb-4">';
+
+          emp.schicht.details.forEach(det => {
+            const activityText = String(det.activity || "");
+            const isPause = activityText.toLowerCase().includes('pause');
+            const icon = isPause ? '<i class="fa-solid fa-mug-hot"></i>' : '<i class="fa-solid fa-briefcase"></i>';
+            const bgClass = isPause ? 'bg-gray-100 border-gray-300 text-gray-500' : 'bg-blue-50 border-lidl-blue text-lidl-blue';
+            const dotClass = isPause ? 'bg-gray-400 border-gray-200' : 'bg-lidl-blue border-blue-200';
+
+            let highlightClass = "opacity-80";
+
+            const now = new Date();
+            const currentMins = now.getHours() * 60 + now.getMinutes();
+
+            const timeMatch = String(det.time || "").match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+
+            if (timeMatch) {
+              const startMins = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
+              let endMins = parseInt(timeMatch[3], 10) * 60 + parseInt(timeMatch[4], 10);
+
+              if (endMins < startMins) {
+                endMins += 24 * 60;
+              }
+
+              if (currentMins >= startMins && currentMins < endMins) {
+                highlightClass = "ring-2 ring-blue-400 ring-offset-2 opacity-100 scale-105 transform origin-left";
+              }
+            }
+
+            html += `
+              <div class="relative pl-6 transition-all ${highlightClass}">
+                <div class="absolute w-4 h-4 rounded-full border-2 -left-[9px] top-1 ${dotClass}"></div>
+                <div class="flex items-start gap-4">
+                  <div class="font-mono text-xs font-bold text-gray-500 pt-0.5 shrink-0 w-24">${det.time}</div>
+                  <div class="flex-1 border rounded-lg px-3 py-2 text-sm font-bold shadow-sm ${bgClass} flex items-center gap-2">
+                    ${icon} ${det.activity}
+                  </div>
+                </div>
+              </div>`;
+          });
+
+          html += '</div>';
+          timelineContainer.innerHTML = html;
+        }
+
+        const modal = document.getElementById('shiftDetailsModal');
+
+        modal.classList.remove('hidden');
+
+        setTimeout(() => {
+          modal.classList.remove('opacity-0');
+          document.getElementById('shiftDetailsModalContent').classList.remove('scale-95');
+          document.getElementById('shiftDetailsModalContent').classList.add('scale-100');
+        }, 10);
+      }
+
+      function closeShiftDetailsModal() {
+        const modal = document.getElementById('shiftDetailsModal');
+
+        if (!modal) return;
+
+        modal.classList.add('opacity-0');
+
+        const content = document.getElementById('shiftDetailsModalContent');
+
+        if (content) {
+          content.classList.remove('scale-100');
+          content.classList.add('scale-95');
+        }
+
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300);
+      }
+
+      function toggleRadar() {
+        isRadarOpen = !isRadarOpen;
+
+        const panel = document.getElementById('shift-radar-panel');
+
+        if (isRadarOpen) {
+          panel.classList.remove('hidden');
+          panel.classList.add('flex');
+          updateRadar();
+        } else {
+          panel.classList.add('hidden');
+          panel.classList.remove('flex');
+        }
+      }
+
+      function updateRadar() {
+        if (currentPage !== 'control') return;
+
+        const now = new Date();
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+
+        const radarTime = document.getElementById('radar-time');
+
+        if (radarTime) {
+          radarTime.innerText = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        let upcoming = [];
+
+        allData.forEach(emp => {
+          if (emp.schicht && emp.schicht.details && emp.schicht.details.length > 0) {
+            let validDetails = [];
+
+            emp.schicht.details.forEach(det => {
+              const actLower = String(det.activity || "").toLowerCase();
+
+              if (
+                actLower.includes('pause') ||
+                actLower.includes('meeting') ||
+                actLower.includes('andere tätigkeiten') ||
+                actLower.includes('andere taetigkeiten') ||
+                actLower.includes('quality mng') ||
+                actLower.includes('wissen & training') ||
+                actLower.includes('bot')
+              ) {
+                return;
+              }
+
+              const match = String(det.time || "").match(/(\d{2}):(\d{2})/);
+
+              if (match) {
+                const startMins = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+
+                validDetails.push({
+                  activity: det.activity,
+                  timeStr: det.time,
+                  startMins: startMins
+                });
+              }
+            });
+
+            validDetails.sort((a, b) => a.startMins - b.startMins);
+
+            for (let i = 0; i < validDetails.length; i++) {
+              let det = validDetails[i];
+
+              if (det.startMins > currentMins && det.startMins <= currentMins + 120) {
+                if (i > 0) {
+                  let prevAct = validDetails[i - 1].activity;
+
+                  let cleanCurr = String(det.activity || "").trim().toLowerCase();
+                  let cleanPrev = String(prevAct || "").trim().toLowerCase();
+
+                  if (cleanCurr !== cleanPrev) {
+                    upcoming.push({
+                      empId: emp.id,
+                      empName: emp.fullName,
+                      activity: det.activity,
+                      timeStr: det.timeStr,
+                      startMins: det.startMins,
+                      diffMins: det.startMins - currentMins
+                    });
+
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        upcoming.sort((a, b) => a.startMins - b.startMins);
+
+        const list = document.getElementById('radar-list');
+        const badge = document.getElementById('radar-badge');
+
+        if (!list || !badge) return;
+
+        if (upcoming.length === 0) {
+          list.innerHTML = '<div class="p-6 text-center text-sm text-gray-400 italic"><i class="fa-solid fa-mug-hot text-2xl text-gray-300 mb-2 block"></i>Keine anstehenden Wechsel in den nächsten 2 Stunden.</div>';
+          badge.classList.add('hidden');
+          return;
+        }
+
+        const urgentCount = upcoming.filter(u => u.diffMins <= 15).length;
+
+        if (urgentCount > 0) {
+          badge.innerText = urgentCount;
+          badge.classList.remove('hidden');
+          badge.classList.add('animate-bounce');
+
+          setTimeout(() => badge.classList.remove('animate-bounce'), 3000);
+        } else {
+          badge.classList.add('hidden');
+        }
+
+        let html = '';
+
+        upcoming.slice(0, 10).forEach(u => {
+          let colorClass = "text-lidl-blue bg-blue-50 border-blue-100";
+          let textCol = "text-blue-800";
+          let inText = `in ${u.diffMins} Min`;
+
+          if (u.diffMins <= 5) {
+            colorClass = "text-red-600 bg-red-50 border-red-200 animate-pulse";
+            textCol = "text-red-800";
+          } else if (u.diffMins <= 15) {
+            colorClass = "text-orange-600 bg-orange-50 border-orange-200";
+            textCol = "text-orange-800";
+          }
+
+          html += `
+            <div onclick="openShiftDetailsModal(${u.empId})" class="p-3 border-b border-gray-100 last:border-0 hover:bg-gray-100 cursor-pointer transition">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-xs font-bold text-slate-700 truncate">${u.empName}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${colorClass} shrink-0 ml-2">${inText}</span>
+              </div>
+              <div class="flex items-center text-[10px] text-gray-500 mt-1">
+                <i class="fa-solid fa-arrow-right-arrow-left mr-1.5 text-gray-400"></i>
+                <span class="truncate font-bold ${textCol}">${u.activity}</span>
+                <span class="ml-auto font-mono text-gray-400 font-bold shrink-0">${String(u.timeStr).split('-')[0]} Uhr</span>
+              </div>
+            </div>`;
+        });
+
+        list.innerHTML = html;
+      }
+
+      function triggerReminder() {
+        const btn = document.getElementById('btn-send-reminder');
+        const oldHtml = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lade...';
+
+        google.script.run
+          .withSuccessHandler(res => {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+
+            if (res.success) {
+              if (res.recipients.length === 0) {
+                alert("Es gibt aktuell keine überfälligen Einträge oder diese gehören zu ausgetretenen Kollegen.");
+                return;
+              }
+
+              openReminderModal(res);
+            }
+          })
+          .withFailureHandler(err => {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+            alert("Fehler: " + err.message);
+          })
+          .getReminderDraft();
+      }
+
+      function openReminderModal(draft) {
+        currentReminderDraft = draft.recipients;
+
+        document.getElementById('rem-subject').value = draft.subject;
+        document.getElementById('rem-body').value = draft.body;
+
+        renderReminderPills();
+
+        const modal = document.getElementById('reminderModal');
+
+        modal.classList.remove('hidden');
+
+        setTimeout(() => {
+          modal.classList.remove('opacity-0');
+          document.getElementById('reminderModalContent').classList.remove('scale-95');
+          document.getElementById('reminderModalContent').classList.add('scale-100');
+        }, 10);
+      }
+
+      function renderReminderPills() {
+        const container = document.getElementById('rem-tma-container');
+
+        container.innerHTML = '';
+        document.getElementById('rem-count').innerText = currentReminderDraft.length;
+
+        if (currentReminderDraft.length === 0) {
+          container.innerHTML = '<span class="text-sm text-gray-500 italic">Keine Empfänger mehr in der Liste.</span>';
+          document.getElementById('btn-execute-rem').disabled = true;
+          return;
+        }
+
+        document.getElementById('btn-execute-rem').disabled = false;
+
+        currentReminderDraft.forEach(tma => {
+          container.innerHTML += `
+            <div class="flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+              <span>${tma.name}</span>
+              <button onclick="removeReminderTma('${tma.email}')" class="text-orange-400 hover:text-red-500 transition ml-1" title="Entfernen">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>`;
+        });
+      }
+
+      function removeReminderTma(email) {
+        currentReminderDraft = currentReminderDraft.filter(t => t.email !== email);
+        renderReminderPills();
+      }
+
+      function closeReminderModal() {
+        const modal = document.getElementById('reminderModal');
+
+        modal.classList.add('opacity-0');
+        document.getElementById('reminderModalContent').classList.remove('scale-100');
+        document.getElementById('reminderModalContent').classList.add('scale-95');
+
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300);
+      }
+
+      function executeReminderSend() {
+        if (currentReminderDraft.length === 0) return;
+
+        const payload = {
+          recipients: currentReminderDraft.map(t => t.email),
+          subject: document.getElementById('rem-subject').value,
+          body: document.getElementById('rem-body').value
+        };
+
+        const btn = document.getElementById('btn-execute-rem');
+        const oldHtml = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sende...';
+
+        google.script.run
+          .withSuccessHandler(res => {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+            closeReminderModal();
+            alert(`Erinnerung erfolgreich an ${res.count} TMAs versendet!`);
+          })
+          .withFailureHandler(err => {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+            alert("Fehler beim Senden: " + err.message);
+          })
+          .executeReminder(payload);
+      }
+
+      function toggleControlPanel(panelId) {
   const body = document.getElementById(panelId + '-body');
   const icon = document.getElementById(panelId + '-icon');
 
@@ -196,3 +2610,1902 @@ function renderCapacityOverview(data) {
 
   content.innerHTML = html;
 }
+
+      function renderTable(id, rows) {
+        const tb = document.getElementById(id);
+
+        if (!tb) return;
+
+        tb.innerHTML = '';
+
+        rows.forEach(e => {
+          const col = getBalanceColor(e.stundenSaldo);
+
+          tb.innerHTML += `
+            <tr onclick="openEditModal(${e.id})" class="hover:bg-blue-50/50 cursor-pointer transition border-b border-gray-50 last:border-0">
+              <td class="px-4 py-2 font-medium text-slate-700 text-xs w-full">
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded-full bg-blue-100 text-lidl-blue text-[10px] flex items-center justify-center font-bold shrink-0">
+                    ${getInitials(e.fullName)}
+                  </div>
+                  <span class="truncate">${e.fullName}</span>
+                </div>
+              </td>
+              <td class="px-4 py-2 text-right font-bold font-mono text-xs whitespace-nowrap ${col}">
+                ${decimalToTime(e.stundenSaldo)}
+              </td>
+            </tr>`;
+        });
+      }
+
+      function togglePicker(event, type) {
+        event.stopPropagation();
+
+        const single = document.getElementById('picker-single');
+        const range = document.getElementById('picker-range');
+
+        if (!single || !range) return;
+
+        if (type === 'single') {
+          range.classList.add('hidden');
+          single.classList.toggle('hidden');
+        } else {
+          single.classList.add('hidden');
+          range.classList.toggle('hidden');
+        }
+      }
+
+      function applyDateSingle() {
+        const v = document.getElementById('h-single-date')?.value;
+        const target = document.getElementById('new-date');
+
+        if (v && target) {
+          target.value = convertIsoToDe(v);
+        }
+
+        document.getElementById('picker-single')?.classList.add('hidden');
+      }
+
+      function applyDateRange() {
+        const f = document.getElementById('h-range-from')?.value;
+        const t = document.getElementById('h-range-to')?.value;
+        const target = document.getElementById('new-date');
+
+        if (f && t && target) {
+          target.value = `${convertIsoToDe(f)} - ${convertIsoToDe(t)}`;
+        }
+
+        document.getElementById('picker-range')?.classList.add('hidden');
+      }
+
+      function convertIsoToDe(dateStr) {
+        if (!dateStr) return "";
+
+        const parts = dateStr.split('-');
+
+        if (parts.length !== 3) return dateStr;
+
+        return `${parts[2]}.${parts[1]}.${parts[0]}`;
+      }
+
+      function getInitials(n) {
+        return n ? n.split(' ').map(x => x[0]).join('').substring(0, 2).toUpperCase() : '?';
+      }
+
+      function isDateInWeek(dateStr, week, year) {
+        if (!dateStr) return false;
+
+        if (!String(dateStr).includes('-')) {
+          const d = parseGermanDate(dateStr);
+
+          if (!d) return false;
+
+          return getWeekNumber(d) === week && d.getFullYear() === year;
+        }
+
+        const parts = String(dateStr).split('-');
+
+        if (parts.length !== 2) return false;
+
+        const d1 = parseGermanDate(parts[0].trim());
+        const d2 = parseGermanDate(parts[1].trim());
+
+        if (!d1 || !d2) return false;
+
+        const w1 = getWeekNumber(d1);
+        const w2 = getWeekNumber(d2);
+
+        return (w1 === week && d1.getFullYear() === year) ||
+               (w2 === week && d2.getFullYear() === year);
+      }
+
+      function parseGermanDate(str) {
+        if (!str) return null;
+
+        const parts = String(str).split('.');
+
+        if (parts.length !== 3) return null;
+
+        const d = new Date(parts[2], parts[1] - 1, parts[0]);
+
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      function getWeekNumber(d) {
+        d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      }
+
+      function isOverdue(d) {
+        if (!d || d === '-') return false;
+
+        const p = String(d).split('.');
+
+        if (p.length !== 3) return false;
+
+        const checkDate = new Date(p[2], p[1] - 1, p[0]);
+
+        if (isNaN(checkDate.getTime())) return false;
+
+        return (new Date() - checkDate) / (1000 * 60 * 60 * 24) > 7;
+      }
+
+      function handleSearch(q) {
+        const res = document.getElementById('searchResults');
+
+        if (!res) return;
+
+        if (!q) {
+          res.classList.add('hidden');
+          return;
+        }
+
+        const term = q.toLowerCase();
+        const matches = allData.filter(d => d.fullName.toLowerCase().includes(term));
+
+        res.innerHTML = '';
+
+        if (matches.length === 0) {
+          res.innerHTML = '<div class="p-4 text-center text-xs text-gray-500">Nichts gefunden</div>';
+        } else {
+          matches.forEach(e => {
+            res.innerHTML += `
+              <div onclick="openEditModal(${e.id})" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex justify-between text-sm">
+                <span>${e.fullName}</span>
+                <span class="font-mono ${e.stundenSaldo > 40 ? 'text-red-500' : 'text-gray-600'}">${decimalToTime(e.stundenSaldo)}</span>
+              </div>`;
+          });
+        }
+
+        res.classList.remove('hidden');
+      }
+
+      document.addEventListener('click', e => {
+        const searchWrapper = document.querySelector('.relative.w-80');
+        const searchResults = document.getElementById('searchResults');
+
+        if (searchWrapper && searchResults && !searchWrapper.contains(e.target)) {
+          searchResults.classList.add('hidden');
+        }
+      });
+
+      document.addEventListener('click', e => {
+        const single = document.getElementById('picker-single');
+        const range = document.getElementById('picker-range');
+
+        if (!single || !range) return;
+
+        if (
+          !e.target.closest('#new-date') &&
+          !e.target.closest('#picker-single') &&
+          !e.target.closest('#picker-range') &&
+          !e.target.closest('.picker-toggle-btn')
+        ) {
+          single.classList.add('hidden');
+          range.classList.add('hidden');
+        }
+      });
+
+      function setDirectorySort(sortType) {
+        activeSort = sortType;
+
+        const btnPlus = document.getElementById('btn-sort-plus');
+        const btnMinus = document.getElementById('btn-sort-minus');
+
+        if (!btnPlus || !btnMinus) return;
+
+        if (sortType === 'plus') {
+          btnPlus.classList.add('bg-blue-50', 'text-lidl-blue', 'border-lidl-blue');
+          btnMinus.classList.remove('bg-blue-50', 'text-lidl-blue', 'border-lidl-blue');
+        } else {
+          btnMinus.classList.add('bg-blue-50', 'text-lidl-blue', 'border-lidl-blue');
+          btnPlus.classList.remove('bg-blue-50', 'text-lidl-blue', 'border-lidl-blue');
+        }
+
+        applyFilters();
+      }
+
+      function setControlSort(type) {
+        activeControlSort = type;
+
+        const btnPlus = document.getElementById('btn-ctrl-plus');
+        const btnMinus = document.getElementById('btn-ctrl-minus');
+        const btnTime = document.getElementById('btn-ctrl-time');
+
+        if (!btnPlus || !btnMinus) return;
+
+        btnPlus.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition";
+        btnMinus.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition";
+
+        if (btnTime) {
+          btnTime.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition";
+        }
+
+        if (type === 'plus') {
+          btnPlus.classList.add('bg-blue-50', 'text-lidl-blue', 'border-lidl-blue');
+        } else if (type === 'minus') {
+          btnMinus.classList.add('bg-blue-50', 'text-lidl-blue', 'border-lidl-blue');
+        } else if (type === 'time' && btnTime) {
+          btnTime.classList.add('bg-blue-50', 'text-lidl-blue', 'border-lidl-blue');
+        }
+
+        applyFilters();
+      }
+
+      function toggleOverdue() {
+        filterOverdue = !filterOverdue;
+
+        const btn = document.getElementById('btn-overdue');
+
+        if (btn) {
+          if (filterOverdue) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
+        }
+
+        applyFilters();
+      }
+
+      function toggleNotizenField() {
+        const chk = document.getElementById('chk-ess-pause');
+        const container = document.getElementById('container-notizen');
+        const input = document.getElementById('edit-notizen');
+
+        if (!chk || !container || !input) return;
+
+        if (chk.checked) {
+          container.classList.remove('hidden');
+          input.focus();
+        } else {
+          container.classList.add('hidden');
+          input.value = "";
+        }
+      }
+
+      function triggerAbsence() {
+        openAbsenceModalLogic(
+          document.getElementById('edit-id').value,
+          document.getElementById('edit-name').innerText,
+          document.getElementById('edit-tma').innerText
+        );
+      }
+
+      function triggerEarlyLeave() {
+        openEarlyLeaveModalLogic(
+          document.getElementById('edit-id').value,
+          document.getElementById('edit-name').innerText
+        );
+      }
+
+      function triggerLateArrival() {
+        openLateArrivalModalLogic(
+          document.getElementById('edit-id').value,
+          document.getElementById('edit-name').innerText
+        );
+      }
+
+      function triggerMissingColleague() {
+        openMissingColleagueModalLogic(
+          document.getElementById('edit-id').value,
+          document.getElementById('edit-name').innerText
+        );
+      }
+
+      function openEditModal(id) {
+        closeShiftDetailsModal();
+
+        const emp = allData.find(d => d.id == id);
+
+        if (!emp) return;
+
+        currentEmpId = id;
+
+        resetAddButton();
+
+        document.getElementById('picker-single')?.classList.add('hidden');
+        document.getElementById('picker-range')?.classList.add('hidden');
+
+        document.getElementById('edit-id').value = emp.id;
+        document.getElementById('edit-name').innerText = emp.fullName;
+        document.getElementById('edit-skill').innerText = emp.skill;
+        document.getElementById('edit-tma').innerText = emp.tmaVorname;
+        document.getElementById('modal-saldo-display').innerText = decimalToTime(emp.stundenSaldo);
+
+        document.getElementById('edit-real-name').value = emp.nachname;
+        document.getElementById('edit-real-vorname').value = emp.vorname;
+
+        let displayEss = emp.stundenEss;
+
+        if (typeof displayEss === 'number') {
+          displayEss = decimalToTime(displayEss);
+        }
+
+        document.getElementById('edit-stundenEss').value = displayEss || "00:00";
+
+        const notizContent = emp.notizen || "";
+        const chk = document.getElementById('chk-ess-pause');
+        const inputNotiz = document.getElementById('edit-notizen');
+
+        inputNotiz.value = notizContent;
+        chk.checked = notizContent.trim() !== "";
+
+        toggleNotizenField();
+
+        const dateInput = document.getElementById('edit-austritt-date');
+
+        if (emp.austrittDatum) {
+          const p = emp.austrittDatum.split('.');
+
+          if (p.length === 3) {
+            dateInput.value = `${p[2]}-${p[1]}-${p[0]}`;
+          } else {
+            dateInput.value = '';
+          }
+        } else {
+          dateInput.value = '';
+        }
+
+        renderAuftragList(emp.auftraege || []);
+
+        const btnAbs = document.getElementById('btn-absence-report');
+        const btnEarly = document.getElementById('btn-early-leave');
+        const btnLate = document.getElementById('btn-late-arrival');
+        const btnMissing = document.getElementById('btn-missing-colleague');
+        const containerAbbau = document.getElementById('container-new-abbau');
+        const containerAustritt = document.getElementById('container-austritt');
+
+        if (isAdmin || isDienstplaner) {
+          btnAbs?.classList.remove('hidden');
+          btnEarly?.classList.remove('hidden');
+          btnLate?.classList.remove('hidden');
+          btnMissing?.classList.remove('hidden');
+          containerAbbau?.classList.remove('hidden');
+          containerAustritt?.classList.remove('hidden');
+        } else {
+          btnAbs?.classList.add('hidden');
+          btnEarly?.classList.add('hidden');
+          btnLate?.classList.add('hidden');
+          btnMissing?.classList.add('hidden');
+          containerAbbau?.classList.add('hidden');
+          containerAustritt?.classList.add('hidden');
+        }
+
+        const modal = document.getElementById('editModal');
+        const modalContent = document.getElementById('modalContent');
+
+        modal.classList.remove('hidden');
+
+        setTimeout(() => {
+          modal.classList.remove('opacity-0');
+          modalContent.classList.remove('scale-95');
+          modalContent.classList.add('scale-100');
+        }, 10);
+      }
+
+      function renderAuftragList(list) {
+        const c = document.getElementById('auftrag-list');
+
+        if (!c) return;
+
+        c.innerHTML = '';
+
+        if (list.length === 0) {
+          c.innerHTML = '<div class="text-sm text-gray-400 italic p-2 bg-gray-50 border border-dashed border-gray-300 rounded text-center">Keine vorgemerkten Tage.</div>';
+          return;
+        }
+
+        list.forEach(a => {
+          const isDienstplanung = a.erstelltVon && a.erstelltVon.includes('Dienstplanung');
+
+          let deleteButton = '';
+
+          if (isDienstplanung) {
+            deleteButton = `
+              <button class="text-gray-300 cursor-not-allowed px-2 py-1" title="Dieser Eintrag wurde über die Dienstplanung erstellt und kann nur dort entfernt werden.">
+                <i class="fa-solid fa-lock"></i>
+              </button>`;
+          } else {
+            deleteButton = `
+              <button onclick="deleteAuftrag(this, ${a.rowId})" class="text-gray-300 hover:text-red-500 transition px-2 py-1 rounded hover:bg-red-50">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>`;
+          }
+
+          c.innerHTML += `
+            <div class="flex items-center justify-between bg-white border border-gray-200 rounded p-3 text-sm shadow-sm hover:border-blue-200 transition">
+              <div class="flex items-center gap-3">
+                <div class="bg-blue-50 text-lidl-blue font-bold px-3 py-1 rounded text-xs min-w-[50px] text-center border border-blue-100">${a.stundenDisplay || a.stunden}h</div>
+                <div>
+                  <div class="font-bold text-slate-700 flex items-center gap-2">
+                    <i class="fa-regular fa-calendar text-gray-400"></i> ${a.datum}
+                  </div>
+                  <div class="text-xs text-gray-500 mt-0.5">
+                    ${a.notizen || '-'} ${a.erstelltVon ? '<span class="text-blue-300 ml-2">• ' + a.erstelltVon + '</span>' : ''}
+                  </div>
+                </div>
+              </div>
+              ${deleteButton}
+            </div>`;
+        });
+      }
+
+      function addNewAuftrag(btnElement) {
+        const std = document.getElementById('new-std').value;
+        const date = document.getElementById('new-date').value;
+        const note = document.getElementById('new-note').value;
+
+        if (!date) {
+          alert("Bitte ein Datum auswählen.");
+          return;
+        }
+
+        const timeRegex = /^\d{1,3}:[0-5]\d$/;
+
+        if (!std || !timeRegex.test(std)) {
+          alert("Bitte Stunden im Format 'HH:MM' angeben, zum Beispiel 08:00.");
+          return;
+        }
+
+        const payload = {
+          nachname: document.getElementById('edit-real-name').value,
+          vorname: document.getElementById('edit-real-vorname').value,
+          stunden: std,
+          datum: date,
+          notizen: note
+        };
+
+        const oldContent = btnElement.innerHTML;
+
+        btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        btnElement.disabled = true;
+
+        google.script.run
+          .withSuccessHandler(newData => {
+            onUpdateSuccess(newData);
+
+            document.getElementById('new-std').value = '';
+            document.getElementById('new-date').value = '';
+            document.getElementById('new-note').value = '';
+
+            btnElement.innerHTML = oldContent;
+            btnElement.disabled = false;
+          })
+          .withFailureHandler(err => {
+            alert("Fehler: " + err.message);
+
+            btnElement.innerHTML = oldContent;
+            btnElement.disabled = false;
+          })
+          .addAuftrag(payload);
+      }
+
+      function resetAddButton() {
+        const btn = document.getElementById('btn-add-auftrag');
+
+        if (btn) {
+          btn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+          btn.disabled = false;
+        }
+      }
+
+      function deleteAuftrag(btn, rowId) {
+        if (!confirm("Diesen Eintrag wirklich löschen?")) return;
+
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+
+        google.script.run
+          .withSuccessHandler(onUpdateSuccess)
+          .withFailureHandler(err => {
+            alert("Fehler beim Löschen: " + err.message);
+            btn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+            btn.disabled = false;
+          })
+          .deleteAuftrag(rowId);
+      }
+
+      function saveBaseData(shouldClose) {
+        const dateVal = document.getElementById('edit-austritt-date').value;
+        const essVal = document.getElementById('edit-stundenEss').value;
+        const notizVal = document.getElementById('edit-notizen').value;
+
+        const timeRegex = /^-?\d+:[0-5]\d$/;
+
+        if (!essVal || !timeRegex.test(essVal)) {
+          alert("Bitte das Stundenkonto im korrekten Format 'HH:MM' angeben, zum Beispiel 08:30, 120:00 oder -05:30.");
+          return;
+        }
+
+        const payload = {
+          id: currentEmpId,
+          stundenEss: essVal,
+          notizen: notizVal,
+          austrittDatum: dateVal
+        };
+
+        const btn = document.getElementById('btn-save-close');
+        const oldText = btn.innerText;
+
+        btn.innerText = 'Speichern...';
+        btn.disabled = true;
+        btn.classList.add('bg-gray-400', 'cursor-not-allowed');
+        btn.classList.remove('bg-lidl-blue', 'hover:bg-blue-700', 'hover:bg-blue-50');
+
+        google.script.run
+          .withSuccessHandler(newData => {
+            onUpdateSuccess(newData);
+
+            if (shouldClose) {
+              closeEditModal();
+
+              setTimeout(() => {
+                btn.innerText = oldText;
+                btn.disabled = false;
+                btn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                btn.classList.add('bg-lidl-blue', 'hover:bg-blue-700');
+              }, 300);
+            } else {
+              btn.innerText = 'Gespeichert!';
+
+              setTimeout(() => {
+                btn.innerText = oldText;
+                btn.disabled = false;
+                btn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                btn.classList.add('bg-lidl-blue', 'hover:bg-blue-700');
+              }, 1000);
+            }
+          })
+          .withFailureHandler(err => {
+            alert("Fehler beim Speichern: " + err.message);
+
+            btn.innerText = oldText;
+            btn.disabled = false;
+            btn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+            btn.classList.add('bg-lidl-blue', 'hover:bg-blue-700');
+          })
+          .updateEmployeeBase(payload);
+      }
+
+      function onUpdateSuccess(newData) {
+        if (newData.stats) {
+          globalStats = newData.stats;
+        }
+
+        onDataLoaded(newData);
+
+        const editModal = document.getElementById('editModal');
+
+        if (currentEmpId && editModal && !editModal.classList.contains('hidden')) {
+          const emp = newData.employees.find(d => d.id == currentEmpId);
+
+          if (emp) {
+            document.getElementById('modal-saldo-display').innerText = decimalToTime(emp.stundenSaldo);
+            renderAuftragList(emp.auftraege || []);
+          } else {
+            closeEditModal();
+          }
+        }
+      }
+
+      function closeEditModal() {
+        const modal = document.getElementById('editModal');
+        const modalContent = document.getElementById('modalContent');
+
+        if (!modal || !modalContent) return;
+
+        modal.classList.add('opacity-0');
+        modalContent.classList.remove('scale-100');
+        modalContent.classList.add('scale-95');
+
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300);
+      }
+
+      function decimalToTime(decimalVal) {
+        if (decimalVal === null || decimalVal === undefined || decimalVal === "") return "00:00";
+
+        decimalVal = Number(decimalVal) || 0;
+
+        const isNegative = decimalVal < 0;
+
+        decimalVal = Math.abs(decimalVal);
+
+        let hours = Math.floor(decimalVal);
+        let minutes = Math.round((decimalVal - hours) * 60);
+
+        if (minutes === 60) {
+          hours += 1;
+          minutes = 0;
+        }
+
+        const hStr = String(hours).padStart(2, '0');
+        const mStr = String(minutes).padStart(2, '0');
+
+        return (isNegative ? "-" : "") + hStr + ":" + mStr;
+      }
+
+      function getBalanceColor(saldo) {
+        saldo = parseFloat(saldo) || 0;
+
+        if (saldo < 0) return 'text-red-600 font-bold';
+        if (saldo > 40) return 'text-lidl-red font-bold';
+        if (saldo >= 10) return 'text-orange-500 font-bold';
+        if (saldo > 0) return 'text-modern-green font-bold';
+
+        return 'text-slate-400';
+      }
+    </script>
+
+  </body>
+</html>
+
+Und hier mein Code.gs
+
+/**
+ * Erstellt das Menü.
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('⚡ Dashboard')
+    .addItem('Dashboard öffnen', 'showDashboard')
+    .addToUi();
+}
+
+/**
+ * Öffnet das Dashboard.
+ */
+function showDashboard() {
+  var html = HtmlService.createTemplateFromFile('Dashboard')
+    .evaluate()
+    .setWidth(1850)
+    .setHeight(950)
+    .setTitle('Überstundenliste Dashboard');
+
+  SpreadsheetApp.getUi().showModalDialog(html, 'Überstundenliste Dashboard');
+}
+
+/**
+ * Holt den Inhalt der Dienstplanung.html für das Frontend.
+ */
+function getDienstplanungFragment() {
+  return HtmlService.createTemplateFromFile('Dienstplanung').evaluate().getContent();
+}
+
+/**
+ * ZENTRALE BERECHTIGUNG
+ * Prüft differenziert nach Zugriff, Admin-Status und Dienstplaner-Status.
+ */
+function getUserPermissions(email) {
+  if (!email) return { hasAccess: false, isAdmin: false, isDienstplaner: false };
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const searchEmail = String(email).toLowerCase().trim();
+
+  let hasAccess = false;
+  let isAdmin = false;
+  let isDienstplaner = false;
+
+  const sheetTS = ss.getSheetByName('Tagessteuerung');
+
+  if (sheetTS && sheetTS.getLastRow() > 1) {
+    const data = sheetTS.getRange(2, 1, sheetTS.getLastRow() - 1, 2).getValues();
+
+    for (let i = 0; i < data.length; i++) {
+      const rowEmail = String(data[i][0]).toLowerCase().trim();
+
+      if (rowEmail === searchEmail) {
+        hasAccess = true;
+
+        const rowRole = String(data[i][1] || "").toLowerCase().trim();
+
+        if (rowRole.includes('tagessteuerung') || rowRole.includes('dienstplanung')) {
+          isAdmin = true;
+        }
+
+        if (rowRole.includes('dienstplanung')) {
+          isDienstplaner = true;
+        }
+      }
+    }
+  }
+
+  if (!isAdmin) {
+    const sheetDB = ss.getSheetByName('Data_DB');
+
+    if (sheetDB && sheetDB.getLastRow() > 1) {
+      const lastRow = sheetDB.getLastRow();
+      const dataDB = sheetDB.getRange(2, 1, lastRow - 1, 14).getValues();
+
+      const isDienstplanerInDB = dataDB.some(row => {
+        const dbEmail = String(row[13] || "").trim().toLowerCase();
+        const skill = String(row[4] || "").trim().toLowerCase();
+
+        return dbEmail === searchEmail && skill === 'dienstplanung';
+      });
+
+      if (isDienstplanerInDB) {
+        hasAccess = true;
+        isAdmin = true;
+        isDienstplaner = true;
+      }
+    }
+  }
+
+  return { hasAccess, isAdmin, isDienstplaner };
+}
+
+/**
+ * Hauptfunktion: Daten laden.
+ */
+function getData() {
+  try {
+    const userEmail = Session.getActiveUser().getEmail().toLowerCase();
+    const permissions = getUserPermissions(userEmail);
+
+    if (!permissions.hasAccess) {
+      throw new Error("⛔ Zugriff verweigert: Ihre E-Mail (" + userEmail + ") ist nicht berechtigt.");
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    let sheetDB = ss.getSheetByName('Data_DB');
+    let sheetAuftrag = ss.getSheetByName('Auftrag');
+    let sheetTS = ss.getSheetByName('Tagessteuerung');
+    let sheetSchicht = ss.getSheetByName('Schichtmodelle');
+    let sheetAbbau = ss.getSheetByName('AbbauKW');
+
+    if (!sheetDB) throw new Error('Blatt "Data_DB" fehlt.');
+
+    if (!sheetAuftrag) {
+      sheetAuftrag = ss.insertSheet('Auftrag');
+      sheetAuftrag.appendRow(['Name', 'Vorname', 'Datum', 'Stunden', 'Notizen', 'Erstellt von']);
+    }
+
+    if (!sheetSchicht) {
+      sheetSchicht = ss.insertSheet('Schichtmodelle');
+      sheetSchicht.appendRow(['Nachname', 'Vorname', 'Schichtzeit', 'Typ', 'Pause', 'Taetigkeiten']);
+    }
+
+    processAuftragExpiry(sheetDB, sheetAuftrag);
+
+    const lastRow = sheetDB.getLastRow();
+
+    if (lastRow < 2) {
+      return {
+        employees: [],
+        stats: {},
+        currentWeek: getWeekNumber(new Date()),
+        currentYear: new Date().getFullYear(),
+        isAdmin: permissions.isAdmin,
+        isDienstplaner: permissions.isDienstplaner,
+        abbauHistory: []
+      };
+    }
+
+    const data = sheetDB.getRange(2, 1, lastRow - 1, 14).getValues();
+    const rawAuftraege = getAuftraege(sheetAuftrag);
+
+    const tsNames = new Set();
+
+    if (sheetTS && sheetTS.getLastRow() > 1) {
+      const tsData = sheetTS.getRange(2, 3, sheetTS.getLastRow() - 1, 1).getValues();
+
+      tsData.forEach(r => {
+        const full = String(r[0]).trim();
+
+        if (full) {
+          tsNames.add(full.split(' ')[0].toLowerCase());
+        }
+      });
+    }
+
+    /**
+     * SCHICHTEN
+     * Fix:
+     * Unterstützt JSON aus dem Plano-Import und zusätzlich alte Textformate.
+     */
+    const shiftMap = new Map();
+
+    if (sheetSchicht.getLastRow() > 1) {
+      const lastColS = sheetSchicht.getLastColumn();
+      const colsToLoad = Math.min(lastColS, 6);
+
+      if (colsToLoad >= 1) {
+        const sData = sheetSchicht
+          .getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad)
+          .getValues();
+
+        sData.forEach(r => {
+          const key = (String(r[1] || "").trim() + " " + String(r[0] || "").trim()).toLowerCase();
+
+          let activitiesArr = [];
+          let detailsArr = [];
+
+          const rawActivities = colsToLoad >= 6 ? String(r[5] || "").trim() : "";
+
+          if (rawActivities) {
+            try {
+              const parsed = JSON.parse(rawActivities);
+
+              if (Array.isArray(parsed)) {
+                detailsArr = parsed
+                  .map(item => ({
+                    time: String(item.time || "").trim(),
+                    activity: String(item.activity || "").trim()
+                  }))
+                  .filter(item => item.time || item.activity);
+
+                detailsArr.forEach(item => {
+                  const activity = item.activity.trim();
+
+                  if (
+                    activity &&
+                    activity !== '-' &&
+                    !activity.toLowerCase().includes('pause') &&
+                    !activitiesArr.includes(activity)
+                  ) {
+                    activitiesArr.push(activity);
+                  }
+                });
+              }
+            } catch (jsonErr) {
+              const parts = rawActivities.split(/(?=\d{2}:\d{2}\s*-\s*\d{2}:\d{2})/);
+
+              parts.forEach(p => {
+                const match = p.match(/(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\s+(.+)/);
+
+                if (match) {
+                  const time = match[1].replace(/\s/g, '').trim();
+                  const activity = match[2].replace(/\n/g, '').trim();
+
+                  if (activity) {
+                    detailsArr.push({
+                      time: time,
+                      activity: activity
+                    });
+
+                    if (
+                      !activity.toLowerCase().includes('pause') &&
+                      !activitiesArr.includes(activity)
+                    ) {
+                      activitiesArr.push(activity);
+                    }
+                  }
+                }
+              });
+
+              if (activitiesArr.length === 0) {
+                activitiesArr = rawActivities
+                  .split(',')
+                  .map(a => a.trim())
+                  .filter(a => a);
+              }
+            }
+          }
+
+          shiftMap.set(key, {
+            time: colsToLoad >= 3 ? String(r[2] || "") : "",
+            type: colsToLoad >= 4 ? String(r[3] || "") : "",
+            pause: colsToLoad >= 5 ? String(r[4] || "") : "",
+            activities: activitiesArr,
+            details: detailsArr
+          });
+        });
+      }
+    }
+
+    let abbauRaw = [];
+
+    if (sheetAbbau && sheetAbbau.getLastRow() > 1) {
+      const rows = sheetAbbau.getDataRange().getValues();
+      const headers = rows[0];
+
+      for (let r = 1; r < rows.length; r++) {
+        const rowData = rows[r];
+        const rYear = rowData[0];
+        const rKw = rowData[1];
+
+        for (let c = 3; c < rowData.length; c++) {
+          const val = Number(rowData[c]);
+          const teamName = String(headers[c]);
+
+          if (val !== 0 && teamName) {
+            abbauRaw.push({
+              y: rYear,
+              kw: rKw,
+              val: val,
+              team: teamName,
+              tma: ""
+            });
+          }
+        }
+      }
+    }
+
+    const formattedData = data.map((row, index) => {
+      if (!row[0]) return null;
+
+      const austrittRaw = row[12];
+      let isAustritt = false;
+
+      if (austrittRaw) {
+        let aDate = null;
+
+        if (austrittRaw instanceof Date) {
+          aDate = austrittRaw;
+        } else if (typeof austrittRaw === 'string' && austrittRaw.trim() !== "") {
+          const parts = extractDates(austrittRaw);
+
+          if (parts.length > 0) {
+            aDate = parts[0];
+          }
+        }
+
+        if (aDate) {
+          aDate.setHours(0, 0, 0, 0);
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          if (aDate <= today) {
+            isAustritt = true;
+          }
+        }
+      }
+
+      if (isAustritt) return null;
+
+      const nachname = String(row[0] || "").trim();
+      const vorname = String(row[1] || "").trim();
+      const dbKey = (vorname + " " + nachname).toLowerCase();
+
+      const myAuftraege = rawAuftraege
+        .filter(a =>
+          a.name.toLowerCase() === nachname.toLowerCase() &&
+          a.vorname.toLowerCase() === vorname.toLowerCase()
+        )
+        .map(a => {
+          let isTs = false;
+
+          if (a.erstelltVon) {
+            const creatorFirst = a.erstelltVon.split(' ')[0].toLowerCase();
+
+            if (tsNames.has(creatorFirst)) {
+              isTs = true;
+            }
+          }
+
+          return { ...a, isTsRelevant: isTs };
+        });
+
+      const rawEss = row[5];
+      const essDecimal = timeToDecimal(rawEss);
+      const plannedDecimal = myAuftraege.reduce((sum, order) => sum + (order.stunden || 0), 0);
+
+      let saldoDecimal = essDecimal - plannedDecimal;
+      saldoDecimal = Math.round(saldoDecimal * 100) / 100;
+
+      const shiftInfo = shiftMap.get(dbKey) || {
+        time: "",
+        type: "",
+        pause: "",
+        activities: [],
+        details: []
+      };
+
+      const austrittDisplay = row[12] instanceof Date ? formatDateCompat(row[12]) : "";
+
+      return {
+        id: index + 2,
+        nachname: nachname,
+        vorname: vorname,
+        fullName: `${vorname} ${nachname}`,
+        tmaVorname: String(row[3] || "Ohne TMA"),
+        skill: String(row[4] || "-"),
+        stundenEss: rawEss,
+        stundenSaldo: saldoDecimal,
+        letzteAktualisierung: row[6] ? formatDateCompat(row[6]) : "-",
+        notizen: String(row[11] || ""),
+        austrittDatum: austrittDisplay,
+        auftraege: myAuftraege,
+        schicht: shiftInfo
+      };
+    }).filter(item => item !== null);
+
+    return {
+      employees: formattedData,
+      currentWeek: getWeekNumber(new Date()),
+      currentYear: new Date().getFullYear(),
+      isAdmin: permissions.isAdmin,
+      isDienstplaner: permissions.isDienstplaner,
+      abbauHistory: abbauRaw
+    };
+
+  } catch (e) {
+    Logger.log("Fehler in getData: " + e.toString());
+    throw e;
+  }
+}
+
+/**
+ * Cleanup Logic.
+ */
+function processAuftragExpiry(sheetDB, sheetAuftrag) {
+  const lastRowA = sheetAuftrag.getLastRow();
+
+  if (lastRowA < 2) return;
+
+  const dbDataRange = sheetDB.getDataRange();
+  const dbData = dbDataRange.getValues();
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dbMap = new Map();
+
+  for (let i = 1; i < dbData.length; i++) {
+    const key = (String(dbData[i][1]).trim() + " " + String(dbData[i][0]).trim()).toLowerCase();
+    dbMap.set(key, i);
+  }
+
+  const auftragData = sheetAuftrag.getRange(2, 1, lastRowA - 1, 6).getValues();
+
+  let dbDirty = false;
+  let auftragDirty = false;
+
+  const validAuftraege = [];
+
+  auftragData.forEach(row => {
+    const n = String(row[0]);
+    const v = String(row[1]);
+    const rawDate = row[2];
+    const hoursVal = row[3];
+    const notiz = row[4];
+    const creator = row[5];
+
+    let dates = [];
+
+    if (rawDate instanceof Date) {
+      dates.push(rawDate);
+    } else {
+      dates = extractDates(String(rawDate));
+    }
+
+    let isExpired = false;
+
+    if (dates.length > 0) {
+      const lastDate = dates[dates.length - 1];
+      lastDate.setHours(0, 0, 0, 0);
+
+      if (lastDate < today) {
+        isExpired = true;
+      }
+    }
+
+    let processed = false;
+
+    if (isExpired) {
+      const dbKey = (v.trim() + " " + n.trim()).toLowerCase();
+
+      if (dbMap.has(dbKey)) {
+        const dbIdx = dbMap.get(dbKey);
+
+        const currentEssStr = dbData[dbIdx][5];
+        const currentEssDec = timeToDecimal(currentEssStr);
+        const orderHoursDec = timeToDecimal(hoursVal);
+        const newEssDec = currentEssDec - orderHoursDec;
+
+        dbData[dbIdx][5] = decimalToTime(newEssDec);
+        dbData[dbIdx][6] = today;
+
+        dbDirty = true;
+        processed = true;
+        auftragDirty = true;
+      }
+    }
+
+    if (!processed) {
+      validAuftraege.push([n, v, rawDate, hoursVal, notiz, creator]);
+    }
+  });
+
+  if (dbDirty) {
+    const dataToWrite = dbData.slice(1);
+    const rangeFG = sheetDB.getRange(2, 6, dataToWrite.length, 2);
+
+    rangeFG.setNumberFormat("@");
+
+    const valuesFG = rangeFG.getValues();
+
+    let rangeDirty = false;
+
+    for (let i = 0; i < dataToWrite.length; i++) {
+      const newF = dataToWrite[i][5];
+      const newG = dataToWrite[i][6];
+
+      if (valuesFG[i][0] !== newF) {
+        valuesFG[i][0] = newF;
+        valuesFG[i][1] = newG;
+        rangeDirty = true;
+      }
+    }
+
+    if (rangeDirty) {
+      rangeFG.setValues(valuesFG);
+    }
+  }
+
+  if (auftragDirty) {
+    sheetAuftrag.getRange(2, 1, lastRowA - 1, 6).clearContent();
+
+    if (validAuftraege.length > 0) {
+      sheetAuftrag.getRange(2, 1, validAuftraege.length, 6).setValues(validAuftraege);
+    }
+
+    SpreadsheetApp.flush();
+  }
+}
+
+function getAuftraege(sheet) {
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) return [];
+
+  const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+
+  return data.map((row, idx) => ({
+    rowId: idx + 2,
+    name: String(row[0]),
+    vorname: String(row[1]),
+    datum: formatDateCompat(row[2]),
+    stunden: timeToDecimal(row[3]),
+    stundenDisplay: row[3],
+    notizen: String(row[4]),
+    erstelltVon: String(row[5] || "")
+  }));
+}
+
+function addAuftrag(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheetAuftrag = ss.getSheetByName('Auftrag');
+
+  if (!sheetAuftrag) {
+    sheetAuftrag = ss.insertSheet('Auftrag');
+  }
+
+  const userEmail = Session.getActiveUser().getEmail();
+  const editorName = getEditorNameFromEmail(userEmail);
+  const lastRow = sheetAuftrag.getLastRow() + 1;
+
+  sheetAuftrag.getRange(lastRow, 4).setNumberFormat("@");
+
+  sheetAuftrag.getRange(lastRow, 1, 1, 6).setValues([[
+    data.nachname.trim(),
+    data.vorname.trim(),
+    data.datum,
+    data.stunden,
+    data.notizen,
+    editorName
+  ]]);
+
+  const team = getEmployeeTeam(data.nachname, data.vorname);
+
+  updateAbbauStats(data.datum, timeToDecimal(data.stunden), 'add', team);
+
+  SpreadsheetApp.flush();
+
+  return getData();
+}
+
+function deleteAuftrag(rowId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Auftrag');
+
+  if (sheet) {
+    const r = Number(rowId);
+    const val = sheet.getRange(r, 1, 1, 6).getValues()[0];
+    const team = getEmployeeTeam(val[0], val[1]);
+
+    updateAbbauStats(val[2], timeToDecimal(val[3]), 'remove', team);
+
+    sheet.deleteRow(r);
+  }
+
+  return getData();
+}
+
+function updateEmployeeBase(formData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Data_DB');
+  const row = parseInt(formData.id, 10);
+
+  const essCell = sheet.getRange(row, 6);
+
+  essCell.setNumberFormat("@");
+  essCell.setValue(formData.stundenEss);
+
+  sheet.getRange(row, 7).setValue(new Date()).setNumberFormat("dd.MM.yyyy");
+  sheet.getRange(row, 12).setValue(formData.notizen);
+
+  if (formData.austrittDatum) {
+    const parts = formData.austrittDatum.split('-');
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+
+    sheet.getRange(row, 13).setValue(d).setNumberFormat("dd.MM.yyyy");
+  } else {
+    sheet.getRange(row, 13).setValue("");
+  }
+
+  SpreadsheetApp.flush();
+
+  return getData();
+}
+
+function getEditorNameFromEmail(email) {
+  if (!email) return "";
+
+  try {
+    const localPart = email.split('@')[0];
+    const parts = localPart.split('.');
+
+    if (parts.length > 0) {
+      const firstNamePart = parts[0].replace(/_/g, ' ');
+
+      return firstNamePart.replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    return email;
+  } catch (e) {
+    return email;
+  }
+}
+
+function extractDates(str) {
+  const regex = /(\d{1,2})\.(\d{1,2})\.(\d{4})/g;
+  const matches = [];
+
+  let match;
+
+  while ((match = regex.exec(str)) !== null) {
+    matches.push(new Date(match[3], match[2] - 1, match[1]));
+  }
+
+  return matches.sort((a, b) => a - b);
+}
+
+function formatDateCompat(dateObj) {
+  if (!dateObj) return "-";
+
+  let d = null;
+
+  if (dateObj instanceof Date) {
+    d = dateObj;
+  } else if (typeof dateObj === 'string') {
+    if (dateObj.match(/[A-Za-z]{3}\s[A-Za-z]{3}\s\d{2}/) || dateObj.includes("GMT")) {
+      const tryD = new Date(dateObj);
+
+      if (!isNaN(tryD.getTime())) {
+        d = tryD;
+      } else {
+        return dateObj;
+      }
+    } else {
+      return dateObj;
+    }
+  }
+
+  if (d && !isNaN(d.getTime())) {
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  }
+
+  return String(dateObj);
+}
+
+function getWeekNumber(d) {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function doGet(e) {
+  const userEmail = Session.getActiveUser().getEmail();
+  const permissions = getUserPermissions(userEmail);
+
+  if (permissions.hasAccess) {
+    return HtmlService
+      .createTemplateFromFile('Dashboard')
+      .evaluate()
+      .setTitle('Überstundenliste Dashboard')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  return HtmlService
+    .createHtmlOutput('Zugriff verweigert')
+    .setTitle("Zugriff verweigert");
+}
+
+function checkAccess(email) {
+  return getUserPermissions(email).hasAccess;
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/* =========================================================================
+   HILFSFUNKTIONEN FÜR ZEIT-UMRECHNUNG
+   ========================================================================= */
+
+function timeToDecimal(timeStr) {
+  if (timeStr === null || timeStr === undefined || timeStr === "") return 0;
+
+  if (typeof timeStr === 'number') return timeStr;
+
+  if (timeStr instanceof Date) {
+    const h = timeStr.getHours();
+    const m = timeStr.getMinutes();
+
+    return h + (m / 60);
+  }
+
+  timeStr = String(timeStr).trim();
+
+  let isNegative = timeStr.startsWith("-");
+
+  if (isNegative) {
+    timeStr = timeStr.substring(1);
+  }
+
+  const parts = timeStr.split(':');
+
+  if (parts.length < 2) {
+    return parseFloat(timeStr) || 0;
+  }
+
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+
+  let decimal = hours + (minutes / 60);
+
+  return isNegative ? -decimal : decimal;
+}
+
+function decimalToTime(decimalVal) {
+  if (decimalVal === null || decimalVal === undefined || decimalVal === "") return "00:00";
+
+  decimalVal = Number(decimalVal) || 0;
+
+  const isNegative = decimalVal < 0;
+
+  decimalVal = Math.abs(decimalVal);
+
+  let hours = Math.floor(decimalVal);
+  let minutes = Math.round((decimalVal - hours) * 60);
+
+  if (minutes === 60) {
+    hours += 1;
+    minutes = 0;
+  }
+
+  const hStr = String(hours).padStart(2, '0');
+  const mStr = String(minutes).padStart(2, '0');
+
+  return (isNegative ? "-" : "") + hStr + ":" + mStr;
+}
+
+function updateAbbauStats(dateStr, hoursDecimal, operation, teamName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheet = ss.getSheetByName('AbbauKW');
+
+  if (!sheet) {
+    sheet = ss.insertSheet('AbbauKW');
+    sheet.appendRow(['Jahr', 'KW', 'Gesamt']);
+    sheet.setFrozenRows(1);
+    sheet.setFrozenColumns(2);
+  }
+
+  let dateObj = dateStr instanceof Date ? dateStr : extractDates(String(dateStr))[0];
+
+  if (!dateObj) return;
+
+  const year = dateObj.getFullYear();
+  const kw = getWeekNumber(dateObj);
+  const team = teamName || "Sonstiges";
+
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  let colIndex = -1;
+
+  for (let c = 0; c < headers.length; c++) {
+    if (String(headers[c]).toLowerCase() === String(team).toLowerCase()) {
+      colIndex = c + 1;
+      break;
+    }
+  }
+
+  if (colIndex === -1) {
+    colIndex = lastCol + 1;
+    sheet.getRange(1, colIndex).setValue(team).setFontWeight("bold");
+  }
+
+  const lastRow = sheet.getLastRow();
+
+  let rowIndex = -1;
+
+  if (lastRow > 1) {
+    const timeData = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+
+    for (let r = 0; r < timeData.length; r++) {
+      if (timeData[r][0] == year && timeData[r][1] == kw) {
+        rowIndex = r + 2;
+        break;
+      }
+    }
+  }
+
+  if (rowIndex === -1) {
+    sheet.appendRow([year, kw, 0]);
+    rowIndex = sheet.getLastRow();
+  }
+
+  const cell = sheet.getRange(rowIndex, colIndex);
+  const oldVal = Number(cell.getValue()) || 0;
+
+  let newVal = oldVal;
+
+  if (operation === 'add') {
+    newVal += hoursDecimal;
+  } else {
+    newVal -= hoursDecimal;
+  }
+
+  newVal = Math.round(newVal * 100) / 100;
+
+  cell.setValue(newVal);
+}
+
+function getEmployeeTeam(nachname, vorname) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetDB = ss.getSheetByName('Data_DB');
+
+  if (!sheetDB) return "Unbekannt";
+
+  const data = sheetDB.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (
+      String(data[i][0]).toLowerCase().trim() === String(nachname).toLowerCase().trim() &&
+      String(data[i][1]).toLowerCase().trim() === String(vorname).toLowerCase().trim()
+    ) {
+      return String(data[i][4]);
+    }
+  }
+
+  return "Unbekannt";
+}
+
+/* =========================================================================
+   WRAPPER FÜR BIBLIOTHEK: StundenerfassungPlano
+   ========================================================================= */
+
+function libProcessSelectedFile(fileId) {
+  return StundenerfassungPlano.processSelectedFile(fileId);
+}
+
+function libProcessStundenerfassung(dateStr) {
+  return StundenerfassungPlano.processStundenerfassung(dateStr);
+}
+
+function libDeleteStundenerfassung(dateStr) {
+  return StundenerfassungPlano.deleteStundenerfassung(dateStr);
+}
+
+function libSyncStundenerfassung(dateStr) {
+  return StundenerfassungPlano.syncStundenerfassung(dateStr);
+}
+
+function libGetStundenerfassungFileName() {
+  return StundenerfassungPlano.getStundenerfassungFileName();
+}
+/* =========================================================================
+   KAPAZITÄTENÜBERSICHT TAGESSTEUERUNG
+   Basis: Schichtmodelle + Data_DB
+   ========================================================================= */
+
+function getCapacityOverviewData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetDB = ss.getSheetByName('Data_DB');
+  const sheetSchicht = ss.getSheetByName('Schichtmodelle');
+
+  if (!sheetSchicht || sheetSchicht.getLastRow() < 2) {
+    return {
+      success: true,
+      updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
+      sourceRows: 0,
+      totalHours: 0,
+      remainingHours: 0,
+      activeNowCount: 0,
+      employeeCount: 0,
+      areas: []
+    };
+  }
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const skillMap = new Map();
+
+  if (sheetDB && sheetDB.getLastRow() > 1) {
+    const dbData = sheetDB.getRange(2, 1, sheetDB.getLastRow() - 1, 5).getValues();
+
+    dbData.forEach(row => {
+      const nachname = String(row[0] || "").trim();
+      const vorname = String(row[1] || "").trim();
+      const skill = String(row[4] || "").trim();
+
+      if (nachname && vorname) {
+        const key = `${vorname} ${nachname}`.toLowerCase();
+        skillMap.set(key, skill || "Ohne Skill");
+      }
+    });
+  }
+
+  const colsToLoad = Math.min(sheetSchicht.getLastColumn(), 6);
+  const rows = sheetSchicht.getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad).getValues();
+
+  const groupMap = new Map();
+
+  let totalHoursAll = 0;
+  let remainingHoursAll = 0;
+  let activeNowCount = 0;
+  let employeeCount = 0;
+
+  rows.forEach(row => {
+    const nachname = String(row[0] || "").trim();
+    const vorname = String(row[1] || "").trim();
+
+    if (!nachname || !vorname) return;
+
+    const key = `${vorname} ${nachname}`.toLowerCase();
+    const originalSkill = skillMap.get(key) || "Ohne Skill";
+    const capacityArea = mapCapacitySkillGroup(originalSkill);
+
+    const shiftTime = colsToLoad >= 3 ? String(row[2] || "").trim() : "";
+    const pauseText = colsToLoad >= 5 ? String(row[4] || "").trim() : "";
+    const rawActivities = colsToLoad >= 6 ? String(row[5] || "").trim() : "";
+
+    const capacity = calculateEmployeeCapacityFromShift(shiftTime, pauseText, rawActivities, nowMinutes);
+
+    if (capacity.totalHours <= 0 && capacity.remainingHours <= 0) return;
+
+    if (!groupMap.has(capacityArea)) {
+      groupMap.set(capacityArea, {
+        area: capacityArea,
+        totalHours: 0,
+        remainingHours: 0,
+        employeeCount: 0,
+        activeNowCount: 0,
+        originalSkills: new Set()
+      });
+    }
+
+    const group = groupMap.get(capacityArea);
+
+    group.totalHours += capacity.totalHours;
+    group.remainingHours += capacity.remainingHours;
+    group.employeeCount += 1;
+    group.originalSkills.add(originalSkill);
+
+    if (capacity.isActiveNow) {
+      group.activeNowCount += 1;
+      activeNowCount += 1;
+    }
+
+    totalHoursAll += capacity.totalHours;
+    remainingHoursAll += capacity.remainingHours;
+    employeeCount += 1;
+  });
+
+  const preferredOrder = [
+    "1st Level Filiale",
+    "2nd Level Filiale",
+    "One 1st Level",
+    "One 2nd Level"
+  ];
+
+  const areas = Array.from(groupMap.values()).map(group => ({
+    area: group.area,
+    totalHours: Math.round(group.totalHours * 100) / 100,
+    remainingHours: Math.round(group.remainingHours * 100) / 100,
+    usedHours: Math.round((group.totalHours - group.remainingHours) * 100) / 100,
+    employeeCount: group.employeeCount,
+    activeNowCount: group.activeNowCount,
+    originalSkills: Array.from(group.originalSkills).sort()
+  })).sort((a, b) => {
+    const aIdx = preferredOrder.indexOf(a.area);
+    const bIdx = preferredOrder.indexOf(b.area);
+
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
+
+    return a.area.localeCompare(b.area);
+  });
+
+  return {
+    success: true,
+    updatedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
+    sourceRows: rows.length,
+    totalHours: Math.round(totalHoursAll * 100) / 100,
+    remainingHours: Math.round(remainingHoursAll * 100) / 100,
+    usedHours: Math.round((totalHoursAll - remainingHoursAll) * 100) / 100,
+    activeNowCount: activeNowCount,
+    employeeCount: employeeCount,
+    areas: areas
+  };
+}
+
+function calculateEmployeeCapacityFromShift(shiftTime, pauseText, rawActivities, nowMinutes) {
+  const segments = parseCapacitySegments(rawActivities);
+
+  if (segments.length > 0) {
+    let totalMinutes = 0;
+    let remainingMinutes = 0;
+    let isActiveNow = false;
+
+    segments.forEach(seg => {
+      const duration = Math.max(0, seg.end - seg.start);
+
+      totalMinutes += duration;
+
+      let adjustedNow = nowMinutes;
+
+      if (seg.end > 1440 && adjustedNow < seg.start) {
+        adjustedNow += 1440;
+      }
+
+      if (adjustedNow >= seg.start && adjustedNow < seg.end) {
+        isActiveNow = true;
+        remainingMinutes += Math.max(0, seg.end - adjustedNow);
+      } else if (adjustedNow < seg.start) {
+        remainingMinutes += duration;
+      }
+    });
+
+    return {
+      totalHours: totalMinutes / 60,
+      remainingHours: remainingMinutes / 60,
+      isActiveNow: isActiveNow
+    };
+  }
+
+  const fallback = parseTimeRangeToMinutes(shiftTime);
+
+  if (!fallback) {
+    return {
+      totalHours: 0,
+      remainingHours: 0,
+      isActiveNow: false
+    };
+  }
+
+  const pauseMinutes = parsePauseToMinutes(pauseText);
+  const totalMinutes = Math.max(0, fallback.end - fallback.start - pauseMinutes);
+
+  let adjustedNow = nowMinutes;
+
+  if (fallback.end > 1440 && adjustedNow < fallback.start) {
+    adjustedNow += 1440;
+  }
+
+  let remainingMinutes = 0;
+  let isActiveNow = false;
+
+  if (adjustedNow < fallback.start) {
+    remainingMinutes = totalMinutes;
+  } else if (adjustedNow >= fallback.start && adjustedNow < fallback.end) {
+    isActiveNow = true;
+
+    const elapsedMinutes = Math.max(0, adjustedNow - fallback.start);
+    remainingMinutes = Math.max(0, totalMinutes - elapsedMinutes);
+  }
+
+  return {
+    totalHours: totalMinutes / 60,
+    remainingHours: remainingMinutes / 60,
+    isActiveNow: isActiveNow
+  };
+}
+
+function parseCapacitySegments(rawActivities) {
+  const segments = [];
+
+  if (!rawActivities) return segments;
+
+  try {
+    const parsed = JSON.parse(rawActivities);
+
+    if (Array.isArray(parsed)) {
+      parsed.forEach(item => {
+        const time = String(item.time || "").trim();
+        const activity = String(item.activity || "").trim();
+
+        if (isCapacityPauseActivity(activity)) return;
+
+        const range = parseTimeRangeToMinutes(time);
+
+        if (range) {
+          segments.push(range);
+        }
+      });
+
+      return segments;
+    }
+  } catch (e) {
+    // Fallback auf Textparser
+  }
+
+  const regex = /(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s+([\s\S]*?)(?=\d{2}:\d{2}\s*-\s*\d{2}:\d{2}|$)/g;
+  let match;
+
+  while ((match = regex.exec(rawActivities)) !== null) {
+    const time = `${match[1]}-${match[2]}`;
+    const activity = String(match[3] || "").replace(/\n/g, " ").trim();
+
+    if (isCapacityPauseActivity(activity)) continue;
+
+    const range = parseTimeRangeToMinutes(time);
+
+    if (range) {
+      segments.push(range);
+    }
+  }
+
+  return segments;
+}
+
+function parseTimeRangeToMinutes(timeRange) {
+  if (!timeRange) return null;
+
+  const match = String(timeRange).match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+
+  if (!match) return null;
+
+  const start = Number(match[1]) * 60 + Number(match[2]);
+  let end = Number(match[3]) * 60 + Number(match[4]);
+
+  if (end <= start) {
+    end += 1440;
+  }
+
+  return {
+    start: start,
+    end: end
+  };
+}
+
+function parsePauseToMinutes(pauseText) {
+  if (!pauseText) return 0;
+
+  const raw = String(pauseText).trim().toLowerCase();
+
+  if (!raw || raw === "-" || raw === "0") return 0;
+
+  const timeMatch = raw.match(/(\d{1,2}):(\d{2})/);
+
+  if (timeMatch) {
+    return Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+  }
+
+  const minMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(min|minute|minuten)/);
+
+  if (minMatch) {
+    return Number(String(minMatch[1]).replace(",", "."));
+  }
+
+  const decimal = Number(raw.replace(",", "."));
+
+  if (!isNaN(decimal)) {
+    if (decimal > 0 && decimal <= 8) {
+      return decimal * 60;
+    }
+
+    return decimal;
+  }
+
+  return 0;
+}
+
+function isCapacityPauseActivity(activity) {
+  const a = String(activity || "").toLowerCase();
+
+  return (
+    !a ||
+    a === "-" ||
+    a.includes("pause") ||
+    a.includes("break")
+  );
+}
+
+function mapCapacitySkillGroup(skill) {
+  const original = String(skill || "Ohne Skill").trim();
+  const s = original.toLowerCase();
+
+  const hasFiliale = s.includes("filiale");
+  const hasOnlineshop = s.includes("onlineshop");
+  const hasLidlPlus = s.includes("lidl plus") || s.includes("lidlplus");
+  const hasTelefon = s.includes("telefon");
+  const has1st = s.includes("1st") || s.includes("first");
+  const has2nd = s.includes("2nd") || s.includes("second");
+  const hasKleineLines = s.includes("kleine line") || s.includes("kleine lines");
+
+  if (
+    (has1st && hasFiliale) ||
+    (hasTelefon && hasFiliale) ||
+    s.includes("telefon filiale/lidl") ||
+    (hasTelefon && s.includes("lidl") && !hasLidlPlus)
+  ) {
+    return "1st Level Filiale";
+  }
+
+  if (
+    (has2nd && hasFiliale) ||
+    hasKleineLines
+  ) {
+    return "2nd Level Filiale";
+  }
+
+  if (
+    (has1st && (hasOnlineshop || hasLidlPlus)) ||
+    (hasTelefon && (hasOnlineshop || hasLidlPlus))
+  ) {
+    return "One 1st Level";
+  }
+
+  if (
+    has2nd &&
+    (hasOnlineshop || hasLidlPlus)
+  ) {
+    return "One 2nd Level";
+  }
+
+  return original || "Sonstiges";
+}
+
+Leider ist es so, dass wenn ich auf Tagessteuerung klicke oder Dienstplanung lädt er nichts, es bleibt weiß.
+
+Gib mir bitte die vollständigen beiden scripts zurück vollständig
