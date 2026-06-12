@@ -308,7 +308,7 @@
     <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center border-t border-gray-200 shrink-0">
       <div class="text-xs text-gray-400">
         <i class="fa-solid fa-circle-info text-lidl-blue mr-1"></i>
-        Nicht produktive Tätigkeiten werden ausgeschlossen.
+        Nur die Kapazitätenübersicht rechnet produktive Skill-Zeiten. Tagessteuerung und Radar zeigen den Ablauf inklusive Pause.
       </div>
 
       <div class="flex gap-3">
@@ -351,56 +351,38 @@
   let capacityOverviewCache = null;
   let capacitySkillFilter = 'Alle';
 
-  function isIgnoredDashboardActivity(activity) {
+  function isPauseActivity(activity) {
     const a = String(activity || "").toLowerCase().trim();
 
     return (
-      !a ||
-      a === "-" ||
       a.includes("pause") ||
-      a.includes("break") ||
-      a.includes("systemstörung") ||
-      a.includes("systemstoerung") ||
-      a.includes("störung") ||
-      a.includes("stoerung") ||
-      a.includes("meeting") ||
-      a.includes("coaching") ||
-      a.includes("coaching lks de") ||
-      a.includes("schulung") ||
-      a.includes("schulung lks") ||
-      a.includes("paypal") ||
-      a.includes("briefdruck") ||
-      a.includes("andere tätigkeiten") ||
-      a.includes("andere taetigkeiten") ||
-      a.includes("trainer") ||
-      a.includes("quality mng") ||
-      a.includes("wissen & training") ||
-      a.includes("training") ||
-      a.includes("bot")
+      a.includes("break")
     );
   }
 
-  function getVisibleShiftDetails(emp) {
+  function getTimelineShiftDetails(emp) {
     if (!emp || !emp.schicht || !Array.isArray(emp.schicht.details)) return [];
 
     return emp.schicht.details.filter(detail => {
-      return !isIgnoredDashboardActivity(detail.activity);
+      return detail && (detail.time || detail.activity);
     });
   }
 
-  function getVisibleShiftActivities(emp) {
+  function getFilterShiftActivities(emp) {
     if (!emp || !emp.schicht) return [];
 
     const fromActivities = Array.isArray(emp.schicht.activities)
       ? emp.schicht.activities
       : [];
 
-    let visible = fromActivities.filter(activity => !isIgnoredDashboardActivity(activity));
+    let visible = fromActivities.filter(activity => {
+      return activity && !isPauseActivity(activity);
+    });
 
     if (visible.length === 0) {
-      visible = getVisibleShiftDetails(emp)
+      visible = getTimelineShiftDetails(emp)
         .map(detail => detail.activity)
-        .filter(activity => activity && !isIgnoredDashboardActivity(activity));
+        .filter(activity => activity && !isPauseActivity(activity));
     }
 
     return [...new Set(visible)];
@@ -725,10 +707,10 @@
     });
 
     sorted.forEach(e => {
-      const visibleActivities = getVisibleShiftActivities(e);
+      const filterActivities = getFilterShiftActivities(e);
 
-      if (visibleActivities.length > 0) {
-        visibleActivities.forEach(act => allActivities.add(act));
+      if (filterActivities.length > 0) {
+        filterActivities.forEach(act => allActivities.add(act));
       }
     });
 
@@ -748,12 +730,12 @@
 
     sorted.forEach(e => {
       if (e.schicht && e.schicht.type) {
-        const visibleActivities = getVisibleShiftActivities(e);
+        const filterActivities = getFilterShiftActivities(e);
 
         let showItem = true;
 
         if (activeActivityFilter !== 'Alle') {
-          if (!visibleActivities.includes(activeActivityFilter)) {
+          if (!filterActivities.includes(activeActivityFilter)) {
             showItem = false;
           }
         }
@@ -761,10 +743,16 @@
         if (showItem) {
           const col = getBalanceColor(e.stundenSaldo);
 
+          let pauseBadge = "";
+
+          if (e.schicht.pause) {
+            pauseBadge = `<span class="bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-block" title="Pause"><i class="fa-solid fa-mug-hot mr-1"></i>${escapeHtml(e.schicht.pause)}</span>`;
+          }
+
           let actHtml = "";
 
-          if (visibleActivities.length > 0) {
-            const actsStr = visibleActivities.join(' • ');
+          if (filterActivities.length > 0) {
+            const actsStr = filterActivities.join(' • ');
             actHtml = `<div class="text-[9px] text-gray-400 mt-1 truncate" title="${escapeHtml(actsStr)}"><i class="fa-solid fa-briefcase mr-1"></i>${escapeHtml(actsStr)}</div>`;
           }
 
@@ -789,6 +777,7 @@
                 </div>
                 <div class="text-right flex flex-col items-end shrink-0">
                   <div class="font-mono text-[10px] font-bold px-2 py-0.5 rounded ${timeClass} whitespace-nowrap">${escapeHtml(displayTime)}</div>
+                  ${pauseBadge}
                 </div>
               </div>
               ${actHtml}
@@ -826,13 +815,12 @@
   function getRelevantTimeStr(emp, filter) {
     if (!emp || !emp.schicht) return "";
 
-    const visibleDetails = getVisibleShiftDetails(emp);
-
-    if (filter === 'Alle' || visibleDetails.length === 0) {
+    if (filter === 'Alle') {
       return emp.schicht.time || "";
     }
 
-    const matches = visibleDetails.filter(d => d.activity === filter);
+    const timelineDetails = getTimelineShiftDetails(emp);
+    const matches = timelineDetails.filter(d => d.activity === filter);
 
     if (matches.length > 0) {
       if (matches.length === 1) {
@@ -898,7 +886,7 @@
     if (!container) return;
 
     const cleanActivities = (activities || [])
-      .filter(act => act && !isIgnoredDashboardActivity(act))
+      .filter(act => act && !isPauseActivity(act))
       .filter((act, index, arr) => arr.indexOf(act) === index);
 
     container.innerHTML = '';
@@ -949,13 +937,13 @@
 
     let html = '';
 
-    const details = getVisibleShiftDetails(emp);
+    const details = getTimelineShiftDetails(emp);
 
     if (details.length === 0) {
       html = `
         <div class="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-400">
           <i class="fa-regular fa-clock text-3xl mb-3"></i>
-          <p class="font-bold text-slate-600">Keine produktiven Tätigkeitsdetails vorhanden</p>
+          <p class="font-bold text-slate-600">Keine Tätigkeitsdetails vorhanden</p>
           <p class="text-xs mt-1">Schichtzeit: ${escapeHtml(emp.schicht.time || '-')}</p>
         </div>
       `;
@@ -963,13 +951,18 @@
       html = '<div class="space-y-3">';
 
       details.forEach(item => {
+        const pause = isPauseActivity(item.activity);
+
         html += `
-          <div class="bg-white border border-blue-100 rounded-xl p-3 shadow-sm flex gap-3 items-start hover:border-lidl-blue transition">
-            <div class="w-24 shrink-0 font-mono text-xs font-bold text-lidl-blue bg-blue-50 rounded-lg px-2 py-1 text-center">
+          <div class="bg-white border ${pause ? 'border-gray-200' : 'border-blue-100'} rounded-xl p-3 shadow-sm flex gap-3 items-start hover:border-lidl-blue transition">
+            <div class="w-24 shrink-0 font-mono text-xs font-bold ${pause ? 'text-gray-500 bg-gray-100' : 'text-lidl-blue bg-blue-50'} rounded-lg px-2 py-1 text-center">
               ${escapeHtml(item.time || '-')}
             </div>
             <div class="flex-1">
-              <div class="font-bold text-sm text-slate-700">${escapeHtml(item.activity || '-')}</div>
+              <div class="font-bold text-sm ${pause ? 'text-gray-500' : 'text-slate-700'}">
+                ${pause ? '<i class="fa-solid fa-mug-hot mr-1"></i>' : ''}
+                ${escapeHtml(item.activity || '-')}
+              </div>
             </div>
           </div>
         `;
@@ -1021,9 +1014,9 @@
     const upcoming = [];
 
     allData.forEach(emp => {
-      const visibleDetails = getVisibleShiftDetails(emp);
+      const timelineDetails = getTimelineShiftDetails(emp);
 
-      visibleDetails.forEach(detail => {
+      timelineDetails.forEach(detail => {
         const match = String(detail.time || '').match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
 
         if (!match) return;
@@ -1037,7 +1030,8 @@
             name: emp.fullName,
             time: detail.time,
             activity: detail.activity,
-            diff: diff
+            diff: diff,
+            isPause: isPauseActivity(detail.activity)
           });
         }
       });
@@ -1049,7 +1043,7 @@
     badge.classList.toggle('hidden', upcoming.length === 0);
 
     if (upcoming.length === 0) {
-      list.innerHTML = '<div class="p-5 text-center text-xs text-gray-400">Keine produktiven Wechsel in den nächsten 30 Minuten.</div>';
+      list.innerHTML = '<div class="p-5 text-center text-xs text-gray-400">Keine Wechsel in den nächsten 30 Minuten.</div>';
       return;
     }
 
@@ -1060,13 +1054,17 @@
         ? `seit ${Math.abs(item.diff)} Min.`
         : `in ${item.diff} Min.`;
 
+      const icon = item.isPause
+        ? '<i class="fa-solid fa-mug-hot text-gray-400 mr-1"></i>'
+        : '<i class="fa-solid fa-briefcase text-lidl-blue mr-1"></i>';
+
       list.innerHTML += `
         <button type="button" onclick="openShiftDetailsModal(${item.id})" class="w-full text-left p-3 border-b border-gray-100 bg-white hover:bg-blue-50 transition cursor-pointer">
           <div class="flex justify-between items-center gap-2">
             <div class="font-bold text-sm text-slate-700 truncate">${escapeHtml(item.name)}</div>
-            <div class="font-mono text-xs font-bold text-lidl-blue shrink-0">${escapeHtml(item.time)}</div>
+            <div class="font-mono text-xs font-bold ${item.isPause ? 'text-gray-500' : 'text-lidl-blue'} shrink-0">${escapeHtml(item.time)}</div>
           </div>
-          <div class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(item.activity)}</div>
+          <div class="text-xs ${item.isPause ? 'text-gray-500' : 'text-gray-600'} mt-1 truncate">${icon}${escapeHtml(item.activity)}</div>
           <div class="text-[10px] font-bold text-gray-400 mt-1">${escapeHtml(diffText)}</div>
         </button>
       `;

@@ -29,8 +29,7 @@ function getDienstplanungFragment() {
 }
 
 /**
- * WICHTIG:
- * Includes werden als Template ausgewertet.
+ * Includes für HTML-Dateien.
  */
 function include(filename) {
   return HtmlService
@@ -191,23 +190,24 @@ function getData() {
               const parsed = JSON.parse(rawActivities);
 
               if (Array.isArray(parsed)) {
-                parsed.forEach(item => {
-                  const time = String(item.time || "").trim();
-                  const activity = String(item.activity || "").trim();
+                detailsArr = parsed
+                  .map(item => ({
+                    time: String(item.time || "").trim(),
+                    activity: String(item.activity || "").trim()
+                  }))
+                  .filter(item => item.time || item.activity);
+
+                detailsArr.forEach(item => {
+                  const activity = item.activity.trim();
 
                   if (
                     activity &&
                     activity !== '-' &&
-                    !isCapacityIgnoredActivity(activity)
+                    !activity.toLowerCase().includes('pause') &&
+                    !activity.toLowerCase().includes('break') &&
+                    !activitiesArr.includes(activity)
                   ) {
-                    detailsArr.push({
-                      time: time,
-                      activity: activity
-                    });
-
-                    if (!activitiesArr.includes(activity)) {
-                      activitiesArr.push(activity);
-                    }
+                    activitiesArr.push(activity);
                   }
                 });
               }
@@ -221,17 +221,17 @@ function getData() {
                   const time = match[1].replace(/\s/g, '').trim();
                   const activity = match[2].replace(/\n/g, '').trim();
 
-                  if (
-                    activity &&
-                    activity !== '-' &&
-                    !isCapacityIgnoredActivity(activity)
-                  ) {
+                  if (activity) {
                     detailsArr.push({
                       time: time,
                       activity: activity
                     });
 
-                    if (!activitiesArr.includes(activity)) {
+                    if (
+                      !activity.toLowerCase().includes('pause') &&
+                      !activity.toLowerCase().includes('break') &&
+                      !activitiesArr.includes(activity)
+                    ) {
                       activitiesArr.push(activity);
                     }
                   }
@@ -242,7 +242,10 @@ function getData() {
                 activitiesArr = rawActivities
                   .split(',')
                   .map(a => a.trim())
-                  .filter(a => a && !isCapacityIgnoredActivity(a));
+                  .filter(a => {
+                    const lower = String(a || "").toLowerCase();
+                    return a && !lower.includes('pause') && !lower.includes('break');
+                  });
               }
             }
           }
@@ -875,6 +878,8 @@ function libGetStundenerfassungFileName() {
 /* =========================================================================
    KAPAZITÄTENÜBERSICHT TAGESSTEUERUNG
    Basis: Schichtmodelle aus Plano Backup
+   Wichtig: Nur hier werden nicht produktive Tätigkeiten ausgeschlossen.
+   Tagessteuerung und Live-Schicht-Radar zeigen den Tagesablauf inklusive Pause.
    ========================================================================= */
 
 function getCapacityOverviewData() {
