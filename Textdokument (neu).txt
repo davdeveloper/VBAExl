@@ -1,1473 +1,1209 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
-  <button onclick="toggleControlPanel('admin-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
-    <div>
-      <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
-        <i class="fa-solid fa-user-shield text-lidl-blue"></i> Administration
-      </h3>
-      <p class="text-[11px] text-gray-400 mt-0.5">Import, Übermittlung, Plano-Analyse und Kapazitäten</p>
-    </div>
+ich habe hier eine google sheet datei die auf eine Master API basierend ist
 
-    <div class="flex items-center gap-2 text-gray-400">
-      <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
-      <i id="admin-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
-    </div>
-  </button>
+Code.gs von der Prognose
 
-  <div id="admin-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-4 gap-3">
-    <button onclick="openImportTypeModal()" id="btn-import-modal-open" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
-        <i class="fa-solid fa-file-import"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Plano Backup importieren</div>
-        <div class="text-[11px] text-gray-400 truncate">Tagesdaten oder Stundenerfassung übernehmen</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
-    </button>
+// ==========================================
+// MENÜ KONFIGURATION (JETZT MINIMALISTISCH)
+// ==========================================
 
-    <button onclick="openUebermittelnModal()" class="group relative overflow-hidden bg-white border border-emerald-100 rounded-xl p-3 hover:border-modern-green hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-emerald-50 text-modern-green flex items-center justify-center shrink-0 group-hover:bg-modern-green group-hover:text-white transition">
-        <i class="fa-solid fa-paper-plane"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Stundenerfassung übermitteln</div>
-        <div class="text-[11px] text-gray-400 truncate">Tag löschen, übertragen oder Monat synchronisieren</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-modern-green transition"></i>
-    </button>
+function onOpen() {
+  Master_API_Lidl_Tools.Tools.UI.MenueBauen("Lidl Tools", [
+    { Titel: ">>> (1) MORGEN-IMPORT (07:00) manuell starten <<<", Funktion: "Run"},
+    { Titel: ">>> (2) TAGESPLANUNG (09:00) manuell starten <<<", Funktion: "Run09UhrTrigger"},
+    { Titel: ">>> (3) Lückenfüller: Historischer Import <<<", Funktion: "historischenImportAusfuehren"}
+  ]);
+}
 
-    <button onclick="openCapacityOverviewModal()" class="group relative overflow-hidden bg-white border border-yellow-100 rounded-xl p-3 hover:border-lidl-yellow hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-yellow-50 text-yellow-600 flex items-center justify-center shrink-0 group-hover:bg-lidl-yellow group-hover:text-lidl-blue transition">
-        <i class="fa-solid fa-chart-simple"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Kapazitätenübersicht</div>
-        <div class="text-[11px] text-gray-400 truncate">Produktivstunden und Restkapazität je Skill</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-yellow-600 transition"></i>
-    </button>
+// ==========================================
+// ORCHESTRATOR 1: 07:00 UHR (Eingang & SR)
+// ==========================================
 
-    <a href="https://docs.google.com/spreadsheets/d/1aq-TtGaW4yzRqKng_ZLT1sNmmNVi9BqAbrdYgj5FQrg/edit?gid=986034657#gid=986034657"
-       target="_blank"
-       rel="noopener noreferrer"
-       class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gray-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
-        <i class="fa-solid fa-up-right-from-square"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Plano Overview öffnen</div>
-        <div class="text-[11px] text-gray-400 truncate">Monatsübersicht und Analyse in Google Sheets</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-slate-600 transition"></i>
-    </a>
-  </div>
-</div>
+// Für manuellen Start mit Popup-Meldung
+function Run() {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    Run07UhrTrigger(); // Ruft die stille Logik auf
+    ui.alert("Erfolg", "Der Morgen-Import (07:00 Uhr Logik) wurde erfolgreich ausgeführt.", ui.ButtonSet.OK);
+  } catch (f) {
+    ui.alert("Fehler", "Abbruch: " + f.message, ui.ButtonSet.OK);
+  }
+}
 
-<div class="flex justify-between items-center shrink-0 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-  <div class="flex gap-2 items-center">
-    <span class="text-xs font-bold text-gray-400 uppercase mr-2">
-      <i class="fa-solid fa-arrow-down-up-across-line"></i> Sortierung:
-    </span>
+// Für automatischen Trigger (ohne Popups)
+function Run07UhrTrigger() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    var today = new Date();
+    today.setHours(0, 0, 0, 0); // NEU: Schneidet die Uhrzeit ab (verhindert den Mitternachts-Bug in SVERWEIS)
+    
+    var katSheet = sheet.getSheetByName("Auswertung_KAT");
+    if (katSheet) katSheet.getRange("F1").setValue(today);
+    SpreadsheetApp.flush();
+    
+    console.log("Starte automatischen 07:00 Uhr Import...");
+    
+    // Schritt 1 & 2: Steuerungsreport & Eingang
+    steuerungsReportImport(today);
+    eingangZaehlen(today); 
+    
+    SpreadsheetApp.flush();
+    // NEU: Dem Server headless mehr Zeit geben, um alle Formeln im Sheet neu zu berechnen!
+    Utilities.sleep(15000); 
+    
+    // Schritt 3: Archivierung (Tagesplanung ist hier noch leer/alt)
+    meineTageswerteArchivieren(today);
+    vergleichswerteSpeichern(today);
+    
+    console.log("07:00 Uhr Import erfolgreich abgeschlossen.");
+  } catch (fehler) {
+    console.error("Fehler 07 Uhr: " + fehler.message);
+    throw fehler; 
+  }
+}
 
-    <button onclick="setControlSort('plus')" id="btn-ctrl-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
-      <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
-    </button>
-    <button onclick="setControlSort('minus')" id="btn-ctrl-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
-      <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
-    </button>
-    <button onclick="setControlSort('time')" id="btn-ctrl-time" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
-      <i class="fa-regular fa-clock"></i> Zeit
-    </button>
-  </div>
+// ==========================================
+// ORCHESTRATOR 2: 09:00 UHR (Tagesplanung Update)
+// ==========================================
 
-  <div class="hidden xl:flex items-center gap-2 text-xs text-gray-400">
-    <i class="fa-solid fa-circle-info text-lidl-blue"></i>
-    <span>Sortierung wirkt auf die Schichtkarten darunter</span>
-  </div>
-</div>
+function Run09UhrTrigger() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = null;
+  try { ui = SpreadsheetApp.getUi(); } catch(e) {} // Prüft ob UI verfügbar ist
 
-<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex items-start gap-4">
-  <span class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap mt-1.5">
-    <i class="fa-solid fa-list-check"></i> Tätigkeiten:
-  </span>
-  <div id="activity-filter-container" class="flex flex-wrap gap-2 items-center"></div>
-</div>
+  try {
+    var today = new Date();
+    today.setHours(0, 0, 0, 0); // NEU: Schneidet die Uhrzeit ab
+    
+    var katSheet = sheet.getSheetByName("Auswertung_KAT");
+    if (katSheet) katSheet.getRange("F1").setValue(today);
+    SpreadsheetApp.flush();
+    
+    if (ui) sheet.toast("Importiere Tagesplanung...", "9 Uhr Status", 3);
+    console.log("Starte automatischen 09:00 Uhr Import...");
+    
+    // 1. Tagesplanung importieren
+    werteAusTagesplanung(today);
+    
+    SpreadsheetApp.flush();
+    // NEU: Wichtigste Änderung für Headless-Trigger! Google Server braucht Zeit für die Formeln.
+    Utilities.sleep(15000); 
+    
+    // 2. Datenbank aktualisieren (Upsert!)
+    meineTageswerteArchivieren(today);
+    vergleichswerteSpeichern(today);
+    
+    if (ui) ui.alert("Erfolg", "Die Tagesplanung wurde importiert und die Datenbank aktualisiert.", ui.ButtonSet.OK);
+    console.log("09:00 Uhr Import erfolgreich abgeschlossen.");
+    
+  } catch (fehler) {
+    console.error("Fehler 09 Uhr: " + fehler.message);
+    if (ui) ui.alert("Fehler", fehler.message, ui.ButtonSet.OK);
+  }
+}
 
-<div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Frühschicht</h3>
-        <span class="text-xs font-bold bg-blue-100 text-lidl-blue px-2 py-0.5 rounded" id="count-frueh">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-frueh">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-frueh"></div>
-  </div>
+// ==========================================
+// DIE EINZELNEN JOBS (UNVERÄNDERT)
+// ==========================================
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Mittelschicht</h3>
-        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" id="count-mittel">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-mittel">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-mittel"></div>
-  </div>
+function steuerungsReportImport(optionalesDatum){
+  var meinDatum = optionalesDatum ? new Date(optionalesDatum) : new Date();
+  var datumString = Utilities.formatDate(meinDatum, Session.getScriptTimeZone(), "yyyy-MM-dd");
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Spätschicht</h3>
-        <span class="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded" id="count-spaet">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-spaet">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-spaet"></div>
-  </div>
-</div>
+  Master_API_Lidl_Tools.Tools.Import.MonatsBatchKopieren({ 
+    QuellOrdnerID: "1cWmHGm1RGWe9OQ7ObIffD85wFqiKCjFY", 
+    QuelldateiName: "{{YYYYMM}}_Steuerungsreport_Salesforce", 
+    Zieldatei: SpreadsheetApp.getActiveSpreadsheet().getId(),
+    SuchDatum: datumString, 
+    Jobs: [
+      {
+        QuellArbeitsblatt: "FC_DL",
+        Zielarbeitsblatt: "Datenbank_Steuerungsreport",
+        QuellDatumSpalte: "R", 
+        ZielDatumSpalte: "A",  
+        Spalten: { 
+          "AB": "C", "AA": "E", "AJ": "G", "AI": "I", "AE": "M", "AN": "O", "AM": "Q", "AF": "K",
+          "BA": "S", "AZ": "U", "BI": "W", "BH": "Y", "BE": "AA", "BD": "AC", "BM": "AE", "BL": "AG",
+          "BZ": "AI", "BY": "AK", "CH": "AM", "CG": "AO", "CD": "AQ", "CC": "AS", "CL": "AU", "CK": "AW"
+        }
+      },
+      {
+        QuellArbeitsblatt: "Teleperformance",
+        Zielarbeitsblatt: "Datenbank_Steuerungsreport",
+        QuellDatumSpalte: "A", 
+        ZielDatumSpalte: "A",  
+        Spalten: { "T": "D", "P": "F", "W": "H", "S": "J", "U": "L", "Q": "N", "V": "P", "R": "R" }
+      },
+      {
+        QuellArbeitsblatt: "Concentrix",
+        Zielarbeitsblatt: "Datenbank_Steuerungsreport",
+        QuellDatumSpalte: "A", 
+        ZielDatumSpalte: "A",  
+        Spalten: { "T": "T", "P": "V", "W": "X", "S": "Z", "U": "AB", "Q": "AD", "V": "AF", "R": "AH" }
+      },
+      {
+        QuellArbeitsblatt: "LKS-1st",
+        Zielarbeitsblatt: "Datenbank_Steuerungsreport",
+        QuellDatumSpalte: "A", 
+        ZielDatumSpalte: "A",  
+        Spalten: { "R": "AJ", "O": "AL", "S": "AR", "P": "AT", "T": "AV", "Q": "AX" }
+      }
+    ]
+  });
+}
 
-<div id="shift-radar-widget" class="fixed bottom-6 right-6 flex flex-col items-end transition-all duration-300" style="z-index:9999;">
-  <div id="shift-radar-panel" class="hidden w-80 bg-white rounded-2xl shadow-2xl border border-blue-100 mb-4 overflow-hidden flex-col origin-bottom-right transition-all">
-    <div class="bg-gradient-to-r from-lidl-blue to-blue-800 p-4 flex justify-between items-center text-white shrink-0">
-      <div class="flex items-center gap-2 font-bold text-sm">
-        <i class="fa-solid fa-satellite-dish animate-pulse"></i> Live-Schicht-Radar
-      </div>
-      <span class="text-[10px] font-mono font-bold bg-white/20 px-2 py-0.5 rounded-full" id="radar-time">--:--</span>
-    </div>
-    <div class="p-0 max-h-72 overflow-y-auto custom-scroll bg-slate-50" id="radar-list"></div>
-  </div>
+function eingangZaehlen(zielDatum) {
+  var date = zielDatum ? new Date(zielDatum) : new Date();
+  var dateString = Utilities.formatDate(date, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  var dateiEndung = ".csv"; 
+  var fileName = dateString + dateiEndung; 
+  var tabName = dateString; 
 
-  <button type="button" onclick="toggleRadar()" class="bg-lidl-blue text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl hover:bg-blue-800 hover:scale-105 transition-all flex items-center justify-center text-2xl relative cursor-pointer">
-    <i class="fa-solid fa-stopwatch"></i>
-    <span id="radar-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white hidden">0</span>
-  </button>
-</div>
+  Master_API_Lidl_Tools.Tools.Import.KomplettKopieren({
+    QuellOrdnerID: "13QfeLYdK_SPvYQUOz8O2ODIJWgu-EtkZ",  
+    QuelldateiName: fileName, 
+    Zieldatei: SpreadsheetApp.getActiveSpreadsheet().getId(),
+    QuellArbeitsblatt: tabName, 
+    Zielarbeitsblatt: "Rohdaten_Eingang",
+    UeberschriftMitnehmen: true, 
+    Modus: "Ersetzen"            
+  });
 
-<div id="importTypeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 flex flex-col" id="importTypeModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-file-import"></i> Import-Typ wählen
-      </h3>
-      <button onclick="closeImportTypeModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
+  eingangZaehlenVortag(date);
+}
 
-    <div class="p-6 space-y-4">
-      <p class="text-sm text-gray-600">Für welchen Bereich möchtest du das Plano Backup importieren?</p>
+function eingangZaehlenVortag(basisDatum) {
+  var date = basisDatum ? new Date(basisDatum) : new Date();
+  date.setDate(date.getDate() - 1); 
+  var dateString = Utilities.formatDate(date, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  var dateiEndung = ".csv"; 
+  var fileName = dateString + dateiEndung; 
+  var tabName = dateString;
 
-      <button onclick="closeImportTypeModal(); openPlanoImportModal();" class="w-full bg-blue-50 border border-blue-200 text-lidl-blue hover:bg-lidl-blue hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
-        <i class="fa-solid fa-clock"></i> Heutiger Tag
-      </button>
+  Master_API_Lidl_Tools.Tools.Import.KomplettKopieren({
+    QuellOrdnerID: "13QfeLYdK_SPvYQUOz8O2ODIJWgu-EtkZ", 
+    QuelldateiName: fileName, 
+    Zieldatei: SpreadsheetApp.getActiveSpreadsheet().getId(),
+    QuellArbeitsblatt: tabName,
+    Zielarbeitsblatt: "Rohdaten_Eingang",
+    UeberschriftMitnehmen: false, 
+    Modus: "Anfuegen"             
+  });
+}
 
-      <button onclick="closeImportTypeModal(); openPlanoStundenerfassungModal();" class="w-full bg-emerald-50 border border-emerald-200 text-modern-green hover:bg-modern-green hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
-        <i class="fa-solid fa-database"></i> Stundenerfassung -/ Plano Overview
-      </button>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
-      <button onclick="closeImportTypeModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="planoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-file-excel"></i> Tagessteuerung Import
-      </h3>
-      <button onclick="closePlanoModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
-      <p class="text-sm text-gray-600 mb-4">Wähle die Datei für den heutigen Tag:</p>
-      <div id="plano-files-list" class="space-y-2">
-        <div class="text-center text-gray-400 py-4">
-          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
-        </div>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
-      <button onclick="closePlanoModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="planoStundenerfassungModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoStundenerfassungModalContent">
-    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-database"></i> Stundenerfassung Import
-      </h3>
-      <button onclick="closePlanoStundenerfassungModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
-      <p class="text-sm text-gray-600 mb-4">Wähle die Backup-Datei zur Übertragung in die Datenbank:</p>
-      <div id="plano-st-files-list" class="space-y-2">
-        <div class="text-center text-gray-400 py-4">
-          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
-        </div>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
-      <button onclick="closePlanoStundenerfassungModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="uebermittelnModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col" id="uebermittelnModalContent">
-    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-paper-plane"></i> Stundenerfassung übermitteln
-      </h3>
-      <button onclick="closeUebermittelnModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 space-y-5">
-      <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
-        <span class="text-[10px] text-modern-green font-bold uppercase block mb-1">Aktuelle Zieldatei aus Einstellungen</span>
-        <strong id="st-filename-display" class="text-emerald-800 text-sm">Wird geladen...</strong>
-      </div>
-
-      <div class="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-xl text-xs font-bold flex items-start gap-2">
-        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-orange-500 text-lg"></i>
-        <p>WICHTIG: Übermittle die Daten immer als HEUTE für HEUTE oder GESTERN für GESTERN.</p>
-      </div>
-
-      <div>
-        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Datum für die Übermittlung</label>
-        <input type="date" id="uebermitteln-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none bg-white">
-      </div>
-
-      <div class="space-y-3 pt-2">
-        <button id="btn-st-transfer" onclick="startTransfer()" class="w-full bg-modern-green text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-emerald-700 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-upload"></i> Übermittlung starten
-        </button>
-
-        <button id="btn-st-delete" onclick="startDelete()" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-red-600 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-trash-can"></i> Tag aus Stundenerfassung löschen
-        </button>
-
-        <button id="btn-st-sync" onclick="startSync()" class="w-full bg-lidl-blue text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-arrows-rotate"></i> Ganzen Monat synchronisieren
-        </button>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
-      <button onclick="closeUebermittelnModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-    </div>
-  </div>
-</div>
-
-<div id="capacityOverviewModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="capacityOverviewModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <div>
-        <h3 class="text-white font-bold text-lg flex items-center gap-2">
-          <i class="fa-solid fa-chart-simple"></i> Kapazitätenübersicht
-        </h3>
-        <p class="text-blue-100 text-xs mt-0.5">Stunden und Restkapazität aus dem aktuellen Plano Backup</p>
-      </div>
-
-      <button onclick="closeCapacityOverviewModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div id="capacity-overview-content" class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50">
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Kapazitäten werden berechnet...</p>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center border-t border-gray-200 shrink-0">
-      <div class="text-xs text-gray-400">
-        <i class="fa-solid fa-circle-info text-lidl-blue mr-1"></i>
-        Nur die Kapazitätenübersicht rechnet produktive Skill-Zeiten. Tagessteuerung und Details zeigen den Tagesablauf inklusive Pause.
-      </div>
-
-      <div class="flex gap-3">
-        <button onclick="openCapacityOverviewModal(true)" class="px-4 py-2 rounded-lg bg-blue-50 text-lidl-blue border border-blue-100 hover:bg-blue-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-arrows-rotate"></i> Aktualisieren
-        </button>
-        <button onclick="closeCapacityOverviewModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="shiftDetailsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="shiftDetailsModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0 relative">
-      <div>
-        <h3 class="text-white font-bold text-lg" id="shift-modal-name">-</h3>
-        <p class="text-blue-200 text-xs" id="shift-modal-skill">-</p>
-      </div>
-      <div class="bg-white/20 px-3 py-1 rounded border border-white/30 text-white font-mono font-bold" id="shift-modal-time">--:--</div>
-      <button onclick="closeShiftDetailsModal()" class="absolute top-4 right-4 text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-0 overflow-y-auto flex-1 custom-scroll bg-gray-50">
-      <div id="shift-modal-timeline" class="p-6"></div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center shrink-0 border-t border-gray-200">
-      <button onclick="openEditModal(currentEmpId)" class="px-4 py-2 bg-blue-50 text-lidl-blue border border-blue-200 rounded-lg text-sm font-bold hover:bg-blue-100 transition flex items-center gap-2">
-        <i class="fa-solid fa-pen-to-square"></i> ESS Daten bearbeiten
-      </button>
-      <button onclick="closeShiftDetailsModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-    </div>
-  </div>
-</div>
-
-<script>
-  let capacityOverviewCache = null;
-  let capacitySkillFilter = 'Alle';
-
-  function isPauseActivity(activity) {
-    const a = String(activity || "").toLowerCase().trim();
-
-    return (
-      a.includes("pause") ||
-      a.includes("break")
-    );
+function werteAusTagesplanung(optionalesDatum) {
+  var meinDatum;
+  if (optionalesDatum) {
+    meinDatum = Utilities.formatDate(optionalesDatum, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  } else {
+    meinDatum = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Auswertung_KAT").getRange("F1").getDisplayValue();
   }
 
-  function normalizeRadarActivity(activity) {
-    return String(activity || "")
-      .toLowerCase()
-      .trim()
-      .replace(/ä/g, "ae")
-      .replace(/ö/g, "oe")
-      .replace(/ü/g, "ue")
-      .replace(/ß/g, "ss")
-      .replace(/\s+/g, " ");
+  Master_API_Lidl_Tools.Tools.Import.EinzelwerteInZellenKopieren({
+    QuellOrdnerID: "1fDu6vk1aX0x1OkJoA1JfoxCrzev6IvHB", 
+    QuelldateiName: "Tagesplanung", 
+    Zieldatei: SpreadsheetApp.getActiveSpreadsheet().getId(),
+    QuellArbeitsblatt: "Datenbank",
+    Zielarbeitsblatt: "Verarbeitung_Eingabe",
+    SuchDatum: meinDatum,
+    QuellDatumSpalte: "A", 
+    Mapping: { "L": "G4", "S": "H4", "R": "I4", "W": "J4" }
+  });
+}
+
+function vergleichswerteSpeichern(optionalesDatum) {
+  var heuteDatumString;
+  var morgenDatumString;
+  
+  if (optionalesDatum) {
+    // 1. Datum für HEUTE (Ist-Werte eintragen)
+    heuteDatumString = Utilities.formatDate(optionalesDatum, Session.getScriptTimeZone(), "dd.MM.yyyy");
+    
+    // 2. Datum für MORGEN (Prognose-Werte eintragen)
+    var morgen = new Date(optionalesDatum.getTime());
+    morgen.setDate(morgen.getDate() + 1);
+    morgenDatumString = Utilities.formatDate(morgen, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  } else {
+    // Fallback manuell
+    heuteDatumString = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Auswertung_KAT").getRange("F1").getDisplayValue();
+    morgenDatumString = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("KONZEPT").getRange("O22").getDisplayValue();
   }
 
-  function getRadarSkillKey(activity) {
-    const a = normalizeRadarActivity(activity);
+  // =========================================================
+  // JOB 1: IST-WERTE FÜR HEUTE EINTRAGEN (Spalte F, G, H, I)
+  // =========================================================
+  Master_API_Lidl_Tools.Tools.Archiv.DatensatzSpeichern({
+    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(), 
+    Zielarbeitsblatt: "Vergleichswerte",
+    ZielDatumSpalte: "A", 
+    ZielDatum: heuteDatumString, 
+    Felder: [
+      { ZielSpalte: "F", QuellArbeitsblatt: "Verarbeitung_Eingabe", QuellZelle: "G4" },
+      { ZielSpalte: "G", QuellArbeitsblatt: "Verarbeitung_Eingabe", QuellZelle: "H4" },
+      { ZielSpalte: "H", QuellArbeitsblatt: "Verarbeitung_Eingabe", QuellZelle: "I4" },
+      { ZielSpalte: "I", QuellArbeitsblatt: "Verarbeitung_Eingabe", QuellZelle: "J4" }
+    ]
+  });
 
-    let compact = a.replace(/[^a-z0-9]/g, "");
+  // =========================================================
+  // JOB 2: PROGNOSE FÜR MORGEN ABSPEICHERN (Spalte B, C, D, E)
+  // =========================================================
+  Master_API_Lidl_Tools.Tools.Archiv.DatensatzSpeichern({
+    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(), 
+    Zielarbeitsblatt: "Vergleichswerte",
+    ZielDatumSpalte: "A", 
+    ZielDatum: morgenDatumString, 
+    Felder: [
+      { ZielSpalte: "B", QuellArbeitsblatt: "KONZEPT", QuellZelle: "O30" },
+      { ZielSpalte: "C", QuellArbeitsblatt: "KONZEPT", QuellZelle: "P30" },
+      { ZielSpalte: "D", QuellArbeitsblatt: "KONZEPT", QuellZelle: "Q30" },
+      { ZielSpalte: "E", QuellArbeitsblatt: "KONZEPT", QuellZelle: "R30" }
+    ]
+  });
+}
 
-    compact = compact
-      .replace(/1stlevel/g, "")
-      .replace(/2ndlevel/g, "")
-      .replace(/firstlevel/g, "")
-      .replace(/secondlevel/g, "")
-      .replace(/level/g, "")
-      .replace(/telefon/g, "")
-      .replace(/^1st/g, "")
-      .replace(/^2nd/g, "");
-
-    if (compact.includes("socialmedia") || compact.includes("social")) {
-      return "social";
-    }
-
-    if (compact.includes("onlineshop") || compact.includes("online")) {
-      return "onlineshop";
-    }
-
-    if (compact.includes("filiale")) {
-      return "filiale";
-    }
-
-    if (compact.includes("lidlplus")) {
-      return "lidlplus";
-    }
-
-    return compact;
+function meineTageswerteArchivieren(optionalesDatum) {
+  var meinDatum;
+  if (optionalesDatum) {
+    meinDatum = Utilities.formatDate(optionalesDatum, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  } else {
+    meinDatum = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Auswertung_KAT").getRange("F1").getDisplayValue();
   }
 
-  function isRadarIgnoredActivity(activity) {
-    const a = normalizeRadarActivity(activity);
+  Master_API_Lidl_Tools.Tools.Archiv.DatensatzSpeichern({
+    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(), 
+    Zielarbeitsblatt: "Datenbank",
+    ZielDatumSpalte: "A", 
+    ZielDatum: meinDatum, 
+    Felder: [
+      { ZielSpalte: "B", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B4" },
+      { ZielSpalte: "C", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B5" },
+      { ZielSpalte: "D", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B6" },
+      { ZielSpalte: "E", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B7" },
+      { ZielSpalte: "F", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B13" },
+      { ZielSpalte: "G", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B14" },
+      { ZielSpalte: "H", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B15" },
+      { ZielSpalte: "I", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B16" },
+      { ZielSpalte: "L", QuellArbeitsblatt: "Dashboard_Eingang", QuellZelle: "D5" },
+      { ZielSpalte: "M", QuellArbeitsblatt: "Dashboard_Eingang", QuellZelle: "D6" },
+      { ZielSpalte: "N", QuellArbeitsblatt: "Dashboard_Eingang", QuellZelle: "D7" },
+      { ZielSpalte: "O", QuellArbeitsblatt: "Dashboard_Eingang", QuellZelle: "D8" },
+      { ZielSpalte: "P", QuellArbeitsblatt: "Dashboard_Eingang", QuellZelle: "D9" }
+    ]
+  });
+}
 
-    return (
-      !a ||
-      a === "-" ||
-      a.includes("andere taetigkeiten") ||
-      a.includes("schulung lks") ||
-      a.includes("wissen & training") ||
-      a.includes("wissen und training") ||
-      a.includes("paypal") ||
-      a.includes("meeting") ||
-      a.includes("trainer") ||
-      a.includes("fw filiale") ||
-      a.includes("fw onlineshop") ||
-      a.includes("bot") ||
-      a.includes("systemstoerung") ||
-      a.includes("system stoerung") ||
-      a.includes("stoerung")
-    );
+// ==========================================
+// HISTORISCHER IMPORT (LÜCKENFÜLLER)
+// ==========================================
+
+function historischenImportAusfuehren() {
+  var ui = SpreadsheetApp.getUi();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var dbSheet = sheet.getSheetByName("Datenbank");
+  var katSheet = sheet.getSheetByName("Auswertung_KAT");
+
+  if (!dbSheet || !katSheet) {
+    ui.alert("Fehler", "Arbeitsblatt 'Datenbank' oder 'Auswertung_KAT' nicht gefunden.", ui.ButtonSet.OK);
+    return;
   }
 
-  function getTimelineShiftDetails(emp) {
-    if (!emp || !emp.schicht || !Array.isArray(emp.schicht.details)) return [];
+  var startRow = 475;
+  var lastRow = dbSheet.getLastRow();
 
-    return emp.schicht.details
-      .filter(detail => detail && (detail.time || detail.activity))
-      .map(detail => {
-        const range = parseShiftDetailTimeRange(detail.time);
-
-        return {
-          time: detail.time,
-          activity: detail.activity,
-          startMinutes: range ? range.start : 99999,
-          endMinutes: range ? range.end : 99999
-        };
-      })
-      .sort((a, b) => a.startMinutes - b.startMinutes);
+  if (lastRow < startRow) {
+    ui.alert("Info", "Es gibt noch keine Zeile " + startRow + " in der Datenbank.", ui.ButtonSet.OK);
+    return;
   }
 
-  function getFilterShiftActivities(emp) {
-    if (!emp || !emp.schicht) return [];
+  var range = dbSheet.getRange(startRow, 1, lastRow - startRow + 1, 2);
+  var values = range.getValues();
 
-    const fromActivities = Array.isArray(emp.schicht.activities)
-      ? emp.schicht.activities
-      : [];
+  var today = new Date();
+  today.setHours(0,0,0,0);
 
-    let visible = fromActivities.filter(activity => {
-      return activity && !isPauseActivity(activity);
-    });
+  var fehlendeDaten = [];
 
-    if (visible.length === 0) {
-      visible = getTimelineShiftDetails(emp)
-        .map(detail => detail.activity)
-        .filter(activity => activity && !isPauseActivity(activity));
+  for (var i = 0; i < values.length; i++) {
+    var rowDatum = values[i][0];
+    var rowB_Wert = values[i][1];
+
+    if (rowDatum instanceof Date) {
+      rowDatum.setHours(0,0,0,0);
+      if (rowDatum < today && (rowB_Wert === "" || rowB_Wert === null)) {
+        fehlendeDaten.push(new Date(rowDatum)); 
+      }
+    }
+  }
+
+  if (fehlendeDaten.length === 0) {
+    ui.alert("Info", "Es wurden keine Lücken (Spalte B leer, Datum vor heute) ab Zeile 475 gefunden.", ui.ButtonSet.OK);
+    return;
+  }
+
+  var response = ui.alert(
+    "Historischer Import",
+    "Es wurden " + fehlendeDaten.length + " fehlende Tage gefunden.\nSoll der Import jetzt nacheinander durchgeführt werden?\n\n(Das Skript arbeitet jeden Tag einzeln ab. Das kann einige Minuten dauern.)",
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) return;
+
+  var fehlerProtokoll = []; 
+
+  try {
+    for (var j = 0; j < fehlendeDaten.length; j++) {
+      var targetDate = fehlendeDaten[j];
+      var datumString = Utilities.formatDate(targetDate, Session.getScriptTimeZone(), "dd.MM.yyyy");
+
+      sheet.toast("Verarbeite Datum: " + datumString + " (" + (j+1) + " von " + fehlendeDaten.length + ")", "Lückenfüller läuft...");
+
+      try {
+        katSheet.getRange("F1").setValue(targetDate);
+        SpreadsheetApp.flush(); 
+        Utilities.sleep(2000);  
+
+        eingangZaehlen(targetDate);
+        werteAusTagesplanung(targetDate);
+        meineTageswerteArchivieren(targetDate);
+        vergleichswerteSpeichern(targetDate);
+
+      } catch (tagFehler) {
+        fehlerProtokoll.push("❌ " + datumString + ": " + tagFehler.message);
+      }
     }
 
-    return [...new Set(visible)];
-  }
+    katSheet.getRange("F1").setValue(new Date());
+    SpreadsheetApp.flush();
 
-  function parseShiftDetailTimeRange(timeStr) {
-    const match = String(timeStr || '').match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
-
-    if (!match) return null;
-
-    const start = Number(match[1]) * 60 + Number(match[2]);
-    let end = Number(match[3]) * 60 + Number(match[4]);
-
-    if (end <= start) {
-      end += 1440;
+    if (fehlerProtokoll.length > 0) {
+      ui.alert(
+        "Import abgeschlossen (mit Warnungen)", 
+        "Es wurden " + fehlendeDaten.length + " Tage geprüft, aber nicht alle konnten vollständig importiert werden.\n\nDetails:\n" + fehlerProtokoll.join("\n"), 
+        ui.ButtonSet.OK
+      );
+    } else {
+      ui.alert("Erfolg", "Der historische Import für " + fehlendeDaten.length + " Tage wurde fehlerfrei abgeschlossen!", ui.ButtonSet.OK);
     }
 
-    return {
-      start: start,
-      end: end
+  } catch (e) {
+    ui.alert("Abbruch durch unerwarteten Fehler", "Beim Abarbeiten gab es ein kritisches Problem:\n\n" + e.message, ui.ButtonSet.OK);
+  }
+}
+
+// ==========================================
+// HILFSFUNKTIONEN FÜR DIE API
+// ==========================================
+function importBruecke(datum) { return Master_API_Lidl_Tools.ausfuehrenNachDatumswahl(datum); }
+function berechtigungenErteilen() { DriveApp.getFiles(); Logger.log("Berechtigungen erfolgreich erteilt!"); }
+function berechtigungenErweitern() {var test = DriveApp.createFile("TempTest", "test", MimeType.PLAIN_TEXT);test.setTrashed(true);Logger.log("Schreibrechte erfolgreich erteilt!");}
+
+Master API
+
+Code.gs
+var Tools = Tools || {};
+Tools.Import = Tools.Import || {};
+
+// =========================================================
+// NEU: UI & MENÜ Baukasten
+// =========================================================
+Tools.UI = Tools.UI || {};
+
+/**
+ * Baut dynamisch ein Menü in Google Sheets auf.
+ * @param {string} hauptName - Der Name, der oben in der Sheets-Leiste steht (z.B. "Lidl Tools")
+ * @param {Array} menuePunkte - Eine Liste mit Objekten {Titel: "...", Funktion: "..."}
+ */
+Tools.UI.MenueBauen = function(hauptName, menuePunkte) {
+  var ui = SpreadsheetApp.getUi();
+  var menu = ui.createMenu(hauptName);
+  
+  // Geht durch deine übergebene Liste und fügt jeden Punkt zum Menü hinzu
+  for (var i = 0; i < menuePunkte.length; i++) {
+    var punkt = menuePunkte[i];
+    menu.addItem(punkt.Titel, punkt.Funktion);
+  }
+  
+  menu.addToUi();
+};
+
+/**
+ * 1. Diese Funktion wird vom lokalen Sheet aufgerufen.
+ * Sie speichert die Konfiguration und öffnet den Kalender.
+ */
+Tools.Import.EinzelwerteNachDatumKopieren = function(config) {
+  // Parameter zwischenspeichern
+  PropertiesService.getUserProperties().setProperty('importConfig', JSON.stringify(config));
+  
+  // HTML-Dialog aufrufen (Datei muss 'DatePicker.html' heißen!)
+  var html = HtmlService.createHtmlOutputFromFile('DatePicker')
+      .setWidth(350)
+      .setHeight(250);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Import Datum auswählen');
+};
+
+/**
+ * 2. Diese Funktion wird (über die Brücke) vom HTML-Dialog gestartet,
+ * sobald der Nutzer auf "Import starten" klickt.
+ */
+/**
+ * Hauptfunktion: Wird nach der Datumswahl ausgeführt.
+ * Sucht die Datei dynamisch, öffnet sie und arbeitet alle konfigurierten Jobs ab.
+ */
+function ausfuehrenNachDatumswahl(ausgewaehltesDatum) {
+  console.log("API gestartet! Empfangenes Datum: " + ausgewaehltesDatum);
+  Logger.log("API gestartet! Empfangenes Datum: " + ausgewaehltesDatum);
+
+  
+  
+  try {
+    // 1. Konfiguration laden
+    var configStr = PropertiesService.getUserProperties().getProperty('importConfig');
+    console.log("Geladene Config aus Properties: " + configStr);
+    
+    if (!configStr) throw new Error("Konfiguration nicht gefunden oder Sitzung abgelaufen.");
+    var config = JSON.parse(configStr);
+
+    // =========================================================
+    // NEU: DER ROUTER (Archiv oder Import?)
+    // =========================================================
+    if (config.Aktion === "ARCHIV") {
+      config.ZielDatum = ausgewaehltesDatum; // Datum aus dem Kalender übernehmen
+      Tools.Archiv.DatensatzSpeichern(config);
+      PropertiesService.getUserProperties().deleteProperty('importConfig');
+      return "Archivierung für " + ausgewaehltesDatum + " erfolgreich abgeschlossen!";
+    }
+
+    // NEU: Abzweigung für den Scharfschützen-Modus (Zellen-Import)
+    if (config.Aktion === "ZELLEN_IMPORT") {
+      config.SuchDatum = ausgewaehltesDatum; 
+      Tools.Import.EinzelwerteInZellenKopieren(config);
+      PropertiesService.getUserProperties().deleteProperty('importConfig');
+      return "Zellen-Import für " + ausgewaehltesDatum + " erfolgreich!";
+    }
+
+    // NEU: Abzweigung für den Monats-Import
+    if (config.Aktion === "MONATS_IMPORT") {
+      config.SuchDatum = ausgewaehltesDatum; 
+      Tools.Import.MonatsBatchKopieren(config);
+      PropertiesService.getUserProperties().deleteProperty('importConfig');
+      
+      // Schneidet den Tag ab, damit die Erfolgsmeldung hübsch ist (z.B. "2026-03")
+      var monatsText = ausgewaehltesDatum.substring(0, 7); 
+      return "Monats-Import für " + monatsText + " erfolgreich abgeschlossen!";
+    }
+    
+    // =========================================================
+    // DYNAMISCHER DATEINAME (Platzhalter {{YYYYMM}} ersetzen)
+    // =========================================================
+    // ausgewaehltesDatum hat das Format "YYYY-MM-DD" (z.B. "2026-03-15")
+    var jahr = ausgewaehltesDatum.substring(0, 4);   // Holt "2026"
+    var monat = ausgewaehltesDatum.substring(5, 7);  // Holt "03"
+    var jahrMonat = jahr + monat;                    // Ergibt "202603"
+    
+    // Sucht im Namen nach {{YYYYMM}} und tauscht es aus
+    if (config.QuelldateiName.indexOf("{{YYYYMM}}") !== -1) {
+      config.QuelldateiName = config.QuelldateiName.replace("{{YYYYMM}}", jahrMonat);
+    }
+    
+    console.log("Suche nach Datei: " + config.QuelldateiName);
+    // =========================================================
+
+    // 2. Quelldatei suchen mit Drive API V3
+    var searchQuery = "name = '" + config.QuelldateiName + "' and trashed = false";
+    
+    // Wenn eine Ordner-ID angegeben wurde, Suche eingrenzen
+    if (config.QuellOrdnerID && config.QuellOrdnerID !== "") {
+      searchQuery = "'" + config.QuellOrdnerID + "' in parents and " + searchQuery;
+    }
+
+    var searchArgs = {
+      q: searchQuery,
+      supportsAllDrives: true,          // Zwingend erforderlich für Geteilte Ablagen
+      includeItemsFromAllDrives: true,  // Zwingend erforderlich für Geteilte Ablagen
+      fields: "files(id, name, mimeType)"
     };
+
+    var response = Drive.Files.list(searchArgs);
+    var files = response.files;
+    
+    if (!files || files.length === 0) {
+      var ort = config.QuellOrdnerID ? "im angegebenen Ordner" : "im Drive (inkl. Geteilte Ablagen)";
+      throw new Error("Es wurde keine Datei mit dem Namen '" + config.QuelldateiName + "' " + ort + " gefunden.");
+    }
+    
+    var fileId = files[0].id;
+    console.log("Datei gefunden. ID: " + fileId);
+    
+    // 3. Dateien öffnen (passiert nur 1x für maximale Geschwindigkeit)
+    var sourceApp = SpreadsheetApp.openById(fileId);
+    var targetApp = SpreadsheetApp.openById(config.Zieldatei);
+
+    sourceApp.setSpreadsheetTimeZone(targetApp.getSpreadsheetTimeZone());
+    
+    // 4. Kompatibilitäts-Trick: Prüfen, ob das neue 'Jobs' Array oder das alte Format (einzelnes Blatt) übergeben wurde
+    var jobsListe = config.Jobs ? config.Jobs : [config]; 
+
+    // 5. Alle Jobs abarbeiten
+    for (var j = 0; j < jobsListe.length; j++) {
+      var aktuellerJob = jobsListe[j];
+      console.log("Verarbeite Job " + (j+1) + " von " + jobsListe.length + ": " + aktuellerJob.QuellArbeitsblatt);
+
+      var sourceSheet = sourceApp.getSheetByName(aktuellerJob.QuellArbeitsblatt);
+      var targetSheet = targetApp.getSheetByName(aktuellerJob.Zielarbeitsblatt);
+      
+      if (!sourceSheet || !targetSheet) {
+        throw new Error("Fehler in Job " + (j+1) + ": Arbeitsblatt ('" + aktuellerJob.QuellArbeitsblatt + "' oder '" + aktuellerJob.Zielarbeitsblatt + "') nicht gefunden.");
+      }
+
+      // Zeilen suchen
+      var quellZeile = findeZeileMitDatum(sourceSheet, aktuellerJob.QuellDatumSpalte, ausgewaehltesDatum);
+      var zielZeile = findeZeileMitDatum(targetSheet, aktuellerJob.ZielDatumSpalte, ausgewaehltesDatum);
+      
+      if (!quellZeile) throw new Error("Das Datum " + ausgewaehltesDatum + " wurde in der Quelle ('" + aktuellerJob.QuellArbeitsblatt + "') nicht gefunden.");
+      if (!zielZeile) throw new Error("Das Datum " + ausgewaehltesDatum + " wurde im Ziel ('" + aktuellerJob.Zielarbeitsblatt + "') nicht gefunden. Bitte Zeile vorher anlegen.");
+
+      // Spalten Mapping durchlaufen und kopieren
+      for (var quellSpalteBuchstabe in aktuellerJob.Spalten) {
+        var zielSpalteBuchstabe = aktuellerJob.Spalten[quellSpalteBuchstabe];
+        
+        var quellSpalteIndex = buchstabeZuIndex(quellSpalteBuchstabe);
+        var zielSpalteIndex = buchstabeZuIndex(zielSpalteBuchstabe);
+        
+        var wert = sourceSheet.getRange(quellZeile, quellSpalteIndex).getValue();
+        targetSheet.getRange(zielZeile, zielSpalteIndex).setValue(wert);
+      }
+    }
+    
+    // 6. Speicher aufräumen
+    PropertiesService.getUserProperties().deleteProperty('importConfig');
+    console.log("Import für alle Jobs erfolgreich beendet!");
+    
+    // Info an den Nutzer im Sheet zurückgeben
+    SpreadsheetApp.getActiveSpreadsheet().toast(jobsListe.length + " Job(s) erfolgreich übertragen.", "Import abgeschlossen");
+    return "Import für den " + ausgewaehltesDatum + " erfolgreich abgeschlossen!";
+    
+  } catch (e) {
+    console.error("Fehler im API-Skript: " + e.message);
+    throw new Error(e.message);
+  }
+}
+
+/**
+ * Hilfsfunktion: Sucht in einer bestimmten Spalte nach einem Datum (Format yyyy-MM-dd)
+ */
+/**
+ * Hilfsfunktion: Sucht extrem robust nach einem Datum (egal ob YYYY-MM-DD oder DD.MM.YYYY)
+ */
+function findeZeileMitDatum(sheet, spalteBuchstabe, suchDatumString) {
+  if (!spalteBuchstabe || !suchDatumString) return null;
+  
+  var spalteIndex = buchstabeZuIndex(spalteBuchstabe);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 1) return null;
+  
+  // Wir holen beides: Die echten Werte UND das, was man mit dem Auge in der Zelle sieht (Text)
+  var werte = sheet.getRange(1, spalteIndex, lastRow, 1).getValues();
+  var displayWerte = sheet.getRange(1, spalteIndex, lastRow, 1).getDisplayValues();
+  var timezone = Session.getScriptTimeZone();
+  
+  // =========================================================
+  // SCHRITT 1: Suchbegriff flexibel machen
+  // =========================================================
+  var suchVariante1 = suchDatumString.toString().trim();
+  var suchVariante2 = "";
+  
+  // Wenn der Suchstring "YYYY-MM-DD" ist (z.B. aus dem Kalender), bauen wir "DD.MM.YYYY" als Alternative
+  if (suchVariante1.length === 10 && suchVariante1.indexOf("-") === 4) {
+    var parts = suchVariante1.split("-");
+    suchVariante2 = parts[2] + "." + parts[1] + "." + parts[0];
+  }
+  // Wenn der Suchstring "DD.MM.YYYY" ist (z.B. per getDisplayValue), bauen wir "YYYY-MM-DD" als Alternative
+  else if (suchVariante1.length === 10 && suchVariante1.indexOf(".") === 2) {
+    var parts = suchVariante1.split(".");
+    suchVariante2 = parts[2] + "-" + parts[1] + "-" + parts[0];
   }
 
-  function getPreviousRadarRelevantActivity(details, currentIndex) {
-    for (let i = currentIndex - 1; i >= 0; i--) {
-      const detail = details[i];
+  // =========================================================
+  // SCHRITT 2: Jede Zeile prüfen
+  // =========================================================
+  for (var i = 0; i < werte.length; i++) {
+    var zellenWert = werte[i][0];
+    var anzeigeWert = displayWerte[i][0].trim();
+    
+    // 1. Direkter Text-Abgleich (stimmt die Optik überein?)
+    if (anzeigeWert === suchVariante1 || (suchVariante2 !== "" && anzeigeWert === suchVariante2)) {
+      return i + 1; 
+    }
+    
+    // 2. Abgleich über echtes Datumsobjekt (falls es in Google Sheets als Datum formatiert ist)
+    if (zellenWert instanceof Date) {
+      var zeilenDatumString = Utilities.formatDate(zellenWert, timezone, "yyyy-MM-dd");
+      if (zeilenDatumString === suchVariante1 || zeilenDatumString === suchVariante2) {
+        return i + 1; 
+      }
+    }
+  }
+  
+  return null; // Nichts gefunden
+}
 
-      if (!detail) continue;
-      if (isPauseActivity(detail.activity)) continue;
-      if (isRadarIgnoredActivity(detail.activity)) continue;
+/**
+ * Hilfsfunktion: Wandelt Spaltenbuchstaben (A, B, C) in Zahlen (1, 2, 3) um
+ */
+function buchstabeZuIndex(buchstabe) {
+  var index = 0;
+  buchstabe = buchstabe.toUpperCase();
+  for (var i = 0; i < buchstabe.length; i++) {
+    index = index * 26 + (buchstabe.charCodeAt(i) - 64);
+  }
+  return index;
+}
 
-      return detail.activity;
+/**
+ * Kopiert den gesamten Inhalt eines Arbeitsblattes in ein anderes.
+ * @param {Object} config - Die Parameter aus dem lokalen Skript.
+ */
+Tools.Import.KomplettKopieren = function(config) {
+  console.log("Starte KomplettKopieren für Datei: " + config.QuelldateiName);
+  var tempFileId = null; // Speichert die ID, falls wir konvertieren müssen
+  
+  try {
+    // 1. Platzhalter für HEUTE ersetzen ({{YYYYMM}})
+    if (config.QuelldateiName.indexOf("{{YYYYMM}}") !== -1) {
+      var heute = new Date();
+      var jahr = heute.getFullYear().toString();
+      var monat = ("0" + (heute.getMonth() + 1)).slice(-2);
+      config.QuelldateiName = config.QuelldateiName.replace("{{YYYYMM}}", jahr + monat);
     }
 
-    return "";
-  }
-
-  function shouldShowRadarDetail(details, index) {
-    const detail = details[index];
-
-    if (!detail) return false;
-
-    const currentActivity = detail.activity;
-
-    if (isPauseActivity(currentActivity)) {
-      return false;
+    // 2. Quelldatei suchen
+    var searchQuery = "name = '" + config.QuelldateiName + "' and trashed = false";
+    if (config.QuellOrdnerID && config.QuellOrdnerID !== "") {
+      searchQuery = "'" + config.QuellOrdnerID + "' in parents and " + searchQuery;
     }
 
-    if (isRadarIgnoredActivity(currentActivity)) {
-      return false;
+    var searchArgs = { q: searchQuery, supportsAllDrives: true, includeItemsFromAllDrives: true, fields: "files(id, name, mimeType)" };
+    var response = Drive.Files.list(searchArgs);
+    
+    if (!response.files || response.files.length === 0) {
+      throw new Error("Datei '" + config.QuelldateiName + "' nicht gefunden.");
     }
+    
+    var fileId = response.files[0].id;
+    var fileName = response.files[0].name.toLowerCase();
 
-    const previousRelevantActivity = getPreviousRadarRelevantActivity(details, index);
-
-    if (!previousRelevantActivity) {
-      return false;
+    // =========================================================
+    // NEU: AUTO-KONVERTIERUNG FÜR .XLS UND .CSV
+    // =========================================================
+    if (fileName.endsWith(".xls") || fileName.endsWith(".csv")) {
+      console.log("Altes Format (" + fileName + ") erkannt. Konvertiere temporär zu Google Sheets...");
+      
+      var tempFile = Drive.Files.copy(
+        {
+          name: "TEMP_Import_" + config.QuelldateiName,
+          mimeType: "application/vnd.google-apps.spreadsheet" // Zwingt Google zur Konvertierung
+        },
+        fileId,
+        { supportsAllDrives: true }
+      );
+      
+      fileId = tempFile.id; // Ab jetzt arbeiten wir mit der sauberen Kopie
+      tempFileId = tempFile.id; // Merken wir uns zum späteren Löschen
     }
+    // =========================================================
 
-    const previousKey = getRadarSkillKey(previousRelevantActivity);
-    const currentKey = getRadarSkillKey(currentActivity);
+    // 3. Dateien und Arbeitsblätter öffnen
+    var sourceApp = SpreadsheetApp.openById(fileId);
+    var targetApp = SpreadsheetApp.openById(config.Zieldatei);
 
-    if (!previousKey || !currentKey) {
-      return false;
+    sourceApp.setSpreadsheetTimeZone(targetApp.getSpreadsheetTimeZone());
+    
+    var sourceSheet = sourceApp.getSheetByName(config.QuellArbeitsblatt);
+    var targetSheet = targetApp.getSheetByName(config.Zielarbeitsblatt);
+    
+    // Fallback: Wenn bei der Konvertierung der Blatt-Name verloren ging, nimm das erste Blatt
+    if (!sourceSheet && tempFileId) {
+      sourceSheet = sourceApp.getSheets()[0];
+      console.log("Arbeitsblatt nicht namentlich gefunden, greife auf das erste Blatt der konvertierten Datei zu.");
     }
+    
+    if (!sourceSheet || !targetSheet) throw new Error("Quell- oder Zielarbeitsblatt nicht gefunden.");
 
-    if (previousKey === currentKey) {
-      return false;
-    }
-
-    return true;
-  }
-
-  function toggleControlPanel(panelId) {
-    const body = document.getElementById(panelId + '-body');
-    const icon = document.getElementById(panelId + '-icon');
-
-    if (!body) return;
-
-    body.classList.toggle('hidden');
-
-    if (icon) {
-      icon.classList.toggle('rotate-180');
-    }
-  }
-
-  function openImportTypeModal() {
-    openModalById('importTypeModal', 'importTypeModalContent');
-  }
-
-  function closeImportTypeModal() {
-    closeModalById('importTypeModal', 'importTypeModalContent');
-  }
-
-  function openPlanoStundenerfassungModal() {
-    const list = document.getElementById('plano-st-files-list');
-
-    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
-
-    openModalById('planoStundenerfassungModal', 'planoStundenerfassungModalContent');
-
-    google.script.run
-      .withSuccessHandler(files => {
-        list.innerHTML = '';
-
-        if (!files || files.length === 0) {
-          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
-          return;
-        }
-
-        files.forEach(f => {
-          const d = new Date(f.dateCreated);
-          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
-          list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-200 transition group">
-              <div>
-                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <i class="fa-solid fa-database text-modern-green"></i> ${escapeHtml(f.name)}
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
-              </div>
-              <button onclick="runPlanoStundenerfassungImport('${f.id}', this)" class="bg-white border border-gray-300 text-modern-green px-3 py-1.5 rounded text-xs font-bold hover:bg-modern-green hover:text-white transition shadow-sm">
-                Datenbank Import
-              </button>
-            </div>`;
-        });
-      })
-      .withFailureHandler(err => {
-        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message || err}</div>`;
-      })
-      .getPlanoFilesList();
-  }
-
-  function closePlanoStundenerfassungModal() {
-    closeModalById('planoStundenerfassungModal', 'planoStundenerfassungModalContent');
-  }
-
-  function runPlanoStundenerfassungImport(fileId, btnEl) {
-    const oldContent = btnEl.innerHTML;
-
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importiere...';
-    btnEl.disabled = true;
-    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
-
-    const allBtns = document.getElementById('plano-st-files-list').querySelectorAll('button');
-    allBtns.forEach(b => b.disabled = true);
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        closePlanoStundenerfassungModal();
-        alert(response);
-      })
-      .withFailureHandler(function(error) {
-        btnEl.innerHTML = oldContent;
-        btnEl.disabled = false;
-        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
-        allBtns.forEach(b => b.disabled = false);
-        alert("Kritischer Fehler: " + (error.message || error));
-      })
-      .libProcessSelectedFile(fileId);
-  }
-
-  function openUebermittelnModal() {
-    openModalById('uebermittelnModal', 'uebermittelnModalContent');
-
-    document.getElementById('st-filename-display').innerText = "Lade Dateinamen aus Einstellungen...";
-
-    google.script.run
-      .withSuccessHandler(name => {
-        document.getElementById('st-filename-display').innerText = name;
-      })
-      .withFailureHandler(() => {
-        document.getElementById('st-filename-display').innerText = "Fehler beim Laden";
-      })
-      .libGetStundenerfassungFileName();
-  }
-
-  function closeUebermittelnModal() {
-    closeModalById('uebermittelnModal', 'uebermittelnModalContent');
-  }
-
-  function toggleUebermittelnButtons(disabled) {
-    ['btn-st-transfer', 'btn-st-delete', 'btn-st-sync', 'uebermitteln-date'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.disabled = disabled;
-    });
-  }
-
-  function startTransfer() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle ein Datum aus.");
+    // 4. Datenbereich ermitteln und kopieren
+    var lastRowSource = sourceSheet.getLastRow();
+    var lastColSource = sourceSheet.getLastColumn();
+    
+    if (lastRowSource === 0) {
+      SpreadsheetApp.getActiveSpreadsheet().toast("Die Quelldatei ist leer.", "Abgebrochen");
       return;
     }
 
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-transfer');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Übermittlung läuft...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Erfolgreich! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libProcessStundenerfassung(dateVal);
-  }
-
-  function startDelete() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle ein Datum aus.");
-      return;
+    var startZeile = config.UeberschriftMitnehmen ? 1 : 2;
+    var anzahlZeilen = lastRowSource - startZeile + 1;
+    
+    if (anzahlZeilen <= 0) {
+      SpreadsheetApp.getActiveSpreadsheet().toast("Keine Daten zum Kopieren vorhanden.", "Fertig");
+      return; 
     }
 
-    if (!confirm("Möchtest du wirklich alle eingetragenen Zeiten für dieses Datum in der Stundenerfassung löschen?")) {
-      return;
+    var sourceData = sourceSheet.getRange(startZeile, 1, anzahlZeilen, lastColSource).getValues();
+
+    if (config.Modus === "Ersetzen") {
+      targetSheet.clearContents();
+      targetSheet.getRange(1, 1, sourceData.length, sourceData[0].length).setValues(sourceData);
+    } 
+    else if (config.Modus === "Anfuegen") {
+      var lastRowTarget = targetSheet.getLastRow();
+      var targetStartRow = lastRowTarget === 0 ? 1 : lastRowTarget + 1;
+      targetSheet.getRange(targetStartRow, 1, sourceData.length, sourceData[0].length).setValues(sourceData);
+    } 
+    else {
+      throw new Error("Unbekannter Modus: '" + config.Modus + "'.");
     }
 
-    toggleUebermittelnButtons(true);
+    SpreadsheetApp.getActiveSpreadsheet().toast(anzahlZeilen + " Zeilen erfolgreich übertragen.", "Import abgeschlossen");
 
-    const btn = document.getElementById('btn-st-delete');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lösche Daten...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Gelöscht! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libDeleteStundenerfassung(dateVal);
-  }
-
-  function startSync() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle irgendein Datum aus dem Monat.");
-      return;
+  } catch (e) {
+    console.error("Fehler bei KomplettKopieren: " + e.message);
+    SpreadsheetApp.getUi().alert("Fehler beim Rohdaten-Import:\n\n" + e.message);
+  } finally {
+    // =========================================================
+    // AUFRÄUMEN: Temporäre Datei immer löschen (auch bei Fehler)
+    // =========================================================
+    if (tempFileId) {
+      try {
+        Drive.Files.update({trashed: true}, tempFileId, null, {supportsAllDrives: true});
+        console.log("Temporäre Konvertierungs-Datei in den Papierkorb verschoben.");
+      } catch (e) {
+        console.error("Konnte temporäre Datei nicht löschen: " + e.message);
+      }
     }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-sync');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Synchronisiere...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Erfolgreich! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libSyncStundenerfassung(dateVal);
   }
+};
 
-  function openPlanoImportModal() {
-    const list = document.getElementById('plano-files-list');
+DatePicker.html
 
-    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 15px;
+        margin: 0;
+        background-color: #ffffff;
+        color: #333333;
+      }
+      label {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+      input[type="date"] {
+        padding: 8px;
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 20px;
+        font-size: 14px;
+        border: 1px solid #cccccc;
+        border-radius: 4px;
+      }
+      button {
+        background-color: #1a73e8;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        width: 100%;
+        font-size: 14px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+      button:hover {
+        background-color: #1557b0;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
 
-    openModalById('planoModal', 'planoModalContent');
+    <label for="datum">Für welchen Tag soll importiert werden?</label>
+    <input type="date" id="datum" name="datum">
+    <button id="startBtn" onclick="startImport()">Import starten</button>
 
-    google.script.run
-      .withSuccessHandler(files => {
-        list.innerHTML = '';
+    <script>
+      // Setzt automatisch das heutige Datum als Startwert
+      document.getElementById('datum').valueAsDate = new Date();
 
-        if (!files || files.length === 0) {
-          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
-          return;
-        }
+      function startImport() {
+        var datumInput = document.getElementById('datum').value;
+        console.log("1. Button geklickt. Ausgewähltes Datum: " + datumInput);
 
-        files.forEach(f => {
-          const d = new Date(f.dateCreated);
-          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        if (datumInput) {
+          var btn = document.getElementById('startBtn');
+          btn.disabled = true;
+          btn.innerText = "Import läuft. Bitte warten...";
 
-          list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition group">
-              <div>
-                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <i class="fa-solid fa-file-excel text-green-600"></i> ${escapeHtml(f.name)}
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
-              </div>
-              <button onclick="runPlanoImport('${f.id}', this)" class="bg-white border border-gray-300 text-lidl-blue px-3 py-1.5 rounded text-xs font-bold hover:bg-lidl-blue hover:text-white transition shadow-sm">
-                Importieren
-              </button>
-            </div>`;
-        });
-      })
-      .withFailureHandler(err => {
-        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message || err}</div>`;
-      })
-      .getPlanoFilesList();
-  }
-
-  function closePlanoModal() {
-    closeModalById('planoModal', 'planoModalContent');
-  }
-
-  function runPlanoImport(fileId, btnEl) {
-    const oldContent = btnEl.innerHTML;
-
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lade...';
-    btnEl.disabled = true;
-    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
-
-    const allBtns = document.getElementById('plano-files-list').querySelectorAll('button');
-
-    allBtns.forEach(b => b.disabled = true);
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        closePlanoModal();
-
-        if (response.success) {
-          alert("Import erfolgreich! " + response.count + " Schichten importiert.\nDie Seite wird nun aktualisiert.");
-
-          const loader = document.getElementById('loader');
-          if (loader) loader.classList.remove('hidden');
-
+          console.log("2. Sende Daten an die lokale Brücken-Funktion ('importBruecke')...");
+          
+          // WICHTIG: Ruft die Brücken-Funktion im lokalen Skript auf!
           google.script.run
-            .withSuccessHandler(onDataLoaded)
-            .withFailureHandler(onDataError)
-            .getData();
+            .withSuccessHandler(function(rueckgabe) {
+              console.log("4. ERFOLG! API meldet zurück: " + rueckgabe);
+              google.script.host.close(); // Schließt das Fenster nach Erfolg
+            })
+            .withFailureHandler(function(fehler) {
+              console.error("4. FEHLER bei google.script.run:", fehler);
+              alert("Verbindungsfehler zum Skript:\n\n" + fehler.message);
+              btn.disabled = false;
+              btn.innerText = "Import starten";
+            })
+            .importBruecke(datumInput); // <--- Hier wird die Brücke gerufen
+
         } else {
-          alert("Import fehlgeschlagen: " + response.message);
-        }
-      })
-      .withFailureHandler(function(error) {
-        btnEl.innerHTML = oldContent;
-        btnEl.disabled = false;
-        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
-
-        allBtns.forEach(b => b.disabled = false);
-
-        alert("Kritischer Fehler: " + (error.message || error));
-      })
-      .importSelectedPlano(fileId);
-  }
-
-  function renderControl(data) {
-    const listFrueh = document.getElementById('list-frueh');
-    const listMittel = document.getElementById('list-mittel');
-    const listSpaet = document.getElementById('list-spaet');
-
-    if (!listFrueh || !listMittel || !listSpaet) return;
-
-    let allActivities = new Set();
-
-    const sorted = [...data].sort((a, b) => {
-      if (activeControlSort === 'plus') return b.stundenSaldo - a.stundenSaldo;
-      if (activeControlSort === 'minus') return a.stundenSaldo - b.stundenSaldo;
-
-      if (activeControlSort === 'time') {
-        const timeA = parseStartTimeMinutes(getRelevantTimeStr(a, activeActivityFilter));
-        const timeB = parseStartTimeMinutes(getRelevantTimeStr(b, activeActivityFilter));
-
-        return timeA - timeB;
-      }
-
-      return 0;
-    });
-
-    sorted.forEach(e => {
-      const filterActivities = getFilterShiftActivities(e);
-
-      if (filterActivities.length > 0) {
-        filterActivities.forEach(act => allActivities.add(act));
-      }
-    });
-
-    buildActivityFilters(Array.from(allActivities).sort());
-
-    listFrueh.innerHTML = '';
-    listMittel.innerHTML = '';
-    listSpaet.innerHTML = '';
-
-    let cF = 0;
-    let cM = 0;
-    let cS = 0;
-
-    let sF = 0;
-    let sM = 0;
-    let sS = 0;
-
-    sorted.forEach(e => {
-      if (e.schicht && e.schicht.type) {
-        const filterActivities = getFilterShiftActivities(e);
-
-        let showItem = true;
-
-        if (activeActivityFilter !== 'Alle') {
-          if (!filterActivities.includes(activeActivityFilter)) {
-            showItem = false;
-          }
-        }
-
-        if (showItem) {
-          const col = getBalanceColor(e.stundenSaldo);
-
-          let pauseBadge = "";
-
-          if (e.schicht.pause) {
-            pauseBadge = `<span class="bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-block" title="Pause"><i class="fa-solid fa-mug-hot mr-1"></i>${escapeHtml(e.schicht.pause)}</span>`;
-          }
-
-          let actHtml = "";
-
-          if (filterActivities.length > 0) {
-            const actsStr = filterActivities.join(' • ');
-            actHtml = `<div class="text-[9px] text-gray-400 mt-1 truncate" title="${escapeHtml(actsStr)}"><i class="fa-solid fa-briefcase mr-1"></i>${escapeHtml(actsStr)}</div>`;
-          }
-
-          const displayTime = getRelevantTimeStr(e, activeActivityFilter);
-
-          let timeClass = "text-lidl-blue bg-blue-50 border border-blue-100";
-
-          if (activeActivityFilter !== 'Alle' && displayTime !== e.schicht.time) {
-            timeClass = "text-white bg-lidl-blue shadow-sm border-transparent";
-          }
-
-          const item = `
-            <div onclick="openShiftDetailsModal(${e.id})" class="p-3 border border-gray-100 rounded-xl bg-white hover:border-blue-300 hover:shadow-md cursor-pointer flex flex-col gap-1 text-sm transition-all group">
-              <div class="flex justify-between items-start">
-                <div class="overflow-hidden pr-2">
-                  <div class="font-bold text-slate-700 truncate">${escapeHtml(e.fullName)}</div>
-                  <div class="flex items-center text-[10px] text-gray-500 mt-0.5">
-                    <span class="truncate max-w-[80px]" title="${escapeHtml(e.skill)}">${escapeHtml(e.skill)}</span>
-                    <span class="mx-1 text-gray-300">|</span>
-                    <span class="font-mono font-bold ${col}">${decimalToTime(e.stundenSaldo)}</span>
-                  </div>
-                </div>
-                <div class="text-right flex flex-col items-end shrink-0">
-                  <div class="font-mono text-[10px] font-bold px-2 py-0.5 rounded ${timeClass} whitespace-nowrap">${escapeHtml(displayTime)}</div>
-                  ${pauseBadge}
-                </div>
-              </div>
-              ${actHtml}
-            </div>`;
-
-          const saldoVal = parseFloat(e.stundenSaldo) || 0;
-
-          if (e.schicht.type === "Früh") {
-            listFrueh.innerHTML += item;
-            cF++;
-            if (saldoVal > 0) sF += saldoVal;
-          } else if (e.schicht.type === "Mittel") {
-            listMittel.innerHTML += item;
-            cM++;
-            if (saldoVal > 0) sM += saldoVal;
-          } else if (e.schicht.type === "Spät") {
-            listSpaet.innerHTML += item;
-            cS++;
-            if (saldoVal > 0) sS += saldoVal;
-          }
+          alert("Bitte wähle zuerst ein Datum aus.");
         }
       }
-    });
+    </script>
+  </body>
+</html>
 
-    document.getElementById('count-frueh').innerText = cF;
-    document.getElementById('sum-frueh').innerText = "+" + decimalToTime(sF) + " Std";
+ArchiveModule.gs
 
-    document.getElementById('count-mittel').innerText = cM;
-    document.getElementById('sum-mittel').innerText = "+" + decimalToTime(sM) + " Std";
+var Tools = Tools || {};
+Tools.Archiv = Tools.Archiv || {};
 
-    document.getElementById('count-spaet').innerText = cS;
-    document.getElementById('sum-spaet').innerText = "+" + decimalToTime(sS) + " Std";
-  }
+// =========================================================
+// NEU: Archiv über den Kalender (Picker) starten
+// =========================================================
+Tools.Archiv.MitPickerSpeichern = function(config) {
+  // Wir geben der Config einen Stempel mit, damit die API später weiß, was zu tun ist
+  config.Aktion = "ARCHIV"; 
+  PropertiesService.getUserProperties().setProperty('importConfig', JSON.stringify(config));
+  
+  // Wir nutzen exakt dieselbe HTML-Datei wie beim Import!
+  var html = HtmlService.createHtmlOutputFromFile('DatePicker')
+      .setWidth(350).setHeight(250);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Datum für Archivierung wählen');
+};
 
-  function getRelevantTimeStr(emp, filter) {
-    if (!emp || !emp.schicht) return "";
+// =========================================================
+// Das eigentliche Speichern (mit Upsert / Abgleich)
+// =========================================================
+Tools.Archiv.DatensatzSpeichern = function(config) {
+  console.log("Starte Archivierung in Arbeitsblatt: " + config.Zielarbeitsblatt);
+  
+  try {
+    var app = SpreadsheetApp.openById(config.DateiID);
+    var zielSheet = app.getSheetByName(config.Zielarbeitsblatt);
+    if (!zielSheet) throw new Error("Zielarbeitsblatt '" + config.Zielarbeitsblatt + "' nicht gefunden.");
 
-    if (filter === 'Alle') {
-      return emp.schicht.time || "";
-    }
+    var letzteZeile = zielSheet.getLastRow();
+    var zielZeile = letzteZeile + 1; // Standard: Unten anhängen
+    var zeileExistiertBereits = false;
 
-    const timelineDetails = getTimelineShiftDetails(emp);
-    const matches = timelineDetails.filter(d => d.activity === filter);
-
-    if (matches.length > 0) {
-      if (matches.length === 1) {
-        return matches[0].time;
+    // 1. Abgleich: Prüfen, ob das Datum schon in der Zieldatum-Spalte existiert
+    if (config.ZielDatumSpalte && config.ZielDatum) {
+      var gefundeneZeile = findeZeileMitDatum(zielSheet, config.ZielDatumSpalte, config.ZielDatum);
+      if (gefundeneZeile) {
+        zielZeile = gefundeneZeile;
+        zeileExistiertBereits = true;
+        console.log("Datum gefunden in Zeile " + zielZeile + " - Datensatz wird aktualisiert.");
+      } else {
+        console.log("Datum nicht gefunden - Neuer Datensatz wird angehängt.");
       }
-
-      let minStart = null;
-      let maxEnd = null;
-      let minStartMins = 99999;
-      let maxEndMins = -1;
-
-      matches.forEach(m => {
-        const tMatch = String(m.time || '').match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
-
-        if (tMatch) {
-          const sStr = tMatch[1];
-          const eStr = tMatch[2];
-
-          const sMins = parseInt(sStr.split(':')[0], 10) * 60 + parseInt(sStr.split(':')[1], 10);
-          let eMins = parseInt(eStr.split(':')[0], 10) * 60 + parseInt(eStr.split(':')[1], 10);
-
-          if (eMins <= sMins) {
-            eMins += 24 * 60;
-          }
-
-          if (sMins < minStartMins) {
-            minStartMins = sMins;
-            minStart = sStr;
-          }
-
-          if (eMins > maxEndMins) {
-            maxEndMins = eMins;
-            maxEnd = eStr;
-          }
-        }
-      });
-
-      if (minStart && maxEnd) {
-        return `${minStart}-${maxEnd}`;
-      }
-
-      return matches.map(m => m.time).join(', ');
     }
 
-    return emp.schicht.time || "";
-  }
-
-  function parseStartTimeMinutes(timeStr) {
-    if (!timeStr) return 9999;
-
-    const match = String(timeStr).match(/(\d{2}):(\d{2})/);
-
-    if (match) {
-      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    var maxSpaltenIndex = 0;
+    
+    // Zuerst die maximale Breite (Spaltenanzahl) ermitteln
+    for (var i = 0; i < config.Felder.length; i++) {
+      var index = buchstabeZuIndex(config.Felder[i].ZielSpalte);
+      if (index > maxSpaltenIndex) maxSpaltenIndex = index;
+    }
+    if (config.ZielDatumSpalte) {
+      var datumIndex = buchstabeZuIndex(config.ZielDatumSpalte);
+      if (datumIndex > maxSpaltenIndex) maxSpaltenIndex = datumIndex;
     }
 
-    return 9999;
-  }
+    var werteZumSchreiben = [];
 
-  function buildActivityFilters(activities) {
-    const container = document.getElementById('activity-filter-container');
-
-    if (!container) return;
-
-    const cleanActivities = (activities || [])
-      .filter(act => act && !isPauseActivity(act))
-      .filter((act, index, arr) => arr.indexOf(act) === index);
-
-    container.innerHTML = '';
-
-    const btnAll = document.createElement('button');
-
-    btnAll.innerText = 'Alle anzeigen';
-    btnAll.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === 'Alle' ? 'active' : 'default'}`;
-    btnAll.onclick = () => {
-      activeActivityFilter = 'Alle';
-      applyFilters();
-    };
-
-    container.appendChild(btnAll);
-
-    cleanActivities.forEach(act => {
-      const btn = document.createElement('button');
-
-      btn.innerText = act;
-      btn.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === act ? 'active' : 'default'}`;
-      btn.onclick = () => {
-        activeActivityFilter = act;
-        applyFilters();
-      };
-
-      container.appendChild(btn);
-    });
-
-    if (activeActivityFilter !== 'Alle' && !cleanActivities.includes(activeActivityFilter)) {
-      activeActivityFilter = 'Alle';
-    }
-  }
-
-  function openShiftDetailsModal(id) {
-    const emp = allData.find(d => d.id == id);
-
-    if (!emp || !emp.schicht) return;
-
-    currentEmpId = id;
-
-    document.getElementById('shift-modal-name').innerText = emp.fullName;
-    document.getElementById('shift-modal-skill').innerText = `${emp.skill || '-'} | ${emp.tmaVorname || '-'}`;
-    document.getElementById('shift-modal-time').innerText = emp.schicht.time || '--:--';
-
-    const timelineContainer = document.getElementById('shift-modal-timeline');
-
-    if (!timelineContainer) return;
-
-    let html = '';
-
-    const details = getTimelineShiftDetails(emp);
-
-    if (details.length === 0) {
-      html = `
-        <div class="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-400">
-          <i class="fa-regular fa-clock text-3xl mb-3"></i>
-          <p class="font-bold text-slate-600">Keine Tätigkeitsdetails vorhanden</p>
-          <p class="text-xs mt-1">Schichtzeit: ${escapeHtml(emp.schicht.time || '-')}</p>
-        </div>
-      `;
+    // 2. CLEVER: Wenn die Zeile schon existiert, laden wir die alten Werte rein, 
+    // damit Lücken (z.B. manuelle Notizen in Spalte K) nicht überschrieben werden!
+    if (zeileExistiertBereits && maxSpaltenIndex > 0) {
+      werteZumSchreiben = zielSheet.getRange(zielZeile, 1, 1, maxSpaltenIndex).getValues()[0];
     } else {
-      html = '<div class="space-y-3">';
-
-      details.forEach(item => {
-        const pause = isPauseActivity(item.activity);
-
-        html += `
-          <div class="bg-white border ${pause ? 'border-gray-200' : 'border-blue-100'} rounded-xl p-3 shadow-sm flex gap-3 items-start hover:border-lidl-blue transition">
-            <div class="w-24 shrink-0 font-mono text-xs font-bold ${pause ? 'text-gray-500 bg-gray-100' : 'text-lidl-blue bg-blue-50'} rounded-lg px-2 py-1 text-center">
-              ${escapeHtml(item.time || '-')}
-            </div>
-            <div class="flex-1">
-              <div class="font-bold text-sm ${pause ? 'text-gray-500' : 'text-slate-700'}">
-                ${pause ? '<i class="fa-solid fa-mug-hot mr-1"></i>' : ''}
-                ${escapeHtml(item.activity || '-')}
-              </div>
-            </div>
-          </div>
-        `;
-      });
-
-      html += '</div>';
+      // Neue Zeile: Mit leeren Strings auffüllen
+      for (var k = 0; k < maxSpaltenIndex; k++) werteZumSchreiben[k] = "";
     }
 
-    timelineContainer.innerHTML = html;
-
-    openModalById('shiftDetailsModal', 'shiftDetailsModalContent');
-  }
-
-  function closeShiftDetailsModal() {
-    closeModalById('shiftDetailsModal', 'shiftDetailsModalContent');
-  }
-
-  function toggleRadar() {
-    const panel = document.getElementById('shift-radar-panel');
-
-    if (!panel) return;
-
-    isRadarOpen = !isRadarOpen;
-
-    if (isRadarOpen) {
-      panel.classList.remove('hidden');
-      panel.classList.add('flex');
-      updateRadar();
-    } else {
-      panel.classList.add('hidden');
-      panel.classList.remove('flex');
-    }
-  }
-
-  function updateRadar() {
-    const list = document.getElementById('radar-list');
-    const badge = document.getElementById('radar-badge');
-    const time = document.getElementById('radar-time');
-
-    if (time) {
-      time.innerText = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    // 3. Die neuen Felder aus der Quelle in das Array einsetzen
+    for (var j = 0; j < config.Felder.length; j++) {
+      var feld = config.Felder[j];
+      var quellSheet = app.getSheetByName(feld.QuellArbeitsblatt);
+      if (!quellSheet) throw new Error("Quellblatt '" + feld.QuellArbeitsblatt + "' nicht gefunden.");
+      
+      var wert = quellSheet.getRange(feld.QuellZelle).getValue();
+      var zielSpaltenIndex = buchstabeZuIndex(feld.ZielSpalte);
+      
+      werteZumSchreiben[zielSpaltenIndex - 1] = wert;
     }
 
-    if (!list || !badge || !allData) return;
+    // 4. Das Datum selbst auch in die Zeile schreiben
+    if (config.ZielDatumSpalte && config.ZielDatum) {
+      var zIndex = buchstabeZuIndex(config.ZielDatumSpalte);
+      werteZumSchreiben[zIndex - 1] = config.ZielDatum; // YYYY-MM-DD
+    }
 
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
+    // 5. Den Datensatz in einem Rutsch speichern
+    zielSheet.getRange(zielZeile, 1, 1, maxSpaltenIndex).setValues([werteZumSchreiben]);
+    
+    SpreadsheetApp.getActiveSpreadsheet().toast("Werte erfolgreich in '" + config.Zielarbeitsblatt + "' archiviert.", "Fertig");
 
-    const upcoming = [];
+  } catch (e) {
+    console.error("Fehler bei Archiv.DatensatzSpeichern: " + e.message);
+    throw new Error(e.message);
+  }
+};
 
-    allData.forEach(emp => {
-      const timelineDetails = getTimelineShiftDetails(emp);
+CopyModule.gs
 
-      timelineDetails.forEach((detail, index) => {
-        if (!shouldShowRadarDetail(timelineDetails, index)) {
-          return;
+// =========================================================
+// NEU: GEZIELTER ZELLEN-IMPORT (Scharfschützen-Modus)
+// =========================================================
+
+/**
+ * Startet den Picker für den Zellen-Import
+ */
+Tools.Import.MitPickerInZellenKopieren = function(config) {
+  config.Aktion = "ZELLEN_IMPORT"; 
+  PropertiesService.getUserProperties().setProperty('importConfig', JSON.stringify(config));
+  
+  var html = HtmlService.createHtmlOutputFromFile('DatePicker').setWidth(350).setHeight(250);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Datum für Zellen-Import wählen');
+};
+
+/**
+ * Führt den eigentlichen Zellen-Import aus
+ */
+Tools.Import.EinzelwerteInZellenKopieren = function(config) {
+  console.log("Starte Zellen-Import für Datum: " + config.SuchDatum);
+  
+  try {
+    // 1. Platzhalter für Datum im Dateinamen ersetzen
+    if (config.QuelldateiName.indexOf("{{YYYYMM}}") !== -1 && config.SuchDatum) {
+      var jahr = config.SuchDatum.substring(0, 4);
+      var monat = config.SuchDatum.substring(5, 7);
+      config.QuelldateiName = config.QuelldateiName.replace("{{YYYYMM}}", jahr + monat);
+    }
+
+    // 2. Datei suchen (Drive API V3)
+    var searchQuery = "name = '" + config.QuelldateiName + "' and trashed = false";
+    if (config.QuellOrdnerID && config.QuellOrdnerID !== "") {
+      searchQuery = "'" + config.QuellOrdnerID + "' in parents and " + searchQuery;
+    }
+
+    var searchArgs = { q: searchQuery, supportsAllDrives: true, includeItemsFromAllDrives: true, fields: "files(id, name)" };
+    var response = Drive.Files.list(searchArgs);
+
+    if (!response.files || response.files.length === 0) throw new Error("Datei '" + config.QuelldateiName + "' nicht gefunden.");
+    var fileId = response.files[0].id;
+
+    // 3. Dateien und Arbeitsblätter öffnen
+    var sourceApp = SpreadsheetApp.openById(fileId);
+    var targetApp = SpreadsheetApp.openById(config.Zieldatei);
+
+    // ZEITZONEN-FIX
+    sourceApp.setSpreadsheetTimeZone(targetApp.getSpreadsheetTimeZone());
+
+    var sourceSheet = sourceApp.getSheetByName(config.QuellArbeitsblatt);
+    var targetSheet = targetApp.getSheetByName(config.Zielarbeitsblatt);
+
+    if (!sourceSheet || !targetSheet) throw new Error("Quell- oder Zielarbeitsblatt nicht gefunden.");
+
+    // 4. Zeile anhand des Datums finden
+    var quellZeile = findeZeileMitDatum(sourceSheet, config.QuellDatumSpalte, config.SuchDatum);
+    if (!quellZeile) throw new Error("Das Datum " + config.SuchDatum + " wurde in der Quelldatei nicht gefunden.");
+
+    // 5. Werte gezielt in die definierten Zellen schießen
+    var anzahl = 0;
+    for (var quellSpalteBuchstabe in config.Mapping) {
+      var zielZelle = config.Mapping[quellSpalteBuchstabe]; // z.B. "A45"
+      var quellSpalteIndex = buchstabeZuIndex(quellSpalteBuchstabe);
+
+      var wert = sourceSheet.getRange(quellZeile, quellSpalteIndex).getValue();
+      targetSheet.getRange(zielZelle).setValue(wert);
+      anzahl++;
+    }
+
+    SpreadsheetApp.getActiveSpreadsheet().toast(anzahl + " Werte in Zielzellen übertragen.", "Zellen-Import fertig");
+
+  } catch (e) {
+    console.error("Fehler bei EinzelwerteInZellenKopieren: " + e.message);
+    throw new Error(e.message); // Wirft den Fehler zur UI
+  }
+};
+
+MonthModule.gs
+
+// =========================================================
+// NEU: BATCH MONATS IMPORT (Ganzen Monat verarbeiten)
+// =========================================================
+
+/**
+ * 1. STARTKNOPF: Wird vom lokalen Sheet aufgerufen, um den Monats-Import zu starten.
+ * Sie speichert die Konfiguration und öffnet den Picker.
+ */
+Tools.Import.GanzenMonatMitPickerKopieren = function(config) {
+  // Kennzeichnung, damit der Router weiß, dass es der Monats-Import ist
+  config.Aktion = "MONATS_IMPORT"; 
+  PropertiesService.getUserProperties().setProperty('importConfig', JSON.stringify(config));
+  
+  // Wir nutzen denselben DatePicker
+  var html = HtmlService.createHtmlOutputFromFile('DatePicker')
+      .setWidth(350)
+      .setHeight(250);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Beliebigen Tag im gewünschten Monat wählen');
+};
+
+/**
+ * 2. MOTOR: Die Haupt-Maschine für den Monats-Import. 
+ * OPTIMIERT FÜR GESCHWINDIGKEIT: Arbeitet nur noch mit großen Arrays.
+ */
+Tools.Import.MonatsBatchKopieren = function(config) {
+  // FEHLER BEHOBEN: Greift das Datum sicher ab, egal ob als SuchDatum oder ZielDatum übergeben
+  var meinDatum = config.SuchDatum || config.ZielDatum; 
+  
+  if (!meinDatum) {
+    throw new Error("Fehler: Kein Datum vom Kalender empfangen.");
+  }
+
+  var jahrMonatGesucht = meinDatum.substring(0, 7); 
+  console.log("Starte schnellen Monats-Batch für: " + jahrMonatGesucht);
+
+  try {
+    // 1. Dateinamen bereinigen ({{YYYYMM}})
+    if (config.QuelldateiName.indexOf("{{YYYYMM}}") !== -1) {
+      var targetJahrMonat = meinDatum.substring(0, 4) + meinDatum.substring(5, 7);
+      config.QuelldateiName = config.QuelldateiName.replace("{{YYYYMM}}", targetJahrMonat);
+    }
+
+    // 2. Quelldatei suchen und öffnen (Drive API V3)
+    var searchQuery = "name = '" + config.QuelldateiName + "' and trashed = false";
+    if (config.QuellOrdnerID && config.QuellOrdnerID !== "") {
+      searchQuery = "'" + config.QuellOrdnerID + "' in parents and " + searchQuery;
+    }
+    
+    var searchArgs = { q: searchQuery, supportsAllDrives: true, includeItemsFromAllDrives: true, fields: "files(id)" };
+    var response = Drive.Files.list(searchArgs);
+    
+    if (!response.files || response.files.length === 0) throw new Error("Datei '" + config.QuelldateiName + "' nicht gefunden.");
+    
+    var sourceApp = SpreadsheetApp.openById(response.files[0].id);
+    var targetApp = SpreadsheetApp.openById(config.Zieldatei);
+    sourceApp.setSpreadsheetTimeZone(targetApp.getSpreadsheetTimeZone());
+
+    var jobsListe = config.Jobs ? config.Jobs : [config];
+    var gesamtTreffer = 0;
+    var timezone = Session.getScriptTimeZone();
+
+    // 3. Durchlaufe alle Jobs
+    for (var j = 0; j < jobsListe.length; j++) {
+      var job = jobsListe[j];
+      console.log("Verarbeite Job " + (j+1) + " von " + jobsListe.length + " (" + job.QuellArbeitsblatt + ")");
+
+      var sourceSheet = sourceApp.getSheetByName(job.QuellArbeitsblatt);
+      var targetSheet = targetApp.getSheetByName(job.Zielarbeitsblatt);
+      if (!sourceSheet || !targetSheet) throw new Error("Arbeitsblatt für Job " + (j+1) + " nicht gefunden.");
+
+      var lastRowSource = sourceSheet.getLastRow();
+      var lastRowTarget = targetSheet.getLastRow();
+      if (lastRowSource < 1 || lastRowTarget < 1) continue; 
+
+      // =========================================================
+      // GESCHWINDIGKEIT: Alles auf einmal laden!
+      // =========================================================
+      var sourceData = sourceSheet.getDataRange().getValues();
+      var sourceDisplayData = sourceSheet.getDataRange().getDisplayValues();
+      var quellDatumSpalteIndex = buchstabeZuIndex(job.QuellDatumSpalte) - 1; 
+
+      var targetRange = targetSheet.getDataRange();
+      var targetData = targetRange.getValues();
+      var targetDisplayData = targetRange.getDisplayValues();
+      var zielDatumSpalteIndex = buchstabeZuIndex(job.ZielDatumSpalte) - 1;
+
+      // Map für blitzschnelles Finden
+      var targetDatumZeilenMap = {};
+      for (var t = 0; t < targetData.length; t++) {
+        var tZellenWert = targetData[t][zielDatumSpalteIndex];
+        var tAnzeigeWert = targetDisplayData[t][zielDatumSpalteIndex].trim();
+        var tDatumString = formatiereDatumRobust(tZellenWert, tAnzeigeWert, timezone);
+        
+        if (tDatumString) {
+           targetDatumZeilenMap[tDatumString] = t; 
         }
+      }
 
-        const start = Number(detail.startMinutes);
+      // 4. Jede Zeile in der Quelle im Arbeitsspeicher durchlaufen
+      for (var i = 0; i < sourceData.length; i++) {
+        var zellenWert = sourceData[i][quellDatumSpalteIndex];
+        var anzeigeWert = sourceDisplayData[i][quellDatumSpalteIndex].trim();
+        var formatiertesDatum = formatiereDatumRobust(zellenWert, anzeigeWert, timezone);
 
-        if (isNaN(start)) return;
-
-        const diff = start - nowMins;
-
-        if (diff >= -5 && diff <= 30) {
-          upcoming.push({
-            id: emp.id,
-            name: emp.fullName,
-            time: detail.time,
-            activity: detail.activity,
-            diff: diff
-          });
+        // 5. MATCH: Wenn das Datum zum gesuchten Monat gehört ("2026-03")
+        if (formatiertesDatum && formatiertesDatum.substring(0, 7) === jahrMonatGesucht) {
+          
+          if (targetDatumZeilenMap.hasOwnProperty(formatiertesDatum)) {
+            var zielIndex = targetDatumZeilenMap[formatiertesDatum];
+            
+            // Kopiere die konfigurierten Werte (im Arbeitsspeicher!)
+            for (var quellSpalteBuchstabe in job.Spalten) {
+              var qIndex = buchstabeZuIndex(quellSpalteBuchstabe) - 1;
+              var zIndex = buchstabeZuIndex(job.Spalten[quellSpalteBuchstabe]) - 1;
+              
+              targetData[zielIndex][zIndex] = sourceData[i][qIndex]; 
+            }
+            gesamtTreffer++;
+          }
         }
-      });
-    });
+      }
 
-    upcoming.sort((a, b) => a.diff - b.diff);
-
-    badge.innerText = upcoming.length;
-    badge.classList.toggle('hidden', upcoming.length === 0);
-
-    if (upcoming.length === 0) {
-      list.innerHTML = '<div class="p-5 text-center text-xs text-gray-400">Keine relevanten Skill-Wechsel in den nächsten 30 Minuten.</div>';
-      return;
+      // =========================================================
+      // GESCHWINDIGKEIT: Alles auf einmal zurückschreiben!
+      // =========================================================
+      targetRange.setValues(targetData);
     }
 
-    list.innerHTML = '';
+    SpreadsheetApp.getActiveSpreadsheet().toast(gesamtTreffer + " Datensätze verarbeitet.", "Monats-Import abgeschlossen");
 
-    upcoming.forEach(item => {
-      const diffText = item.diff < 0
-        ? `seit ${Math.abs(item.diff)} Min.`
-        : `in ${item.diff} Min.`;
-
-      list.innerHTML += `
-        <button type="button" onclick="openShiftDetailsModal(${item.id})" class="w-full text-left p-3 border-b border-gray-100 bg-white hover:bg-blue-50 transition cursor-pointer">
-          <div class="flex justify-between items-center gap-2">
-            <div class="font-bold text-sm text-slate-700 truncate">${escapeHtml(item.name)}</div>
-            <div class="font-mono text-xs font-bold text-lidl-blue shrink-0">${escapeHtml(item.time)}</div>
-          </div>
-          <div class="text-xs text-gray-600 mt-1 truncate">
-            <i class="fa-solid fa-briefcase text-lidl-blue mr-1"></i>${escapeHtml(item.activity)}
-          </div>
-          <div class="text-[10px] font-bold text-gray-400 mt-1">${escapeHtml(diffText)}</div>
-        </button>
-      `;
-    });
+  } catch (e) {
+    console.error("Fehler im Monats-Batch: " + e.message);
+    throw new Error(e.message);
   }
+};
 
-  function openCapacityOverviewModal(forceRefresh) {
-    const content = document.getElementById('capacity-overview-content');
-
-    openModalById('capacityOverviewModal', 'capacityOverviewModalContent');
-
-    if (!content) return;
-
-    content.innerHTML = `
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Kapazitäten werden berechnet...</p>
-        <p class="text-xs mt-1">Basis: aktuelles Schichtmodell aus dem Plano Backup</p>
-      </div>
-    `;
-
-    capacitySkillFilter = 'Alle';
-
-    google.script.run
-      .withSuccessHandler(data => {
-        capacityOverviewCache = data;
-        renderCapacityOverview(data);
-      })
-      .withFailureHandler(err => {
-        content.innerHTML = `
-          <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 text-center">
-            <i class="fa-solid fa-triangle-exclamation text-3xl mb-3"></i>
-            <h4 class="font-bold text-lg">Fehler beim Laden</h4>
-            <p class="text-sm mt-2">${err.message || err}</p>
-          </div>
-        `;
-      })
-      .getCapacityOverviewData();
+/**
+ * HILFSFUNKTION: Macht das Datum kugelsicher (Wird vom Monats-Batch benötigt!)
+ */
+function formatiereDatumRobust(zellenWert, anzeigeWert, timezone) {
+  if (zellenWert instanceof Date) {
+    return Utilities.formatDate(zellenWert, timezone, "yyyy-MM-dd");
+  } else if (anzeigeWert && anzeigeWert.length === 10 && anzeigeWert.indexOf(".") === 2) {
+    var p = anzeigeWert.split(".");
+    return p[2] + "-" + p[1] + "-" + p[0];
+  } else if (anzeigeWert && anzeigeWert.length === 10 && anzeigeWert.indexOf("-") === 4) {
+    return anzeigeWert;
   }
+  return null;
+}
 
-  function closeCapacityOverviewModal() {
-    closeModalById('capacityOverviewModal', 'capacityOverviewModalContent');
-  }
+Das funktioniert auch echt super
 
-  function setCapacitySkillFilter(encodedSkill) {
-    capacitySkillFilter = decodeURIComponent(encodedSkill || 'Alle');
+Das Probem ist jedoch, dass ich einen Trigger auf 10 Uhr gelegt habe der die Funktion 10 Uhr Trigger ausführt um die Vergleichswerte zu importieren
+Jedoch habe ich hier eine Fehlerrate von 100% und irgendwie funktioniert das nie, wenn ich manuell Tagesplanung 09:00 Uhr Manuell auswähle funktioniert es aber ohne Probleme
 
-    if (capacityOverviewCache) {
-      renderCapacityOverview(capacityOverviewCache);
-    }
-  }
-
-  function renderCapacityOverview(data) {
-    const content = document.getElementById('capacity-overview-content');
-
-    if (!content) return;
-
-    if (!data || !data.success) {
-      content.innerHTML = '<div class="text-center text-gray-400 py-10">Keine Daten gefunden.</div>';
-      return;
-    }
-
-    let allAreas = (data.areas || []).filter(a =>
-      a.area &&
-      String(a.area).trim() !== '' &&
-      String(a.area).toLowerCase() !== 'ohne skill'
-    );
-
-    const skills = allAreas.map(a => a.area);
-
-    let areas = allAreas;
-
-    if (capacitySkillFilter !== 'Alle') {
-      areas = allAreas.filter(a => a.area === capacitySkillFilter);
-    }
-
-    const totalHours = areas.reduce((sum, area) => sum + Number(area.totalHours || 0), 0);
-    const remainingHours = areas.reduce((sum, area) => sum + Number(area.remainingHours || 0), 0);
-    const usedHours = areas.reduce((sum, area) => sum + Number(area.usedHours || 0), 0);
-
-    let html = `
-      <div class="space-y-5">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Gesamtkapazität Tag</div>
-            <div class="font-mono text-3xl font-bold text-slate-700 mt-1">${capacityDecimalToTime(totalHours)}</div>
-          </div>
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Bereits vergangen</div>
-            <div class="font-mono text-3xl font-bold text-lidl-blue mt-1">${capacityDecimalToTime(usedHours)}</div>
-          </div>
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Restkapazität ab jetzt</div>
-            <div class="font-mono text-3xl font-bold text-modern-green mt-1">${capacityDecimalToTime(remainingHours)}</div>
-          </div>
-        </div>
-
-        ${renderCapacitySkillFilters(skills)}
-
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <div class="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 flex items-center justify-between">
-            <div>
-              <h4 class="font-bold text-slate-700 flex items-center gap-2">
-                <i class="fa-solid fa-layer-group text-lidl-blue"></i> Kapazität nach Skill
-              </h4>
-              <p class="text-xs text-gray-400 mt-0.5">Nur produktive Skill-Zeiträume aus den Tätigkeitsblöcken</p>
-            </div>
-            <div class="text-xs text-gray-400">Stand: ${escapeHtml(data.updatedAt || '-')}</div>
-          </div>
-
-          <div class="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-    `;
-
-    if (areas.length === 0) {
-      html += `
-        <div class="col-span-full text-center py-10 text-gray-400">
-          <i class="fa-regular fa-folder-open text-3xl mb-3"></i>
-          <p>Keine produktiven Skill-Zeiten gefunden.</p>
-        </div>
-      `;
-    }
-
-    areas.forEach(area => {
-      html += `
-        <div class="border border-gray-100 rounded-2xl p-4 bg-white hover:shadow-md transition">
-          <div class="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <div class="font-bold text-slate-700">${escapeHtml(area.area)}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5 truncate" title="${escapeHtml((area.originalSkills || []).join(', '))}">
-                ${(area.originalSkills || []).length ? escapeHtml((area.originalSkills || []).join(' • ')) : 'Produktiver Skill'}
-              </div>
-            </div>
-            <div class="w-9 h-9 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center">
-              <i class="fa-solid fa-clock"></i>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-3 gap-2 text-right">
-            <div class="rounded-xl bg-gray-50 border border-gray-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Gesamt</div>
-              <div class="font-mono font-bold text-slate-700">${capacityDecimalToTime(area.totalHours)}</div>
-            </div>
-            <div class="rounded-xl bg-blue-50 border border-blue-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Vergangen</div>
-              <div class="font-mono font-bold text-lidl-blue">${capacityDecimalToTime(area.usedHours)}</div>
-            </div>
-            <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Rest</div>
-              <div class="font-mono font-bold text-modern-green">${capacityDecimalToTime(area.remainingHours)}</div>
-            </div>
-          </div>
-        </div>
-      `;
-    });
-
-    html += `
-          </div>
-        </div>
-      </div>
-    `;
-
-    content.innerHTML = html;
-  }
-
-  function renderCapacitySkillFilters(skills) {
-    const safeSkills = (skills || []).filter(s => s && String(s).trim() !== "" && String(s).toLowerCase() !== "ohne skill");
-
-    let html = `
-      <div class="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
-        <div class="flex flex-wrap gap-2 items-center">
-          <span class="text-[10px] uppercase font-bold text-gray-400 mr-1">
-            <i class="fa-solid fa-filter text-lidl-blue mr-1"></i> Skill Filter:
-          </span>
-    `;
-
-    const allClass = capacitySkillFilter === 'Alle'
-      ? 'bg-lidl-blue text-white border-lidl-blue'
-      : 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-lidl-blue hover:border-blue-200';
-
-    html += `
-      <button onclick="setCapacitySkillFilter('${encodeURIComponent('Alle')}')" class="px-3 py-1 rounded-full border text-xs font-bold transition ${allClass}">
-        Alle Skills
-      </button>
-    `;
-
-    safeSkills.forEach(skill => {
-      const active = capacitySkillFilter === skill;
-      const cls = active
-        ? 'bg-lidl-blue text-white border-lidl-blue'
-        : 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-lidl-blue hover:border-blue-200';
-
-      html += `
-        <button onclick="setCapacitySkillFilter('${encodeURIComponent(skill)}')" class="px-3 py-1 rounded-full border text-xs font-bold transition ${cls}">
-          ${escapeHtml(skill)}
-        </button>
-      `;
-    });
-
-    html += `
-        </div>
-      </div>
-    `;
-
-    return html;
-  }
-
-  function capacityDecimalToTime(decimalVal) {
-    decimalVal = Number(decimalVal || 0);
-
-    const isNegative = decimalVal < 0;
-    decimalVal = Math.abs(decimalVal);
-
-    let hours = Math.floor(decimalVal);
-    let minutes = Math.round((decimalVal - hours) * 60);
-
-    if (minutes === 60) {
-      hours += 1;
-      minutes = 0;
-    }
-
-    return `${isNegative ? '-' : ''}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  }
-
-  function openModalById(modalId, contentId) {
-    const modal = document.getElementById(modalId);
-    const content = document.getElementById(contentId);
-
-    if (!modal || !content) return;
-
-    modal.classList.remove('hidden');
-
-    setTimeout(() => {
-      modal.classList.remove('opacity-0');
-      content.classList.remove('scale-95');
-      content.classList.add('scale-100');
-    }, 10);
-  }
-
-  function closeModalById(modalId, contentId) {
-    const modal = document.getElementById(modalId);
-    const content = document.getElementById(contentId);
-
-    if (!modal || !content) return;
-
-    modal.classList.add('opacity-0');
-    content.classList.remove('scale-100');
-    content.classList.add('scale-95');
-
-    setTimeout(() => {
-      modal.classList.add('hidden');
-    }, 300);
-  }
-
-  function escapeHtml(value) {
-    return String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-</script>
