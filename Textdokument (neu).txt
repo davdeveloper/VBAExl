@@ -1,151 +1,405 @@
-ich habe hier eine google sheet datei die auf eine Master API basierend ist
-
-Code.gs von der Prognose
-
 // ==========================================
-// MENÜ KONFIGURATION (JETZT MINIMALISTISCH)
+// MENÜ KONFIGURATION
 // ==========================================
 
 function onOpen() {
   Master_API_Lidl_Tools.Tools.UI.MenueBauen("Lidl Tools", [
-    { Titel: ">>> (1) MORGEN-IMPORT (07:00) manuell starten <<<", Funktion: "Run"},
-    { Titel: ">>> (2) TAGESPLANUNG (09:00) manuell starten <<<", Funktion: "Run09UhrTrigger"},
-    { Titel: ">>> (3) Lückenfüller: Historischer Import <<<", Funktion: "historischenImportAusfuehren"}
+    { Titel: ">>> (1) MORGEN-IMPORT (07:00) manuell starten <<<", Funktion: "Run" },
+    { Titel: ">>> (2) TAGESPLANUNG (09:00) manuell starten <<<", Funktion: "Run09UhrTrigger" },
+    { Titel: ">>> (3) VERGLEICHSWERTE: Nachimport ab Datum <<<", Funktion: "vergleichswerteNachimportAbDatumAusfuehren" },
+    { Titel: ">>> (4) Lückenfüller: Historischer Import <<<", Funktion: "historischenImportAusfuehren" }
   ]);
 }
 
 // ==========================================
-// ORCHESTRATOR 1: 07:00 UHR (Eingang & SR)
+// KONSTANTEN
 // ==========================================
 
-// Für manuellen Start mit Popup-Meldung
+var FORMEL_WARTEZEIT_TRIGGER_MS = 15000;
+var FORMEL_WARTEZEIT_NACHIMPORT_MS = 6000;
+
+// ==========================================
+// ORCHESTRATOR 1: 07:00 UHR
+// Eingang und Steuerungsreport
+// ==========================================
+
 function Run() {
-  var ui = SpreadsheetApp.getUi();
+  var ui = holeUiSicher_();
+
   try {
-    Run07UhrTrigger(); // Ruft die stille Logik auf
-    ui.alert("Erfolg", "Der Morgen-Import (07:00 Uhr Logik) wurde erfolgreich ausgeführt.", ui.ButtonSet.OK);
+    Run07UhrTrigger();
+
+    if (ui) {
+      ui.alert(
+        "Erfolg",
+        "Der Morgen-Import wurde erfolgreich ausgeführt.",
+        ui.ButtonSet.OK
+      );
+    }
   } catch (f) {
-    ui.alert("Fehler", "Abbruch: " + f.message, ui.ButtonSet.OK);
+    if (ui) {
+      ui.alert(
+        "Fehler",
+        "Abbruch: " + f.message,
+        ui.ButtonSet.OK
+      );
+    }
+
+    throw f;
   }
 }
 
-// Für automatischen Trigger (ohne Popups)
 function Run07UhrTrigger() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet();
+
   try {
     var today = new Date();
-    today.setHours(0, 0, 0, 0); // NEU: Schneidet die Uhrzeit ab (verhindert den Mitternachts-Bug in SVERWEIS)
-    
+    today.setHours(0, 0, 0, 0);
+
     var katSheet = sheet.getSheetByName("Auswertung_KAT");
-    if (katSheet) katSheet.getRange("F1").setValue(today);
+    if (!katSheet) {
+      throw new Error("Arbeitsblatt 'Auswertung_KAT' nicht gefunden.");
+    }
+
+    katSheet.getRange("F1").setValue(today);
     SpreadsheetApp.flush();
-    
+
     console.log("Starte automatischen 07:00 Uhr Import...");
-    
-    // Schritt 1 & 2: Steuerungsreport & Eingang
+
     steuerungsReportImport(today);
-    eingangZaehlen(today); 
-    
+    eingangZaehlen(today);
+
     SpreadsheetApp.flush();
-    // NEU: Dem Server headless mehr Zeit geben, um alle Formeln im Sheet neu zu berechnen!
-    Utilities.sleep(15000); 
-    
-    // Schritt 3: Archivierung (Tagesplanung ist hier noch leer/alt)
+    Utilities.sleep(FORMEL_WARTEZEIT_TRIGGER_MS);
+
     meineTageswerteArchivieren(today);
     vergleichswerteSpeichern(today);
-    
+
     console.log("07:00 Uhr Import erfolgreich abgeschlossen.");
+
   } catch (fehler) {
     console.error("Fehler 07 Uhr: " + fehler.message);
-    throw fehler; 
+    throw fehler;
   }
 }
 
 // ==========================================
-// ORCHESTRATOR 2: 09:00 UHR (Tagesplanung Update)
+// ORCHESTRATOR 2: 09:00 UHR
+// Tagesplanung und Vergleichswerte
 // ==========================================
 
 function Run09UhrTrigger() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet();
-  var ui = null;
-  try { ui = SpreadsheetApp.getUi(); } catch(e) {} // Prüft ob UI verfügbar ist
+  var ui = holeUiSicher_();
 
   try {
     var today = new Date();
-    today.setHours(0, 0, 0, 0); // NEU: Schneidet die Uhrzeit ab
-    
+    today.setHours(0, 0, 0, 0);
+
     var katSheet = sheet.getSheetByName("Auswertung_KAT");
-    if (katSheet) katSheet.getRange("F1").setValue(today);
+    if (!katSheet) {
+      throw new Error("Arbeitsblatt 'Auswertung_KAT' nicht gefunden.");
+    }
+
+    katSheet.getRange("F1").setValue(today);
     SpreadsheetApp.flush();
-    
-    if (ui) sheet.toast("Importiere Tagesplanung...", "9 Uhr Status", 3);
+
+    zeigeToastSicher_("Importiere Tagesplanung...", "9 Uhr Status", 3);
+
     console.log("Starte automatischen 09:00 Uhr Import...");
-    
-    // 1. Tagesplanung importieren
+
     werteAusTagesplanung(today);
-    
+
     SpreadsheetApp.flush();
-    // NEU: Wichtigste Änderung für Headless-Trigger! Google Server braucht Zeit für die Formeln.
-    Utilities.sleep(15000); 
-    
-    // 2. Datenbank aktualisieren (Upsert!)
+    Utilities.sleep(FORMEL_WARTEZEIT_TRIGGER_MS);
+
     meineTageswerteArchivieren(today);
     vergleichswerteSpeichern(today);
-    
-    if (ui) ui.alert("Erfolg", "Die Tagesplanung wurde importiert und die Datenbank aktualisiert.", ui.ButtonSet.OK);
+
     console.log("09:00 Uhr Import erfolgreich abgeschlossen.");
-    
+
+    if (ui) {
+      ui.alert(
+        "Erfolg",
+        "Die Tagesplanung wurde importiert und die Datenbank aktualisiert.",
+        ui.ButtonSet.OK
+      );
+    }
+
   } catch (fehler) {
-    console.error("Fehler 09 Uhr: " + fehler.message);
-    if (ui) ui.alert("Fehler", fehler.message, ui.ButtonSet.OK);
+    console.error("Fehler 09 Uhr Trigger: " + fehler.message);
+
+    if (ui) {
+      ui.alert(
+        "Fehler",
+        fehler.message,
+        ui.ButtonSet.OK
+      );
+    }
+
+    throw fehler;
   }
 }
 
+// Optionaler Wrapper, falls später doch ein Trigger auf 10 Uhr laufen soll.
+// Aktuell kannst du deinen Zeittrigger direkt auf Run09UhrTrigger lassen.
+function Run10UhrTrigger() {
+  Run09UhrTrigger();
+}
+
 // ==========================================
-// DIE EINZELNEN JOBS (UNVERÄNDERT)
+// NEU: VERGLEICHSWERTE NACHTRÄGLICH AB DATUM
 // ==========================================
 
-function steuerungsReportImport(optionalesDatum){
+function vergleichswerteNachimportAbDatumAusfuehren() {
+  var ui = holeUiSicher_();
+
+  if (!ui) {
+    throw new Error("Diese Funktion muss manuell über das Google Sheets Menü gestartet werden.");
+  }
+
+  var antwort = ui.prompt(
+    "Vergleichswerte Nachimport",
+    "Startdatum eingeben. Beispiele: 17.05. oder 17.05.2026 oder 2026-05-17",
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (antwort.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
+
+  var startDatum;
+
+  try {
+    startDatum = parseDatumEingabe_(antwort.getResponseText());
+  } catch (e) {
+    ui.alert("Fehler", e.message, ui.ButtonSet.OK);
+    return;
+  }
+
+  var heute = new Date();
+  heute.setHours(0, 0, 0, 0);
+
+  if (startDatum > heute) {
+    ui.alert(
+      "Fehler",
+      "Das Startdatum liegt in der Zukunft. Bitte ein Datum bis heute eingeben.",
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+
+  var anzahlTage = berechneTageInklusiv_(startDatum, heute);
+
+  var bestaetigung = ui.alert(
+    "Vergleichswerte Nachimport",
+    "Es werden jetzt die Vergleichswerte vom " +
+      datumDeutsch_(startDatum) +
+      " bis " +
+      datumDeutsch_(heute) +
+      " nachimportiert.\n\n" +
+      "Anzahl Tage: " +
+      anzahlTage +
+      "\n\n" +
+      "Dabei wird pro Tag die Tagesplanung importiert und anschließend das Arbeitsblatt 'Vergleichswerte' aktualisiert.\n\n" +
+      "Fortfahren?",
+    ui.ButtonSet.YES_NO
+  );
+
+  if (bestaetigung !== ui.Button.YES) {
+    return;
+  }
+
+  var ergebnis = vergleichswerteNachimportAbDatum_(startDatum, heute);
+
+  if (ergebnis.fehler.length > 0) {
+    ui.alert(
+      "Nachimport abgeschlossen mit Warnungen",
+      "Erfolgreich: " +
+        ergebnis.erfolgreich +
+        " von " +
+        ergebnis.gesamt +
+        " Tagen.\n\n" +
+        "Fehler:\n" +
+        ergebnis.fehler.join("\n"),
+      ui.ButtonSet.OK
+    );
+  } else {
+    ui.alert(
+      "Erfolg",
+      "Der Nachimport der Vergleichswerte wurde für " +
+        ergebnis.erfolgreich +
+        " Tage abgeschlossen.",
+      ui.ButtonSet.OK
+    );
+  }
+}
+
+function vergleichswerteNachimportAbDatum_(startDatum, endDatum) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var katSheet = sheet.getSheetByName("Auswertung_KAT");
+
+  if (!katSheet) {
+    throw new Error("Arbeitsblatt 'Auswertung_KAT' nicht gefunden.");
+  }
+
+  var start = normalisiereDatum_(startDatum);
+  var ende = normalisiereDatum_(endDatum);
+  var originalDatum = katSheet.getRange("F1").getValue();
+
+  var gesamt = berechneTageInklusiv_(start, ende);
+  var erfolgreich = 0;
+  var fehlerProtokoll = [];
+
+  try {
+    for (var d = new Date(start.getTime()); d <= ende; d.setDate(d.getDate() + 1)) {
+      var targetDate = new Date(d.getTime());
+      targetDate.setHours(0, 0, 0, 0);
+
+      var datumText = datumDeutsch_(targetDate);
+
+      zeigeToastSicher_(
+        "Verarbeite " + datumText + " (" + (erfolgreich + fehlerProtokoll.length + 1) + " von " + gesamt + ")",
+        "Vergleichswerte Nachimport",
+        3
+      );
+
+      console.log("Starte Vergleichswerte Nachimport für " + datumText);
+
+      try {
+        katSheet.getRange("F1").setValue(targetDate);
+        SpreadsheetApp.flush();
+        Utilities.sleep(2000);
+
+        werteAusTagesplanung(targetDate);
+
+        SpreadsheetApp.flush();
+        Utilities.sleep(FORMEL_WARTEZEIT_NACHIMPORT_MS);
+
+        vergleichswerteSpeichern(targetDate);
+
+        SpreadsheetApp.flush();
+
+        erfolgreich++;
+        console.log("Vergleichswerte Nachimport erfolgreich für " + datumText);
+
+      } catch (tagFehler) {
+        var meldung = datumText + ": " + tagFehler.message;
+        fehlerProtokoll.push(meldung);
+        console.error("Fehler beim Vergleichswerte Nachimport: " + meldung);
+      }
+    }
+
+  } finally {
+    if (originalDatum) {
+      katSheet.getRange("F1").setValue(originalDatum);
+    } else {
+      katSheet.getRange("F1").setValue(new Date());
+    }
+
+    SpreadsheetApp.flush();
+  }
+
+  return {
+    gesamt: gesamt,
+    erfolgreich: erfolgreich,
+    fehler: fehlerProtokoll
+  };
+}
+
+// ==========================================
+// DIE EINZELNEN JOBS
+// ==========================================
+
+function steuerungsReportImport(optionalesDatum) {
   var meinDatum = optionalesDatum ? new Date(optionalesDatum) : new Date();
+  meinDatum.setHours(0, 0, 0, 0);
+
   var datumString = Utilities.formatDate(meinDatum, Session.getScriptTimeZone(), "yyyy-MM-dd");
 
-  Master_API_Lidl_Tools.Tools.Import.MonatsBatchKopieren({ 
-    QuellOrdnerID: "1cWmHGm1RGWe9OQ7ObIffD85wFqiKCjFY", 
-    QuelldateiName: "{{YYYYMM}}_Steuerungsreport_Salesforce", 
+  Master_API_Lidl_Tools.Tools.Import.MonatsBatchKopieren({
+    QuellOrdnerID: "1cWmHGm1RGWe9OQ7ObIffD85wFqiKCjFY",
+    QuelldateiName: "{{YYYYMM}}_Steuerungsreport_Salesforce",
     Zieldatei: SpreadsheetApp.getActiveSpreadsheet().getId(),
-    SuchDatum: datumString, 
+    SuchDatum: datumString,
     Jobs: [
       {
         QuellArbeitsblatt: "FC_DL",
         Zielarbeitsblatt: "Datenbank_Steuerungsreport",
-        QuellDatumSpalte: "R", 
-        ZielDatumSpalte: "A",  
-        Spalten: { 
-          "AB": "C", "AA": "E", "AJ": "G", "AI": "I", "AE": "M", "AN": "O", "AM": "Q", "AF": "K",
-          "BA": "S", "AZ": "U", "BI": "W", "BH": "Y", "BE": "AA", "BD": "AC", "BM": "AE", "BL": "AG",
-          "BZ": "AI", "BY": "AK", "CH": "AM", "CG": "AO", "CD": "AQ", "CC": "AS", "CL": "AU", "CK": "AW"
+        QuellDatumSpalte: "R",
+        ZielDatumSpalte: "A",
+        Spalten: {
+          "AB": "C",
+          "AA": "E",
+          "AJ": "G",
+          "AI": "I",
+          "AE": "M",
+          "AN": "O",
+          "AM": "Q",
+          "AF": "K",
+          "BA": "S",
+          "AZ": "U",
+          "BI": "W",
+          "BH": "Y",
+          "BE": "AA",
+          "BD": "AC",
+          "BM": "AE",
+          "BL": "AG",
+          "BZ": "AI",
+          "BY": "AK",
+          "CH": "AM",
+          "CG": "AO",
+          "CD": "AQ",
+          "CC": "AS",
+          "CL": "AU",
+          "CK": "AW"
         }
       },
       {
         QuellArbeitsblatt: "Teleperformance",
         Zielarbeitsblatt: "Datenbank_Steuerungsreport",
-        QuellDatumSpalte: "A", 
-        ZielDatumSpalte: "A",  
-        Spalten: { "T": "D", "P": "F", "W": "H", "S": "J", "U": "L", "Q": "N", "V": "P", "R": "R" }
+        QuellDatumSpalte: "A",
+        ZielDatumSpalte: "A",
+        Spalten: {
+          "T": "D",
+          "P": "F",
+          "W": "H",
+          "S": "J",
+          "U": "L",
+          "Q": "N",
+          "V": "P",
+          "R": "R"
+        }
       },
       {
         QuellArbeitsblatt: "Concentrix",
         Zielarbeitsblatt: "Datenbank_Steuerungsreport",
-        QuellDatumSpalte: "A", 
-        ZielDatumSpalte: "A",  
-        Spalten: { "T": "T", "P": "V", "W": "X", "S": "Z", "U": "AB", "Q": "AD", "V": "AF", "R": "AH" }
+        QuellDatumSpalte: "A",
+        ZielDatumSpalte: "A",
+        Spalten: {
+          "T": "T",
+          "P": "V",
+          "W": "X",
+          "S": "Z",
+          "U": "AB",
+          "Q": "AD",
+          "V": "AF",
+          "R": "AH"
+        }
       },
       {
         QuellArbeitsblatt: "LKS-1st",
         Zielarbeitsblatt: "Datenbank_Steuerungsreport",
-        QuellDatumSpalte: "A", 
-        ZielDatumSpalte: "A",  
-        Spalten: { "R": "AJ", "O": "AL", "S": "AR", "P": "AT", "T": "AV", "Q": "AX" }
+        QuellDatumSpalte: "A",
+        ZielDatumSpalte: "A",
+        Spalten: {
+          "R": "AJ",
+          "O": "AL",
+          "S": "AR",
+          "P": "AT",
+          "T": "AV",
+          "Q": "AX"
+        }
       }
     ]
   });
@@ -153,19 +407,21 @@ function steuerungsReportImport(optionalesDatum){
 
 function eingangZaehlen(zielDatum) {
   var date = zielDatum ? new Date(zielDatum) : new Date();
+  date.setHours(0, 0, 0, 0);
+
   var dateString = Utilities.formatDate(date, Session.getScriptTimeZone(), "dd.MM.yyyy");
-  var dateiEndung = ".csv"; 
-  var fileName = dateString + dateiEndung; 
-  var tabName = dateString; 
+  var dateiEndung = ".csv";
+  var fileName = dateString + dateiEndung;
+  var tabName = dateString;
 
   Master_API_Lidl_Tools.Tools.Import.KomplettKopieren({
-    QuellOrdnerID: "13QfeLYdK_SPvYQUOz8O2ODIJWgu-EtkZ",  
-    QuelldateiName: fileName, 
+    QuellOrdnerID: "13QfeLYdK_SPvYQUOz8O2ODIJWgu-EtkZ",
+    QuelldateiName: fileName,
     Zieldatei: SpreadsheetApp.getActiveSpreadsheet().getId(),
-    QuellArbeitsblatt: tabName, 
+    QuellArbeitsblatt: tabName,
     Zielarbeitsblatt: "Rohdaten_Eingang",
-    UeberschriftMitnehmen: true, 
-    Modus: "Ersetzen"            
+    UeberschriftMitnehmen: true,
+    Modus: "Ersetzen"
   });
 
   eingangZaehlenVortag(date);
@@ -173,69 +429,88 @@ function eingangZaehlen(zielDatum) {
 
 function eingangZaehlenVortag(basisDatum) {
   var date = basisDatum ? new Date(basisDatum) : new Date();
-  date.setDate(date.getDate() - 1); 
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - 1);
+
   var dateString = Utilities.formatDate(date, Session.getScriptTimeZone(), "dd.MM.yyyy");
-  var dateiEndung = ".csv"; 
-  var fileName = dateString + dateiEndung; 
+  var dateiEndung = ".csv";
+  var fileName = dateString + dateiEndung;
   var tabName = dateString;
 
   Master_API_Lidl_Tools.Tools.Import.KomplettKopieren({
-    QuellOrdnerID: "13QfeLYdK_SPvYQUOz8O2ODIJWgu-EtkZ", 
-    QuelldateiName: fileName, 
+    QuellOrdnerID: "13QfeLYdK_SPvYQUOz8O2ODIJWgu-EtkZ",
+    QuelldateiName: fileName,
     Zieldatei: SpreadsheetApp.getActiveSpreadsheet().getId(),
     QuellArbeitsblatt: tabName,
     Zielarbeitsblatt: "Rohdaten_Eingang",
-    UeberschriftMitnehmen: false, 
-    Modus: "Anfuegen"             
+    UeberschriftMitnehmen: false,
+    Modus: "Anfuegen"
   });
 }
 
 function werteAusTagesplanung(optionalesDatum) {
   var meinDatum;
+
   if (optionalesDatum) {
     meinDatum = Utilities.formatDate(optionalesDatum, Session.getScriptTimeZone(), "dd.MM.yyyy");
   } else {
-    meinDatum = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Auswertung_KAT").getRange("F1").getDisplayValue();
+    meinDatum = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("Auswertung_KAT")
+      .getRange("F1")
+      .getDisplayValue();
   }
 
   Master_API_Lidl_Tools.Tools.Import.EinzelwerteInZellenKopieren({
-    QuellOrdnerID: "1fDu6vk1aX0x1OkJoA1JfoxCrzev6IvHB", 
-    QuelldateiName: "Tagesplanung", 
+    QuellOrdnerID: "1fDu6vk1aX0x1OkJoA1JfoxCrzev6IvHB",
+    QuelldateiName: "Tagesplanung",
     Zieldatei: SpreadsheetApp.getActiveSpreadsheet().getId(),
     QuellArbeitsblatt: "Datenbank",
     Zielarbeitsblatt: "Verarbeitung_Eingabe",
     SuchDatum: meinDatum,
-    QuellDatumSpalte: "A", 
-    Mapping: { "L": "G4", "S": "H4", "R": "I4", "W": "J4" }
+    QuellDatumSpalte: "A",
+    Mapping: {
+      "L": "G4",
+      "S": "H4",
+      "R": "I4",
+      "W": "J4"
+    }
   });
 }
 
 function vergleichswerteSpeichern(optionalesDatum) {
   var heuteDatumString;
   var morgenDatumString;
-  
+
   if (optionalesDatum) {
-    // 1. Datum für HEUTE (Ist-Werte eintragen)
-    heuteDatumString = Utilities.formatDate(optionalesDatum, Session.getScriptTimeZone(), "dd.MM.yyyy");
-    
-    // 2. Datum für MORGEN (Prognose-Werte eintragen)
-    var morgen = new Date(optionalesDatum.getTime());
+    var heute = new Date(optionalesDatum);
+    heute.setHours(0, 0, 0, 0);
+
+    heuteDatumString = Utilities.formatDate(heute, Session.getScriptTimeZone(), "dd.MM.yyyy");
+
+    var morgen = new Date(heute.getTime());
     morgen.setDate(morgen.getDate() + 1);
     morgenDatumString = Utilities.formatDate(morgen, Session.getScriptTimeZone(), "dd.MM.yyyy");
+
   } else {
-    // Fallback manuell
-    heuteDatumString = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Auswertung_KAT").getRange("F1").getDisplayValue();
-    morgenDatumString = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("KONZEPT").getRange("O22").getDisplayValue();
+    heuteDatumString = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("Auswertung_KAT")
+      .getRange("F1")
+      .getDisplayValue();
+
+    morgenDatumString = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("KONZEPT")
+      .getRange("O22")
+      .getDisplayValue();
   }
 
-  // =========================================================
-  // JOB 1: IST-WERTE FÜR HEUTE EINTRAGEN (Spalte F, G, H, I)
-  // =========================================================
   Master_API_Lidl_Tools.Tools.Archiv.DatensatzSpeichern({
-    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(), 
+    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(),
     Zielarbeitsblatt: "Vergleichswerte",
-    ZielDatumSpalte: "A", 
-    ZielDatum: heuteDatumString, 
+    ZielDatumSpalte: "A",
+    ZielDatum: heuteDatumString,
     Felder: [
       { ZielSpalte: "F", QuellArbeitsblatt: "Verarbeitung_Eingabe", QuellZelle: "G4" },
       { ZielSpalte: "G", QuellArbeitsblatt: "Verarbeitung_Eingabe", QuellZelle: "H4" },
@@ -244,14 +519,11 @@ function vergleichswerteSpeichern(optionalesDatum) {
     ]
   });
 
-  // =========================================================
-  // JOB 2: PROGNOSE FÜR MORGEN ABSPEICHERN (Spalte B, C, D, E)
-  // =========================================================
   Master_API_Lidl_Tools.Tools.Archiv.DatensatzSpeichern({
-    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(), 
+    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(),
     Zielarbeitsblatt: "Vergleichswerte",
-    ZielDatumSpalte: "A", 
-    ZielDatum: morgenDatumString, 
+    ZielDatumSpalte: "A",
+    ZielDatum: morgenDatumString,
     Felder: [
       { ZielSpalte: "B", QuellArbeitsblatt: "KONZEPT", QuellZelle: "O30" },
       { ZielSpalte: "C", QuellArbeitsblatt: "KONZEPT", QuellZelle: "P30" },
@@ -263,17 +535,22 @@ function vergleichswerteSpeichern(optionalesDatum) {
 
 function meineTageswerteArchivieren(optionalesDatum) {
   var meinDatum;
+
   if (optionalesDatum) {
     meinDatum = Utilities.formatDate(optionalesDatum, Session.getScriptTimeZone(), "dd.MM.yyyy");
   } else {
-    meinDatum = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Auswertung_KAT").getRange("F1").getDisplayValue();
+    meinDatum = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("Auswertung_KAT")
+      .getRange("F1")
+      .getDisplayValue();
   }
 
   Master_API_Lidl_Tools.Tools.Archiv.DatensatzSpeichern({
-    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(), 
+    DateiID: SpreadsheetApp.getActiveSpreadsheet().getId(),
     Zielarbeitsblatt: "Datenbank",
-    ZielDatumSpalte: "A", 
-    ZielDatum: meinDatum, 
+    ZielDatumSpalte: "A",
+    ZielDatum: meinDatum,
     Felder: [
       { ZielSpalte: "B", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B4" },
       { ZielSpalte: "C", QuellArbeitsblatt: "Auswertung_KAT", QuellZelle: "B5" },
@@ -293,7 +570,8 @@ function meineTageswerteArchivieren(optionalesDatum) {
 }
 
 // ==========================================
-// HISTORISCHER IMPORT (LÜCKENFÜLLER)
+// HISTORISCHER IMPORT
+// LÜCKENFÜLLER
 // ==========================================
 
 function historischenImportAusfuehren() {
@@ -319,7 +597,7 @@ function historischenImportAusfuehren() {
   var values = range.getValues();
 
   var today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
 
   var fehlendeDaten = [];
 
@@ -328,47 +606,67 @@ function historischenImportAusfuehren() {
     var rowB_Wert = values[i][1];
 
     if (rowDatum instanceof Date) {
-      rowDatum.setHours(0,0,0,0);
+      rowDatum.setHours(0, 0, 0, 0);
+
       if (rowDatum < today && (rowB_Wert === "" || rowB_Wert === null)) {
-        fehlendeDaten.push(new Date(rowDatum)); 
+        fehlendeDaten.push(new Date(rowDatum));
       }
     }
   }
 
   if (fehlendeDaten.length === 0) {
-    ui.alert("Info", "Es wurden keine Lücken (Spalte B leer, Datum vor heute) ab Zeile 475 gefunden.", ui.ButtonSet.OK);
+    ui.alert(
+      "Info",
+      "Es wurden keine Lücken in Spalte B mit Datum vor heute ab Zeile " + startRow + " gefunden.",
+      ui.ButtonSet.OK
+    );
     return;
   }
 
   var response = ui.alert(
     "Historischer Import",
-    "Es wurden " + fehlendeDaten.length + " fehlende Tage gefunden.\nSoll der Import jetzt nacheinander durchgeführt werden?\n\n(Das Skript arbeitet jeden Tag einzeln ab. Das kann einige Minuten dauern.)",
+    "Es wurden " +
+      fehlendeDaten.length +
+      " fehlende Tage gefunden.\n\n" +
+      "Soll der Import jetzt nacheinander durchgeführt werden?",
     ui.ButtonSet.YES_NO
   );
 
-  if (response !== ui.Button.YES) return;
+  if (response !== ui.Button.YES) {
+    return;
+  }
 
-  var fehlerProtokoll = []; 
+  var fehlerProtokoll = [];
 
   try {
     for (var j = 0; j < fehlendeDaten.length; j++) {
       var targetDate = fehlendeDaten[j];
+      targetDate.setHours(0, 0, 0, 0);
+
       var datumString = Utilities.formatDate(targetDate, Session.getScriptTimeZone(), "dd.MM.yyyy");
 
-      sheet.toast("Verarbeite Datum: " + datumString + " (" + (j+1) + " von " + fehlendeDaten.length + ")", "Lückenfüller läuft...");
+      sheet.toast(
+        "Verarbeite Datum: " + datumString + " (" + (j + 1) + " von " + fehlendeDaten.length + ")",
+        "Lückenfüller läuft..."
+      );
 
       try {
         katSheet.getRange("F1").setValue(targetDate);
-        SpreadsheetApp.flush(); 
-        Utilities.sleep(2000);  
+        SpreadsheetApp.flush();
+        Utilities.sleep(2000);
 
         eingangZaehlen(targetDate);
         werteAusTagesplanung(targetDate);
+
+        SpreadsheetApp.flush();
+        Utilities.sleep(FORMEL_WARTEZEIT_NACHIMPORT_MS);
+
         meineTageswerteArchivieren(targetDate);
         vergleichswerteSpeichern(targetDate);
 
       } catch (tagFehler) {
         fehlerProtokoll.push("❌ " + datumString + ": " + tagFehler.message);
+        console.error("Fehler im historischen Import für " + datumString + ": " + tagFehler.message);
       }
     }
 
@@ -377,833 +675,137 @@ function historischenImportAusfuehren() {
 
     if (fehlerProtokoll.length > 0) {
       ui.alert(
-        "Import abgeschlossen (mit Warnungen)", 
-        "Es wurden " + fehlendeDaten.length + " Tage geprüft, aber nicht alle konnten vollständig importiert werden.\n\nDetails:\n" + fehlerProtokoll.join("\n"), 
+        "Import abgeschlossen mit Warnungen",
+        "Es wurden " +
+          fehlendeDaten.length +
+          " Tage geprüft, aber nicht alle konnten vollständig importiert werden.\n\n" +
+          "Details:\n" +
+          fehlerProtokoll.join("\n"),
         ui.ButtonSet.OK
       );
     } else {
-      ui.alert("Erfolg", "Der historische Import für " + fehlendeDaten.length + " Tage wurde fehlerfrei abgeschlossen!", ui.ButtonSet.OK);
+      ui.alert(
+        "Erfolg",
+        "Der historische Import für " + fehlendeDaten.length + " Tage wurde fehlerfrei abgeschlossen.",
+        ui.ButtonSet.OK
+      );
     }
 
   } catch (e) {
-    ui.alert("Abbruch durch unerwarteten Fehler", "Beim Abarbeiten gab es ein kritisches Problem:\n\n" + e.message, ui.ButtonSet.OK);
+    ui.alert(
+      "Abbruch durch unerwarteten Fehler",
+      "Beim Abarbeiten gab es ein kritisches Problem:\n\n" + e.message,
+      ui.ButtonSet.OK
+    );
+
+    throw e;
   }
 }
 
 // ==========================================
 // HILFSFUNKTIONEN FÜR DIE API
 // ==========================================
-function importBruecke(datum) { return Master_API_Lidl_Tools.ausfuehrenNachDatumswahl(datum); }
-function berechtigungenErteilen() { DriveApp.getFiles(); Logger.log("Berechtigungen erfolgreich erteilt!"); }
-function berechtigungenErweitern() {var test = DriveApp.createFile("TempTest", "test", MimeType.PLAIN_TEXT);test.setTrashed(true);Logger.log("Schreibrechte erfolgreich erteilt!");}
 
-Master API
+function importBruecke(datum) {
+  return Master_API_Lidl_Tools.ausfuehrenNachDatumswahl(datum);
+}
 
-Code.gs
-var Tools = Tools || {};
-Tools.Import = Tools.Import || {};
+function berechtigungenErteilen() {
+  DriveApp.getFiles();
+  Logger.log("Berechtigungen erfolgreich erteilt.");
+}
 
-// =========================================================
-// NEU: UI & MENÜ Baukasten
-// =========================================================
-Tools.UI = Tools.UI || {};
+function berechtigungenErweitern() {
+  var test = DriveApp.createFile("TempTest", "test", MimeType.PLAIN_TEXT);
+  test.setTrashed(true);
+  Logger.log("Schreibrechte erfolgreich erteilt.");
+}
 
-/**
- * Baut dynamisch ein Menü in Google Sheets auf.
- * @param {string} hauptName - Der Name, der oben in der Sheets-Leiste steht (z.B. "Lidl Tools")
- * @param {Array} menuePunkte - Eine Liste mit Objekten {Titel: "...", Funktion: "..."}
- */
-Tools.UI.MenueBauen = function(hauptName, menuePunkte) {
-  var ui = SpreadsheetApp.getUi();
-  var menu = ui.createMenu(hauptName);
-  
-  // Geht durch deine übergebene Liste und fügt jeden Punkt zum Menü hinzu
-  for (var i = 0; i < menuePunkte.length; i++) {
-    var punkt = menuePunkte[i];
-    menu.addItem(punkt.Titel, punkt.Funktion);
-  }
-  
-  menu.addToUi();
-};
+// ==========================================
+// INTERNE HILFSFUNKTIONEN
+// ==========================================
 
-/**
- * 1. Diese Funktion wird vom lokalen Sheet aufgerufen.
- * Sie speichert die Konfiguration und öffnet den Kalender.
- */
-Tools.Import.EinzelwerteNachDatumKopieren = function(config) {
-  // Parameter zwischenspeichern
-  PropertiesService.getUserProperties().setProperty('importConfig', JSON.stringify(config));
-  
-  // HTML-Dialog aufrufen (Datei muss 'DatePicker.html' heißen!)
-  var html = HtmlService.createHtmlOutputFromFile('DatePicker')
-      .setWidth(350)
-      .setHeight(250);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Import Datum auswählen');
-};
-
-/**
- * 2. Diese Funktion wird (über die Brücke) vom HTML-Dialog gestartet,
- * sobald der Nutzer auf "Import starten" klickt.
- */
-/**
- * Hauptfunktion: Wird nach der Datumswahl ausgeführt.
- * Sucht die Datei dynamisch, öffnet sie und arbeitet alle konfigurierten Jobs ab.
- */
-function ausfuehrenNachDatumswahl(ausgewaehltesDatum) {
-  console.log("API gestartet! Empfangenes Datum: " + ausgewaehltesDatum);
-  Logger.log("API gestartet! Empfangenes Datum: " + ausgewaehltesDatum);
-
-  
-  
+function holeUiSicher_() {
   try {
-    // 1. Konfiguration laden
-    var configStr = PropertiesService.getUserProperties().getProperty('importConfig');
-    console.log("Geladene Config aus Properties: " + configStr);
-    
-    if (!configStr) throw new Error("Konfiguration nicht gefunden oder Sitzung abgelaufen.");
-    var config = JSON.parse(configStr);
-
-    // =========================================================
-    // NEU: DER ROUTER (Archiv oder Import?)
-    // =========================================================
-    if (config.Aktion === "ARCHIV") {
-      config.ZielDatum = ausgewaehltesDatum; // Datum aus dem Kalender übernehmen
-      Tools.Archiv.DatensatzSpeichern(config);
-      PropertiesService.getUserProperties().deleteProperty('importConfig');
-      return "Archivierung für " + ausgewaehltesDatum + " erfolgreich abgeschlossen!";
-    }
-
-    // NEU: Abzweigung für den Scharfschützen-Modus (Zellen-Import)
-    if (config.Aktion === "ZELLEN_IMPORT") {
-      config.SuchDatum = ausgewaehltesDatum; 
-      Tools.Import.EinzelwerteInZellenKopieren(config);
-      PropertiesService.getUserProperties().deleteProperty('importConfig');
-      return "Zellen-Import für " + ausgewaehltesDatum + " erfolgreich!";
-    }
-
-    // NEU: Abzweigung für den Monats-Import
-    if (config.Aktion === "MONATS_IMPORT") {
-      config.SuchDatum = ausgewaehltesDatum; 
-      Tools.Import.MonatsBatchKopieren(config);
-      PropertiesService.getUserProperties().deleteProperty('importConfig');
-      
-      // Schneidet den Tag ab, damit die Erfolgsmeldung hübsch ist (z.B. "2026-03")
-      var monatsText = ausgewaehltesDatum.substring(0, 7); 
-      return "Monats-Import für " + monatsText + " erfolgreich abgeschlossen!";
-    }
-    
-    // =========================================================
-    // DYNAMISCHER DATEINAME (Platzhalter {{YYYYMM}} ersetzen)
-    // =========================================================
-    // ausgewaehltesDatum hat das Format "YYYY-MM-DD" (z.B. "2026-03-15")
-    var jahr = ausgewaehltesDatum.substring(0, 4);   // Holt "2026"
-    var monat = ausgewaehltesDatum.substring(5, 7);  // Holt "03"
-    var jahrMonat = jahr + monat;                    // Ergibt "202603"
-    
-    // Sucht im Namen nach {{YYYYMM}} und tauscht es aus
-    if (config.QuelldateiName.indexOf("{{YYYYMM}}") !== -1) {
-      config.QuelldateiName = config.QuelldateiName.replace("{{YYYYMM}}", jahrMonat);
-    }
-    
-    console.log("Suche nach Datei: " + config.QuelldateiName);
-    // =========================================================
-
-    // 2. Quelldatei suchen mit Drive API V3
-    var searchQuery = "name = '" + config.QuelldateiName + "' and trashed = false";
-    
-    // Wenn eine Ordner-ID angegeben wurde, Suche eingrenzen
-    if (config.QuellOrdnerID && config.QuellOrdnerID !== "") {
-      searchQuery = "'" + config.QuellOrdnerID + "' in parents and " + searchQuery;
-    }
-
-    var searchArgs = {
-      q: searchQuery,
-      supportsAllDrives: true,          // Zwingend erforderlich für Geteilte Ablagen
-      includeItemsFromAllDrives: true,  // Zwingend erforderlich für Geteilte Ablagen
-      fields: "files(id, name, mimeType)"
-    };
-
-    var response = Drive.Files.list(searchArgs);
-    var files = response.files;
-    
-    if (!files || files.length === 0) {
-      var ort = config.QuellOrdnerID ? "im angegebenen Ordner" : "im Drive (inkl. Geteilte Ablagen)";
-      throw new Error("Es wurde keine Datei mit dem Namen '" + config.QuelldateiName + "' " + ort + " gefunden.");
-    }
-    
-    var fileId = files[0].id;
-    console.log("Datei gefunden. ID: " + fileId);
-    
-    // 3. Dateien öffnen (passiert nur 1x für maximale Geschwindigkeit)
-    var sourceApp = SpreadsheetApp.openById(fileId);
-    var targetApp = SpreadsheetApp.openById(config.Zieldatei);
-
-    sourceApp.setSpreadsheetTimeZone(targetApp.getSpreadsheetTimeZone());
-    
-    // 4. Kompatibilitäts-Trick: Prüfen, ob das neue 'Jobs' Array oder das alte Format (einzelnes Blatt) übergeben wurde
-    var jobsListe = config.Jobs ? config.Jobs : [config]; 
-
-    // 5. Alle Jobs abarbeiten
-    for (var j = 0; j < jobsListe.length; j++) {
-      var aktuellerJob = jobsListe[j];
-      console.log("Verarbeite Job " + (j+1) + " von " + jobsListe.length + ": " + aktuellerJob.QuellArbeitsblatt);
-
-      var sourceSheet = sourceApp.getSheetByName(aktuellerJob.QuellArbeitsblatt);
-      var targetSheet = targetApp.getSheetByName(aktuellerJob.Zielarbeitsblatt);
-      
-      if (!sourceSheet || !targetSheet) {
-        throw new Error("Fehler in Job " + (j+1) + ": Arbeitsblatt ('" + aktuellerJob.QuellArbeitsblatt + "' oder '" + aktuellerJob.Zielarbeitsblatt + "') nicht gefunden.");
-      }
-
-      // Zeilen suchen
-      var quellZeile = findeZeileMitDatum(sourceSheet, aktuellerJob.QuellDatumSpalte, ausgewaehltesDatum);
-      var zielZeile = findeZeileMitDatum(targetSheet, aktuellerJob.ZielDatumSpalte, ausgewaehltesDatum);
-      
-      if (!quellZeile) throw new Error("Das Datum " + ausgewaehltesDatum + " wurde in der Quelle ('" + aktuellerJob.QuellArbeitsblatt + "') nicht gefunden.");
-      if (!zielZeile) throw new Error("Das Datum " + ausgewaehltesDatum + " wurde im Ziel ('" + aktuellerJob.Zielarbeitsblatt + "') nicht gefunden. Bitte Zeile vorher anlegen.");
-
-      // Spalten Mapping durchlaufen und kopieren
-      for (var quellSpalteBuchstabe in aktuellerJob.Spalten) {
-        var zielSpalteBuchstabe = aktuellerJob.Spalten[quellSpalteBuchstabe];
-        
-        var quellSpalteIndex = buchstabeZuIndex(quellSpalteBuchstabe);
-        var zielSpalteIndex = buchstabeZuIndex(zielSpalteBuchstabe);
-        
-        var wert = sourceSheet.getRange(quellZeile, quellSpalteIndex).getValue();
-        targetSheet.getRange(zielZeile, zielSpalteIndex).setValue(wert);
-      }
-    }
-    
-    // 6. Speicher aufräumen
-    PropertiesService.getUserProperties().deleteProperty('importConfig');
-    console.log("Import für alle Jobs erfolgreich beendet!");
-    
-    // Info an den Nutzer im Sheet zurückgeben
-    SpreadsheetApp.getActiveSpreadsheet().toast(jobsListe.length + " Job(s) erfolgreich übertragen.", "Import abgeschlossen");
-    return "Import für den " + ausgewaehltesDatum + " erfolgreich abgeschlossen!";
-    
+    return SpreadsheetApp.getUi();
   } catch (e) {
-    console.error("Fehler im API-Skript: " + e.message);
-    throw new Error(e.message);
+    return null;
   }
 }
 
-/**
- * Hilfsfunktion: Sucht in einer bestimmten Spalte nach einem Datum (Format yyyy-MM-dd)
- */
-/**
- * Hilfsfunktion: Sucht extrem robust nach einem Datum (egal ob YYYY-MM-DD oder DD.MM.YYYY)
- */
-function findeZeileMitDatum(sheet, spalteBuchstabe, suchDatumString) {
-  if (!spalteBuchstabe || !suchDatumString) return null;
-  
-  var spalteIndex = buchstabeZuIndex(spalteBuchstabe);
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 1) return null;
-  
-  // Wir holen beides: Die echten Werte UND das, was man mit dem Auge in der Zelle sieht (Text)
-  var werte = sheet.getRange(1, spalteIndex, lastRow, 1).getValues();
-  var displayWerte = sheet.getRange(1, spalteIndex, lastRow, 1).getDisplayValues();
-  var timezone = Session.getScriptTimeZone();
-  
-  // =========================================================
-  // SCHRITT 1: Suchbegriff flexibel machen
-  // =========================================================
-  var suchVariante1 = suchDatumString.toString().trim();
-  var suchVariante2 = "";
-  
-  // Wenn der Suchstring "YYYY-MM-DD" ist (z.B. aus dem Kalender), bauen wir "DD.MM.YYYY" als Alternative
-  if (suchVariante1.length === 10 && suchVariante1.indexOf("-") === 4) {
-    var parts = suchVariante1.split("-");
-    suchVariante2 = parts[2] + "." + parts[1] + "." + parts[0];
+function zeigeToastSicher_(nachricht, titel, sekunden) {
+  try {
+    SpreadsheetApp
+      .getActiveSpreadsheet()
+      .toast(nachricht, titel || "Status", sekunden || 3);
+  } catch (e) {
+    console.log("Toast übersprungen: " + nachricht);
   }
-  // Wenn der Suchstring "DD.MM.YYYY" ist (z.B. per getDisplayValue), bauen wir "YYYY-MM-DD" als Alternative
-  else if (suchVariante1.length === 10 && suchVariante1.indexOf(".") === 2) {
-    var parts = suchVariante1.split(".");
-    suchVariante2 = parts[2] + "-" + parts[1] + "-" + parts[0];
-  }
-
-  // =========================================================
-  // SCHRITT 2: Jede Zeile prüfen
-  // =========================================================
-  for (var i = 0; i < werte.length; i++) {
-    var zellenWert = werte[i][0];
-    var anzeigeWert = displayWerte[i][0].trim();
-    
-    // 1. Direkter Text-Abgleich (stimmt die Optik überein?)
-    if (anzeigeWert === suchVariante1 || (suchVariante2 !== "" && anzeigeWert === suchVariante2)) {
-      return i + 1; 
-    }
-    
-    // 2. Abgleich über echtes Datumsobjekt (falls es in Google Sheets als Datum formatiert ist)
-    if (zellenWert instanceof Date) {
-      var zeilenDatumString = Utilities.formatDate(zellenWert, timezone, "yyyy-MM-dd");
-      if (zeilenDatumString === suchVariante1 || zeilenDatumString === suchVariante2) {
-        return i + 1; 
-      }
-    }
-  }
-  
-  return null; // Nichts gefunden
 }
 
-/**
- * Hilfsfunktion: Wandelt Spaltenbuchstaben (A, B, C) in Zahlen (1, 2, 3) um
- */
-function buchstabeZuIndex(buchstabe) {
-  var index = 0;
-  buchstabe = buchstabe.toUpperCase();
-  for (var i = 0; i < buchstabe.length; i++) {
-    index = index * 26 + (buchstabe.charCodeAt(i) - 64);
+function parseDatumEingabe_(eingabe) {
+  if (!eingabe) {
+    throw new Error("Bitte ein Startdatum eingeben.");
   }
-  return index;
+
+  var text = eingabe.toString().trim();
+  var heute = new Date();
+  var aktuellesJahr = heute.getFullYear();
+
+  var isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    return baueDatumSicher_(
+      parseInt(isoMatch[1], 10),
+      parseInt(isoMatch[2], 10),
+      parseInt(isoMatch[3], 10)
+    );
+  }
+
+  var deutschMatch = text.match(/^(\d{1,2})\.(\d{1,2})\.?(\d{2,4})?$/);
+  if (deutschMatch) {
+    var tag = parseInt(deutschMatch[1], 10);
+    var monat = parseInt(deutschMatch[2], 10);
+    var jahr = deutschMatch[3] ? parseInt(deutschMatch[3], 10) : aktuellesJahr;
+
+    if (jahr < 100) {
+      jahr = 2000 + jahr;
+    }
+
+    return baueDatumSicher_(jahr, monat, tag);
+  }
+
+  throw new Error("Das Datum konnte nicht erkannt werden. Nutze zum Beispiel 17.05. oder 17.05.2026.");
 }
 
-/**
- * Kopiert den gesamten Inhalt eines Arbeitsblattes in ein anderes.
- * @param {Object} config - Die Parameter aus dem lokalen Skript.
- */
-Tools.Import.KomplettKopieren = function(config) {
-  console.log("Starte KomplettKopieren für Datei: " + config.QuelldateiName);
-  var tempFileId = null; // Speichert die ID, falls wir konvertieren müssen
-  
-  try {
-    // 1. Platzhalter für HEUTE ersetzen ({{YYYYMM}})
-    if (config.QuelldateiName.indexOf("{{YYYYMM}}") !== -1) {
-      var heute = new Date();
-      var jahr = heute.getFullYear().toString();
-      var monat = ("0" + (heute.getMonth() + 1)).slice(-2);
-      config.QuelldateiName = config.QuelldateiName.replace("{{YYYYMM}}", jahr + monat);
-    }
+function baueDatumSicher_(jahr, monat, tag) {
+  var datum = new Date(jahr, monat - 1, tag);
+  datum.setHours(0, 0, 0, 0);
 
-    // 2. Quelldatei suchen
-    var searchQuery = "name = '" + config.QuelldateiName + "' and trashed = false";
-    if (config.QuellOrdnerID && config.QuellOrdnerID !== "") {
-      searchQuery = "'" + config.QuellOrdnerID + "' in parents and " + searchQuery;
-    }
-
-    var searchArgs = { q: searchQuery, supportsAllDrives: true, includeItemsFromAllDrives: true, fields: "files(id, name, mimeType)" };
-    var response = Drive.Files.list(searchArgs);
-    
-    if (!response.files || response.files.length === 0) {
-      throw new Error("Datei '" + config.QuelldateiName + "' nicht gefunden.");
-    }
-    
-    var fileId = response.files[0].id;
-    var fileName = response.files[0].name.toLowerCase();
-
-    // =========================================================
-    // NEU: AUTO-KONVERTIERUNG FÜR .XLS UND .CSV
-    // =========================================================
-    if (fileName.endsWith(".xls") || fileName.endsWith(".csv")) {
-      console.log("Altes Format (" + fileName + ") erkannt. Konvertiere temporär zu Google Sheets...");
-      
-      var tempFile = Drive.Files.copy(
-        {
-          name: "TEMP_Import_" + config.QuelldateiName,
-          mimeType: "application/vnd.google-apps.spreadsheet" // Zwingt Google zur Konvertierung
-        },
-        fileId,
-        { supportsAllDrives: true }
-      );
-      
-      fileId = tempFile.id; // Ab jetzt arbeiten wir mit der sauberen Kopie
-      tempFileId = tempFile.id; // Merken wir uns zum späteren Löschen
-    }
-    // =========================================================
-
-    // 3. Dateien und Arbeitsblätter öffnen
-    var sourceApp = SpreadsheetApp.openById(fileId);
-    var targetApp = SpreadsheetApp.openById(config.Zieldatei);
-
-    sourceApp.setSpreadsheetTimeZone(targetApp.getSpreadsheetTimeZone());
-    
-    var sourceSheet = sourceApp.getSheetByName(config.QuellArbeitsblatt);
-    var targetSheet = targetApp.getSheetByName(config.Zielarbeitsblatt);
-    
-    // Fallback: Wenn bei der Konvertierung der Blatt-Name verloren ging, nimm das erste Blatt
-    if (!sourceSheet && tempFileId) {
-      sourceSheet = sourceApp.getSheets()[0];
-      console.log("Arbeitsblatt nicht namentlich gefunden, greife auf das erste Blatt der konvertierten Datei zu.");
-    }
-    
-    if (!sourceSheet || !targetSheet) throw new Error("Quell- oder Zielarbeitsblatt nicht gefunden.");
-
-    // 4. Datenbereich ermitteln und kopieren
-    var lastRowSource = sourceSheet.getLastRow();
-    var lastColSource = sourceSheet.getLastColumn();
-    
-    if (lastRowSource === 0) {
-      SpreadsheetApp.getActiveSpreadsheet().toast("Die Quelldatei ist leer.", "Abgebrochen");
-      return;
-    }
-
-    var startZeile = config.UeberschriftMitnehmen ? 1 : 2;
-    var anzahlZeilen = lastRowSource - startZeile + 1;
-    
-    if (anzahlZeilen <= 0) {
-      SpreadsheetApp.getActiveSpreadsheet().toast("Keine Daten zum Kopieren vorhanden.", "Fertig");
-      return; 
-    }
-
-    var sourceData = sourceSheet.getRange(startZeile, 1, anzahlZeilen, lastColSource).getValues();
-
-    if (config.Modus === "Ersetzen") {
-      targetSheet.clearContents();
-      targetSheet.getRange(1, 1, sourceData.length, sourceData[0].length).setValues(sourceData);
-    } 
-    else if (config.Modus === "Anfuegen") {
-      var lastRowTarget = targetSheet.getLastRow();
-      var targetStartRow = lastRowTarget === 0 ? 1 : lastRowTarget + 1;
-      targetSheet.getRange(targetStartRow, 1, sourceData.length, sourceData[0].length).setValues(sourceData);
-    } 
-    else {
-      throw new Error("Unbekannter Modus: '" + config.Modus + "'.");
-    }
-
-    SpreadsheetApp.getActiveSpreadsheet().toast(anzahlZeilen + " Zeilen erfolgreich übertragen.", "Import abgeschlossen");
-
-  } catch (e) {
-    console.error("Fehler bei KomplettKopieren: " + e.message);
-    SpreadsheetApp.getUi().alert("Fehler beim Rohdaten-Import:\n\n" + e.message);
-  } finally {
-    // =========================================================
-    // AUFRÄUMEN: Temporäre Datei immer löschen (auch bei Fehler)
-    // =========================================================
-    if (tempFileId) {
-      try {
-        Drive.Files.update({trashed: true}, tempFileId, null, {supportsAllDrives: true});
-        console.log("Temporäre Konvertierungs-Datei in den Papierkorb verschoben.");
-      } catch (e) {
-        console.error("Konnte temporäre Datei nicht löschen: " + e.message);
-      }
-    }
-  }
-};
-
-DatePicker.html
-
-<!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        padding: 15px;
-        margin: 0;
-        background-color: #ffffff;
-        color: #333333;
-      }
-      label {
-        font-weight: bold;
-        display: block;
-        margin-bottom: 10px;
-        font-size: 14px;
-      }
-      input[type="date"] {
-        padding: 8px;
-        width: 100%;
-        box-sizing: border-box;
-        margin-bottom: 20px;
-        font-size: 14px;
-        border: 1px solid #cccccc;
-        border-radius: 4px;
-      }
-      button {
-        background-color: #1a73e8;
-        color: white;
-        border: none;
-        padding: 10px 15px;
-        width: 100%;
-        font-size: 14px;
-        cursor: pointer;
-        border-radius: 4px;
-        font-weight: bold;
-      }
-      button:hover {
-        background-color: #1557b0;
-      }
-      button:disabled {
-        background-color: #cccccc;
-        cursor: not-allowed;
-      }
-    </style>
-  </head>
-  <body>
-
-    <label for="datum">Für welchen Tag soll importiert werden?</label>
-    <input type="date" id="datum" name="datum">
-    <button id="startBtn" onclick="startImport()">Import starten</button>
-
-    <script>
-      // Setzt automatisch das heutige Datum als Startwert
-      document.getElementById('datum').valueAsDate = new Date();
-
-      function startImport() {
-        var datumInput = document.getElementById('datum').value;
-        console.log("1. Button geklickt. Ausgewähltes Datum: " + datumInput);
-
-        if (datumInput) {
-          var btn = document.getElementById('startBtn');
-          btn.disabled = true;
-          btn.innerText = "Import läuft. Bitte warten...";
-
-          console.log("2. Sende Daten an die lokale Brücken-Funktion ('importBruecke')...");
-          
-          // WICHTIG: Ruft die Brücken-Funktion im lokalen Skript auf!
-          google.script.run
-            .withSuccessHandler(function(rueckgabe) {
-              console.log("4. ERFOLG! API meldet zurück: " + rueckgabe);
-              google.script.host.close(); // Schließt das Fenster nach Erfolg
-            })
-            .withFailureHandler(function(fehler) {
-              console.error("4. FEHLER bei google.script.run:", fehler);
-              alert("Verbindungsfehler zum Skript:\n\n" + fehler.message);
-              btn.disabled = false;
-              btn.innerText = "Import starten";
-            })
-            .importBruecke(datumInput); // <--- Hier wird die Brücke gerufen
-
-        } else {
-          alert("Bitte wähle zuerst ein Datum aus.");
-        }
-      }
-    </script>
-  </body>
-</html>
-
-ArchiveModule.gs
-
-var Tools = Tools || {};
-Tools.Archiv = Tools.Archiv || {};
-
-// =========================================================
-// NEU: Archiv über den Kalender (Picker) starten
-// =========================================================
-Tools.Archiv.MitPickerSpeichern = function(config) {
-  // Wir geben der Config einen Stempel mit, damit die API später weiß, was zu tun ist
-  config.Aktion = "ARCHIV"; 
-  PropertiesService.getUserProperties().setProperty('importConfig', JSON.stringify(config));
-  
-  // Wir nutzen exakt dieselbe HTML-Datei wie beim Import!
-  var html = HtmlService.createHtmlOutputFromFile('DatePicker')
-      .setWidth(350).setHeight(250);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Datum für Archivierung wählen');
-};
-
-// =========================================================
-// Das eigentliche Speichern (mit Upsert / Abgleich)
-// =========================================================
-Tools.Archiv.DatensatzSpeichern = function(config) {
-  console.log("Starte Archivierung in Arbeitsblatt: " + config.Zielarbeitsblatt);
-  
-  try {
-    var app = SpreadsheetApp.openById(config.DateiID);
-    var zielSheet = app.getSheetByName(config.Zielarbeitsblatt);
-    if (!zielSheet) throw new Error("Zielarbeitsblatt '" + config.Zielarbeitsblatt + "' nicht gefunden.");
-
-    var letzteZeile = zielSheet.getLastRow();
-    var zielZeile = letzteZeile + 1; // Standard: Unten anhängen
-    var zeileExistiertBereits = false;
-
-    // 1. Abgleich: Prüfen, ob das Datum schon in der Zieldatum-Spalte existiert
-    if (config.ZielDatumSpalte && config.ZielDatum) {
-      var gefundeneZeile = findeZeileMitDatum(zielSheet, config.ZielDatumSpalte, config.ZielDatum);
-      if (gefundeneZeile) {
-        zielZeile = gefundeneZeile;
-        zeileExistiertBereits = true;
-        console.log("Datum gefunden in Zeile " + zielZeile + " - Datensatz wird aktualisiert.");
-      } else {
-        console.log("Datum nicht gefunden - Neuer Datensatz wird angehängt.");
-      }
-    }
-
-    var maxSpaltenIndex = 0;
-    
-    // Zuerst die maximale Breite (Spaltenanzahl) ermitteln
-    for (var i = 0; i < config.Felder.length; i++) {
-      var index = buchstabeZuIndex(config.Felder[i].ZielSpalte);
-      if (index > maxSpaltenIndex) maxSpaltenIndex = index;
-    }
-    if (config.ZielDatumSpalte) {
-      var datumIndex = buchstabeZuIndex(config.ZielDatumSpalte);
-      if (datumIndex > maxSpaltenIndex) maxSpaltenIndex = datumIndex;
-    }
-
-    var werteZumSchreiben = [];
-
-    // 2. CLEVER: Wenn die Zeile schon existiert, laden wir die alten Werte rein, 
-    // damit Lücken (z.B. manuelle Notizen in Spalte K) nicht überschrieben werden!
-    if (zeileExistiertBereits && maxSpaltenIndex > 0) {
-      werteZumSchreiben = zielSheet.getRange(zielZeile, 1, 1, maxSpaltenIndex).getValues()[0];
-    } else {
-      // Neue Zeile: Mit leeren Strings auffüllen
-      for (var k = 0; k < maxSpaltenIndex; k++) werteZumSchreiben[k] = "";
-    }
-
-    // 3. Die neuen Felder aus der Quelle in das Array einsetzen
-    for (var j = 0; j < config.Felder.length; j++) {
-      var feld = config.Felder[j];
-      var quellSheet = app.getSheetByName(feld.QuellArbeitsblatt);
-      if (!quellSheet) throw new Error("Quellblatt '" + feld.QuellArbeitsblatt + "' nicht gefunden.");
-      
-      var wert = quellSheet.getRange(feld.QuellZelle).getValue();
-      var zielSpaltenIndex = buchstabeZuIndex(feld.ZielSpalte);
-      
-      werteZumSchreiben[zielSpaltenIndex - 1] = wert;
-    }
-
-    // 4. Das Datum selbst auch in die Zeile schreiben
-    if (config.ZielDatumSpalte && config.ZielDatum) {
-      var zIndex = buchstabeZuIndex(config.ZielDatumSpalte);
-      werteZumSchreiben[zIndex - 1] = config.ZielDatum; // YYYY-MM-DD
-    }
-
-    // 5. Den Datensatz in einem Rutsch speichern
-    zielSheet.getRange(zielZeile, 1, 1, maxSpaltenIndex).setValues([werteZumSchreiben]);
-    
-    SpreadsheetApp.getActiveSpreadsheet().toast("Werte erfolgreich in '" + config.Zielarbeitsblatt + "' archiviert.", "Fertig");
-
-  } catch (e) {
-    console.error("Fehler bei Archiv.DatensatzSpeichern: " + e.message);
-    throw new Error(e.message);
-  }
-};
-
-CopyModule.gs
-
-// =========================================================
-// NEU: GEZIELTER ZELLEN-IMPORT (Scharfschützen-Modus)
-// =========================================================
-
-/**
- * Startet den Picker für den Zellen-Import
- */
-Tools.Import.MitPickerInZellenKopieren = function(config) {
-  config.Aktion = "ZELLEN_IMPORT"; 
-  PropertiesService.getUserProperties().setProperty('importConfig', JSON.stringify(config));
-  
-  var html = HtmlService.createHtmlOutputFromFile('DatePicker').setWidth(350).setHeight(250);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Datum für Zellen-Import wählen');
-};
-
-/**
- * Führt den eigentlichen Zellen-Import aus
- */
-Tools.Import.EinzelwerteInZellenKopieren = function(config) {
-  console.log("Starte Zellen-Import für Datum: " + config.SuchDatum);
-  
-  try {
-    // 1. Platzhalter für Datum im Dateinamen ersetzen
-    if (config.QuelldateiName.indexOf("{{YYYYMM}}") !== -1 && config.SuchDatum) {
-      var jahr = config.SuchDatum.substring(0, 4);
-      var monat = config.SuchDatum.substring(5, 7);
-      config.QuelldateiName = config.QuelldateiName.replace("{{YYYYMM}}", jahr + monat);
-    }
-
-    // 2. Datei suchen (Drive API V3)
-    var searchQuery = "name = '" + config.QuelldateiName + "' and trashed = false";
-    if (config.QuellOrdnerID && config.QuellOrdnerID !== "") {
-      searchQuery = "'" + config.QuellOrdnerID + "' in parents and " + searchQuery;
-    }
-
-    var searchArgs = { q: searchQuery, supportsAllDrives: true, includeItemsFromAllDrives: true, fields: "files(id, name)" };
-    var response = Drive.Files.list(searchArgs);
-
-    if (!response.files || response.files.length === 0) throw new Error("Datei '" + config.QuelldateiName + "' nicht gefunden.");
-    var fileId = response.files[0].id;
-
-    // 3. Dateien und Arbeitsblätter öffnen
-    var sourceApp = SpreadsheetApp.openById(fileId);
-    var targetApp = SpreadsheetApp.openById(config.Zieldatei);
-
-    // ZEITZONEN-FIX
-    sourceApp.setSpreadsheetTimeZone(targetApp.getSpreadsheetTimeZone());
-
-    var sourceSheet = sourceApp.getSheetByName(config.QuellArbeitsblatt);
-    var targetSheet = targetApp.getSheetByName(config.Zielarbeitsblatt);
-
-    if (!sourceSheet || !targetSheet) throw new Error("Quell- oder Zielarbeitsblatt nicht gefunden.");
-
-    // 4. Zeile anhand des Datums finden
-    var quellZeile = findeZeileMitDatum(sourceSheet, config.QuellDatumSpalte, config.SuchDatum);
-    if (!quellZeile) throw new Error("Das Datum " + config.SuchDatum + " wurde in der Quelldatei nicht gefunden.");
-
-    // 5. Werte gezielt in die definierten Zellen schießen
-    var anzahl = 0;
-    for (var quellSpalteBuchstabe in config.Mapping) {
-      var zielZelle = config.Mapping[quellSpalteBuchstabe]; // z.B. "A45"
-      var quellSpalteIndex = buchstabeZuIndex(quellSpalteBuchstabe);
-
-      var wert = sourceSheet.getRange(quellZeile, quellSpalteIndex).getValue();
-      targetSheet.getRange(zielZelle).setValue(wert);
-      anzahl++;
-    }
-
-    SpreadsheetApp.getActiveSpreadsheet().toast(anzahl + " Werte in Zielzellen übertragen.", "Zellen-Import fertig");
-
-  } catch (e) {
-    console.error("Fehler bei EinzelwerteInZellenKopieren: " + e.message);
-    throw new Error(e.message); // Wirft den Fehler zur UI
-  }
-};
-
-MonthModule.gs
-
-// =========================================================
-// NEU: BATCH MONATS IMPORT (Ganzen Monat verarbeiten)
-// =========================================================
-
-/**
- * 1. STARTKNOPF: Wird vom lokalen Sheet aufgerufen, um den Monats-Import zu starten.
- * Sie speichert die Konfiguration und öffnet den Picker.
- */
-Tools.Import.GanzenMonatMitPickerKopieren = function(config) {
-  // Kennzeichnung, damit der Router weiß, dass es der Monats-Import ist
-  config.Aktion = "MONATS_IMPORT"; 
-  PropertiesService.getUserProperties().setProperty('importConfig', JSON.stringify(config));
-  
-  // Wir nutzen denselben DatePicker
-  var html = HtmlService.createHtmlOutputFromFile('DatePicker')
-      .setWidth(350)
-      .setHeight(250);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Beliebigen Tag im gewünschten Monat wählen');
-};
-
-/**
- * 2. MOTOR: Die Haupt-Maschine für den Monats-Import. 
- * OPTIMIERT FÜR GESCHWINDIGKEIT: Arbeitet nur noch mit großen Arrays.
- */
-Tools.Import.MonatsBatchKopieren = function(config) {
-  // FEHLER BEHOBEN: Greift das Datum sicher ab, egal ob als SuchDatum oder ZielDatum übergeben
-  var meinDatum = config.SuchDatum || config.ZielDatum; 
-  
-  if (!meinDatum) {
-    throw new Error("Fehler: Kein Datum vom Kalender empfangen.");
+  if (
+    datum.getFullYear() !== jahr ||
+    datum.getMonth() !== monat - 1 ||
+    datum.getDate() !== tag
+  ) {
+    throw new Error("Das eingegebene Datum ist ungültig.");
   }
 
-  var jahrMonatGesucht = meinDatum.substring(0, 7); 
-  console.log("Starte schnellen Monats-Batch für: " + jahrMonatGesucht);
-
-  try {
-    // 1. Dateinamen bereinigen ({{YYYYMM}})
-    if (config.QuelldateiName.indexOf("{{YYYYMM}}") !== -1) {
-      var targetJahrMonat = meinDatum.substring(0, 4) + meinDatum.substring(5, 7);
-      config.QuelldateiName = config.QuelldateiName.replace("{{YYYYMM}}", targetJahrMonat);
-    }
-
-    // 2. Quelldatei suchen und öffnen (Drive API V3)
-    var searchQuery = "name = '" + config.QuelldateiName + "' and trashed = false";
-    if (config.QuellOrdnerID && config.QuellOrdnerID !== "") {
-      searchQuery = "'" + config.QuellOrdnerID + "' in parents and " + searchQuery;
-    }
-    
-    var searchArgs = { q: searchQuery, supportsAllDrives: true, includeItemsFromAllDrives: true, fields: "files(id)" };
-    var response = Drive.Files.list(searchArgs);
-    
-    if (!response.files || response.files.length === 0) throw new Error("Datei '" + config.QuelldateiName + "' nicht gefunden.");
-    
-    var sourceApp = SpreadsheetApp.openById(response.files[0].id);
-    var targetApp = SpreadsheetApp.openById(config.Zieldatei);
-    sourceApp.setSpreadsheetTimeZone(targetApp.getSpreadsheetTimeZone());
-
-    var jobsListe = config.Jobs ? config.Jobs : [config];
-    var gesamtTreffer = 0;
-    var timezone = Session.getScriptTimeZone();
-
-    // 3. Durchlaufe alle Jobs
-    for (var j = 0; j < jobsListe.length; j++) {
-      var job = jobsListe[j];
-      console.log("Verarbeite Job " + (j+1) + " von " + jobsListe.length + " (" + job.QuellArbeitsblatt + ")");
-
-      var sourceSheet = sourceApp.getSheetByName(job.QuellArbeitsblatt);
-      var targetSheet = targetApp.getSheetByName(job.Zielarbeitsblatt);
-      if (!sourceSheet || !targetSheet) throw new Error("Arbeitsblatt für Job " + (j+1) + " nicht gefunden.");
-
-      var lastRowSource = sourceSheet.getLastRow();
-      var lastRowTarget = targetSheet.getLastRow();
-      if (lastRowSource < 1 || lastRowTarget < 1) continue; 
-
-      // =========================================================
-      // GESCHWINDIGKEIT: Alles auf einmal laden!
-      // =========================================================
-      var sourceData = sourceSheet.getDataRange().getValues();
-      var sourceDisplayData = sourceSheet.getDataRange().getDisplayValues();
-      var quellDatumSpalteIndex = buchstabeZuIndex(job.QuellDatumSpalte) - 1; 
-
-      var targetRange = targetSheet.getDataRange();
-      var targetData = targetRange.getValues();
-      var targetDisplayData = targetRange.getDisplayValues();
-      var zielDatumSpalteIndex = buchstabeZuIndex(job.ZielDatumSpalte) - 1;
-
-      // Map für blitzschnelles Finden
-      var targetDatumZeilenMap = {};
-      for (var t = 0; t < targetData.length; t++) {
-        var tZellenWert = targetData[t][zielDatumSpalteIndex];
-        var tAnzeigeWert = targetDisplayData[t][zielDatumSpalteIndex].trim();
-        var tDatumString = formatiereDatumRobust(tZellenWert, tAnzeigeWert, timezone);
-        
-        if (tDatumString) {
-           targetDatumZeilenMap[tDatumString] = t; 
-        }
-      }
-
-      // 4. Jede Zeile in der Quelle im Arbeitsspeicher durchlaufen
-      for (var i = 0; i < sourceData.length; i++) {
-        var zellenWert = sourceData[i][quellDatumSpalteIndex];
-        var anzeigeWert = sourceDisplayData[i][quellDatumSpalteIndex].trim();
-        var formatiertesDatum = formatiereDatumRobust(zellenWert, anzeigeWert, timezone);
-
-        // 5. MATCH: Wenn das Datum zum gesuchten Monat gehört ("2026-03")
-        if (formatiertesDatum && formatiertesDatum.substring(0, 7) === jahrMonatGesucht) {
-          
-          if (targetDatumZeilenMap.hasOwnProperty(formatiertesDatum)) {
-            var zielIndex = targetDatumZeilenMap[formatiertesDatum];
-            
-            // Kopiere die konfigurierten Werte (im Arbeitsspeicher!)
-            for (var quellSpalteBuchstabe in job.Spalten) {
-              var qIndex = buchstabeZuIndex(quellSpalteBuchstabe) - 1;
-              var zIndex = buchstabeZuIndex(job.Spalten[quellSpalteBuchstabe]) - 1;
-              
-              targetData[zielIndex][zIndex] = sourceData[i][qIndex]; 
-            }
-            gesamtTreffer++;
-          }
-        }
-      }
-
-      // =========================================================
-      // GESCHWINDIGKEIT: Alles auf einmal zurückschreiben!
-      // =========================================================
-      targetRange.setValues(targetData);
-    }
-
-    SpreadsheetApp.getActiveSpreadsheet().toast(gesamtTreffer + " Datensätze verarbeitet.", "Monats-Import abgeschlossen");
-
-  } catch (e) {
-    console.error("Fehler im Monats-Batch: " + e.message);
-    throw new Error(e.message);
-  }
-};
-
-/**
- * HILFSFUNKTION: Macht das Datum kugelsicher (Wird vom Monats-Batch benötigt!)
- */
-function formatiereDatumRobust(zellenWert, anzeigeWert, timezone) {
-  if (zellenWert instanceof Date) {
-    return Utilities.formatDate(zellenWert, timezone, "yyyy-MM-dd");
-  } else if (anzeigeWert && anzeigeWert.length === 10 && anzeigeWert.indexOf(".") === 2) {
-    var p = anzeigeWert.split(".");
-    return p[2] + "-" + p[1] + "-" + p[0];
-  } else if (anzeigeWert && anzeigeWert.length === 10 && anzeigeWert.indexOf("-") === 4) {
-    return anzeigeWert;
-  }
-  return null;
+  return datum;
 }
 
-Das funktioniert auch echt super
+function normalisiereDatum_(datum) {
+  var d = new Date(datum);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-Das Probem ist jedoch, dass ich einen Trigger auf 10 Uhr gelegt habe der die Funktion 10 Uhr Trigger ausführt um die Vergleichswerte zu importieren
-Jedoch habe ich hier eine Fehlerrate von 100% und irgendwie funktioniert das nie, wenn ich manuell Tagesplanung 09:00 Uhr Manuell auswähle funktioniert es aber ohne Probleme
+function datumDeutsch_(datum) {
+  return Utilities.formatDate(datum, Session.getScriptTimeZone(), "dd.MM.yyyy");
+}
 
+function berechneTageInklusiv_(startDatum, endDatum) {
+  var start = normalisiereDatum_(startDatum);
+  var ende = normalisiereDatum_(endDatum);
+  var diff = ende.getTime() - start.getTime();
+
+  return Math.floor(diff / (24 * 60 * 60 * 1000)) + 1;
+}
