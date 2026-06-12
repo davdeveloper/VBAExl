@@ -1,1114 +1,1331 @@
-/**
- * Monatsimport für Plano Backup.
- * Liest mehrere Wochenplan-Blöcke aus einer Datei.
- * Schreibt testweise nach Datenbank_KO_SKILL_Test und Datenbank_Gesamt_Test.
- * Zusätzlich wird ein Debug-Reiter für die Soll-Berechnung geschrieben.
- */
-function processSelectedMonthFile(fileId) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
+  <button onclick="toggleControlPanel('admin-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
+    <div>
+      <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
+        <i class="fa-solid fa-user-shield text-lidl-blue"></i> Administration
+      </h3>
+      <p class="text-[11px] text-gray-400 mt-0.5">Import, Übermittlung, Plano-Analyse und Kapazitäten</p>
+    </div>
 
-  const koSkillSheetName = "Datenbank_KO_SKILL_Test";
-  const gesamtSheetName = "Datenbank_Gesamt_Test";
-  const errorSheetName = "Fehlende_Zuordnungen_Monatsimport";
-  const debugSheetName = "Debug_Monatsimport_Soll";
+    <div class="flex items-center gap-2 text-gray-400">
+      <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
+      <i id="admin-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
+    </div>
+  </button>
 
-  const skillMap = getMapping(ss);
-  const planoSkillsSorted = Object.keys(skillMap).sort((a, b) => b.length - a.length);
-  const nameMap = getNameMapping(ss);
-  const localTeamMap = getTeamMapping(ss);
-  const ignoreSet = getIgnoreMapping(ss);
-  const teamMap = getEmployeeTeams();
+  <div id="admin-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-4 gap-3">
+    <button onclick="openImportTypeModal()" id="btn-import-modal-open" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
+        <i class="fa-solid fa-file-import"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate">Plano Backup importieren</div>
+        <div class="text-[11px] text-gray-400 truncate">Tagesdaten oder Stundenerfassung übernehmen</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
+    </button>
 
-  const unmappedSkills = new Set();
-  const unmappedEmployees = new Set();
-  const debugRows = [];
+    <button onclick="openUebermittelnModal()" class="group relative overflow-hidden bg-white border border-emerald-100 rounded-xl p-3 hover:border-modern-green hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-50 text-modern-green flex items-center justify-center shrink-0 group-hover:bg-modern-green group-hover:text-white transition">
+        <i class="fa-solid fa-paper-plane"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate">Stundenerfassung übermitteln</div>
+        <div class="text-[11px] text-gray-400 truncate">Tag löschen, übertragen oder Monat synchronisieren</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-modern-green transition"></i>
+    </button>
 
-  const abwDbName = (skillMap["ABW"] || "ABW").toUpperCase();
+    <button onclick="openCapacityOverviewModal()" class="group relative overflow-hidden bg-white border border-yellow-100 rounded-xl p-3 hover:border-lidl-yellow hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-yellow-50 text-yellow-600 flex items-center justify-center shrink-0 group-hover:bg-lidl-yellow group-hover:text-lidl-blue transition">
+        <i class="fa-solid fa-chart-simple"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate">Kapazitätenübersicht</div>
+        <div class="text-[11px] text-gray-400 truncate">Produktivstunden und Restkapazität je Skill</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-yellow-600 transition"></i>
+    </button>
 
-  const data = readPlanoBackupFile_(fileId);
+    <a href="https://docs.google.com/spreadsheets/d/1aq-TtGaW4yzRqKng_ZLT1sNmmNVi9BqAbrdYgj5FQrg/edit?gid=986034657#gid=986034657"
+       target="_blank"
+       rel="noopener noreferrer"
+       class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gray-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
+        <i class="fa-solid fa-up-right-from-square"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-700 truncate">Plano Overview öffnen</div>
+        <div class="text-[11px] text-gray-400 truncate">Monatsübersicht und Analyse in Google Sheets</div>
+      </div>
+      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-slate-600 transition"></i>
+    </a>
+  </div>
+</div>
 
-  if (!data || data.length < 4) {
-    throw new Error("Die Datei enthält nicht genug Daten.");
+<div class="flex justify-between items-center shrink-0 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+  <div class="flex gap-2 items-center">
+    <span class="text-xs font-bold text-gray-400 uppercase mr-2">
+      <i class="fa-solid fa-arrow-down-up-across-line"></i> Sortierung:
+    </span>
+
+    <button onclick="setControlSort('plus')" id="btn-ctrl-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
+      <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
+    </button>
+    <button onclick="setControlSort('minus')" id="btn-ctrl-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+      <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
+    </button>
+    <button onclick="setControlSort('time')" id="btn-ctrl-time" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
+      <i class="fa-regular fa-clock"></i> Zeit
+    </button>
+  </div>
+
+  <div class="hidden xl:flex items-center gap-2 text-xs text-gray-400">
+    <i class="fa-solid fa-circle-info text-lidl-blue"></i>
+    <span>Sortierung wirkt auf die Schichtkarten darunter</span>
+  </div>
+</div>
+
+<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex items-start gap-4">
+  <span class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap mt-1.5">
+    <i class="fa-solid fa-list-check"></i> Tätigkeiten:
+  </span>
+  <div id="activity-filter-container" class="flex flex-wrap gap-2 items-center"></div>
+</div>
+
+<div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-bold text-sm text-slate-700 uppercase">Frühschicht</h3>
+        <span class="text-xs font-bold bg-blue-100 text-lidl-blue px-2 py-0.5 rounded" id="count-frueh">0</span>
+      </div>
+      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+        <span>Verfügbar:</span>
+        <span class="text-modern-green" id="sum-frueh">00:00 Std</span>
+      </div>
+    </div>
+    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-frueh"></div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-bold text-sm text-slate-700 uppercase">Mittelschicht</h3>
+        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" id="count-mittel">0</span>
+      </div>
+      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+        <span>Verfügbar:</span>
+        <span class="text-modern-green" id="sum-mittel">00:00 Std</span>
+      </div>
+    </div>
+    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-mittel"></div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-bold text-sm text-slate-700 uppercase">Spätschicht</h3>
+        <span class="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded" id="count-spaet">0</span>
+      </div>
+      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
+        <span>Verfügbar:</span>
+        <span class="text-modern-green" id="sum-spaet">00:00 Std</span>
+      </div>
+    </div>
+    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-spaet"></div>
+  </div>
+</div>
+
+<div id="shift-radar-widget" class="fixed bottom-6 right-6 flex flex-col items-end transition-all duration-300" style="z-index:9999;">
+  <div id="shift-radar-panel" class="hidden w-80 bg-white rounded-2xl shadow-2xl border border-blue-100 mb-4 overflow-hidden flex-col origin-bottom-right transition-all">
+    <div class="bg-gradient-to-r from-lidl-blue to-blue-800 p-4 flex justify-between items-center text-white shrink-0">
+      <div class="flex items-center gap-2 font-bold text-sm">
+        <i class="fa-solid fa-satellite-dish animate-pulse"></i> Live-Schicht-Radar
+      </div>
+      <span class="text-[10px] font-mono font-bold bg-white/20 px-2 py-0.5 rounded-full" id="radar-time">--:--</span>
+    </div>
+    <div class="p-0 max-h-72 overflow-y-auto custom-scroll bg-slate-50" id="radar-list"></div>
+  </div>
+
+  <button type="button" onclick="toggleRadar()" class="bg-lidl-blue text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl hover:bg-blue-800 hover:scale-105 transition-all flex items-center justify-center text-2xl relative cursor-pointer">
+    <i class="fa-solid fa-stopwatch"></i>
+    <span id="radar-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white hidden">0</span>
+  </button>
+</div>
+
+<div id="importTypeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 flex flex-col" id="importTypeModalContent">
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-file-import"></i> Import-Typ wählen
+      </h3>
+      <button onclick="closeImportTypeModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-4">
+      <p class="text-sm text-gray-600">Für welchen Bereich möchtest du das Plano Backup importieren?</p>
+
+      <button onclick="closeImportTypeModal(); openPlanoImportModal();" class="w-full bg-blue-50 border border-blue-200 text-lidl-blue hover:bg-lidl-blue hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
+        <i class="fa-solid fa-clock"></i> Heutiger Tag
+      </button>
+
+      <button onclick="closeImportTypeModal(); openPlanoStundenerfassungModal();" class="w-full bg-emerald-50 border border-emerald-200 text-modern-green hover:bg-modern-green hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
+        <i class="fa-solid fa-database"></i> Stundenerfassung -/ Plano Overview
+      </button>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
+      <button onclick="closeImportTypeModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<div id="planoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoModalContent">
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-file-excel"></i> Tagessteuerung Import
+      </h3>
+      <button onclick="closePlanoModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
+      <p class="text-sm text-gray-600 mb-4">Wähle die Datei für den heutigen Tag:</p>
+      <div id="plano-files-list" class="space-y-2">
+        <div class="text-center text-gray-400 py-4">
+          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
+      <button onclick="closePlanoModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<div id="planoStundenerfassungModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoStundenerfassungModalContent">
+    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-database"></i> Stundenerfassung Import
+      </h3>
+      <button onclick="closePlanoStundenerfassungModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
+      <p class="text-sm text-gray-600 mb-4">Wähle die Backup-Datei zur Übertragung in die Datenbank:</p>
+      <div id="plano-st-files-list" class="space-y-2">
+        <div class="text-center text-gray-400 py-4">
+          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
+      <button onclick="closePlanoStundenerfassungModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<div id="uebermittelnModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col" id="uebermittelnModalContent">
+    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-paper-plane"></i> Stundenerfassung übermitteln
+      </h3>
+      <button onclick="closeUebermittelnModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-5">
+      <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+        <span class="text-[10px] text-modern-green font-bold uppercase block mb-1">Aktuelle Zieldatei aus Einstellungen</span>
+        <strong id="st-filename-display" class="text-emerald-800 text-sm">Wird geladen...</strong>
+      </div>
+
+      <div class="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-xl text-xs font-bold flex items-start gap-2">
+        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-orange-500 text-lg"></i>
+        <p>WICHTIG: Übermittle die Daten immer als HEUTE für HEUTE oder GESTERN für GESTERN.</p>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Datum für die Übermittlung</label>
+        <input type="date" id="uebermitteln-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none bg-white">
+      </div>
+
+      <div class="space-y-3 pt-2">
+        <button id="btn-st-transfer" onclick="startTransfer()" class="w-full bg-modern-green text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-emerald-700 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-upload"></i> Übermittlung starten
+        </button>
+
+        <button id="btn-st-delete" onclick="startDelete()" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-red-600 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-trash-can"></i> Tag aus Stundenerfassung löschen
+        </button>
+
+        <button id="btn-st-sync" onclick="startSync()" class="w-full bg-lidl-blue text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-arrows-rotate"></i> Ganzen Monat synchronisieren
+        </button>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
+      <button onclick="closeUebermittelnModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div id="capacityOverviewModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="capacityOverviewModalContent">
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
+      <div>
+        <h3 class="text-white font-bold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-chart-simple"></i> Kapazitätenübersicht
+        </h3>
+        <p class="text-blue-100 text-xs mt-0.5">Stunden und Restkapazität aus dem aktuellen Plano Backup</p>
+      </div>
+
+      <button onclick="closeCapacityOverviewModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div id="capacity-overview-content" class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50">
+      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
+        <p class="font-medium">Kapazitäten werden berechnet...</p>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center border-t border-gray-200 shrink-0">
+      <div class="text-xs text-gray-400">
+        <i class="fa-solid fa-circle-info text-lidl-blue mr-1"></i>
+        Nicht produktive Tätigkeiten werden ausgeschlossen.
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="openCapacityOverviewModal(true)" class="px-4 py-2 rounded-lg bg-blue-50 text-lidl-blue border border-blue-100 hover:bg-blue-100 font-bold text-sm transition flex items-center gap-2">
+          <i class="fa-solid fa-arrows-rotate"></i> Aktualisieren
+        </button>
+        <button onclick="closeCapacityOverviewModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="shiftDetailsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="shiftDetailsModalContent">
+    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0 relative">
+      <div>
+        <h3 class="text-white font-bold text-lg" id="shift-modal-name">-</h3>
+        <p class="text-blue-200 text-xs" id="shift-modal-skill">-</p>
+      </div>
+      <div class="bg-white/20 px-3 py-1 rounded border border-white/30 text-white font-mono font-bold" id="shift-modal-time">--:--</div>
+      <button onclick="closeShiftDetailsModal()" class="absolute top-4 right-4 text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="p-0 overflow-y-auto flex-1 custom-scroll bg-gray-50">
+      <div id="shift-modal-timeline" class="p-6"></div>
+    </div>
+
+    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center shrink-0 border-t border-gray-200">
+      <button onclick="openEditModal(currentEmpId)" class="px-4 py-2 bg-blue-50 text-lidl-blue border border-blue-200 rounded-lg text-sm font-bold hover:bg-blue-100 transition flex items-center gap-2">
+        <i class="fa-solid fa-pen-to-square"></i> ESS Daten bearbeiten
+      </button>
+      <button onclick="closeShiftDetailsModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let capacityOverviewCache = null;
+  let capacitySkillFilter = 'Alle';
+
+  function isIgnoredDashboardActivity(activity) {
+    const a = String(activity || "").toLowerCase().trim();
+
+    return (
+      !a ||
+      a === "-" ||
+      a.includes("pause") ||
+      a.includes("break") ||
+      a.includes("systemstörung") ||
+      a.includes("systemstoerung") ||
+      a.includes("störung") ||
+      a.includes("stoerung") ||
+      a.includes("meeting") ||
+      a.includes("coaching") ||
+      a.includes("coaching lks de") ||
+      a.includes("schulung") ||
+      a.includes("schulung lks") ||
+      a.includes("paypal") ||
+      a.includes("briefdruck") ||
+      a.includes("andere tätigkeiten") ||
+      a.includes("andere taetigkeiten") ||
+      a.includes("trainer") ||
+      a.includes("quality mng") ||
+      a.includes("wissen & training") ||
+      a.includes("training") ||
+      a.includes("bot")
+    );
   }
 
-  const koHeaders = prepareKoSkillHeaders_(ss, koSkillSheetName, skillMap);
+  function getVisibleShiftDetails(emp) {
+    if (!emp || !emp.schicht || !Array.isArray(emp.schicht.details)) return [];
 
-  const records = parsePlanoMonthRecords_(data, {
-    skillMap,
-    planoSkillsSorted,
-    nameMap,
-    localTeamMap,
-    teamMap,
-    ignoreSet,
-    unmappedSkills,
-    unmappedEmployees,
-    debugRows
-  });
-
-  const recordKeys = Object.keys(records);
-
-  if (recordKeys.length === 0) {
-    throw new Error("Es wurden keine verwertbaren Monatsdaten gefunden. Prüfe, ob die Datei wirklich Monatsblöcke mit 'Wochenplan KW xx / Jahr' enthält.");
+    return emp.schicht.details.filter(detail => {
+      return !isIgnoredDashboardActivity(detail.activity);
+    });
   }
 
-  const koRows = buildKoSkillRows_(records, koHeaders, abwDbName);
-  writeRowsToSheet_(ss, koSkillSheetName, koHeaders, koRows);
+  function getVisibleShiftActivities(emp) {
+    if (!emp || !emp.schicht) return [];
 
-  const gesamtHeaders = getExistingHeadersOrCreateGesamtHeaders_(ss, gesamtSheetName, koHeaders);
+    const fromActivities = Array.isArray(emp.schicht.activities)
+      ? emp.schicht.activities
+      : [];
 
-  const teamRows = buildGesamtTeamRows_(records, gesamtHeaders, abwDbName);
-  writeRowsToExistingHeaderSheet_(ss, gesamtSheetName, gesamtHeaders, teamRows);
+    let visible = fromActivities.filter(activity => !isIgnoredDashboardActivity(activity));
 
-  writeMonthImportErrors_(ss, errorSheetName, unmappedEmployees, unmappedSkills);
-  writeMonthSollDebug_(ss, debugSheetName, debugRows);
+    if (visible.length === 0) {
+      visible = getVisibleShiftDetails(emp)
+        .map(detail => detail.activity)
+        .filter(activity => activity && !isIgnoredDashboardActivity(activity));
+    }
 
-  const foundDates = new Set();
-  recordKeys.forEach(key => foundDates.add(records[key].date));
+    return [...new Set(visible)];
+  }
 
-  const foundWeeks = new Set();
-  recordKeys.forEach(key => foundWeeks.add(records[key].kw));
+  function toggleControlPanel(panelId) {
+    const body = document.getElementById(panelId + '-body');
+    const icon = document.getElementById(panelId + '-icon');
 
-  return `Monatsimport abgeschlossen.
-${koRows.length} Mitarbeiter-Tagesdatensätze nach '${koSkillSheetName}' geschrieben.
-${teamRows.length} Team-Tagesdatensätze nach '${gesamtSheetName}' geschrieben.
-Debug-Reiter '${debugSheetName}' wurde aktualisiert.
-Gefundene Tage: ${foundDates.size}
-Gefundene Kalenderwochen: ${Array.from(foundWeeks).filter(Boolean).join(", ")}
-Fehlende Team-Zuordnungen: ${unmappedEmployees.size}
-Fehlende Tätigkeiten: ${unmappedSkills.size}`;
-}
+    if (!body) return;
 
-/**
- * Liest Google Sheet, Excel oder CSV wie im bestehenden Tagesimport.
- */
-function readPlanoBackupFile_(fileId) {
-  const file = DriveApp.getFileById(fileId);
-  const mimeType = file.getMimeType();
+    body.classList.toggle('hidden');
 
-  let data = [];
+    if (icon) {
+      icon.classList.toggle('rotate-180');
+    }
+  }
 
-  try {
-    if (mimeType === MimeType.GOOGLE_SHEETS) {
-      data = SpreadsheetApp.openById(fileId).getSheets()[0].getDataRange().getValues();
-    } else {
-      const blob = file.getBlob();
-      const textData = blob.getDataAsString("UTF-8");
+  function openImportTypeModal() {
+    openModalById('importTypeModal', 'importTypeModalContent');
+  }
 
-      if (textData.includes("PK\x03\x04")) {
-        try {
-          const resource = {
-            name: "Temp_" + file.getName(),
-            mimeType: MimeType.GOOGLE_SHEETS
-          };
+  function closeImportTypeModal() {
+    closeModalById('importTypeModal', 'importTypeModalContent');
+  }
 
-          let tempFile;
+  function openPlanoStundenerfassungModal() {
+    const list = document.getElementById('plano-st-files-list');
 
-          if (typeof Drive !== "undefined") {
-            tempFile = Drive.Files.create(resource, blob, { supportsAllDrives: true });
+    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
 
-            const tempDoc = SpreadsheetApp.openById(tempFile.id);
-            data = tempDoc.getSheets()[0].getDataRange().getValues();
+    openModalById('planoStundenerfassungModal', 'planoStundenerfassungModalContent');
 
-            Drive.Files.remove(tempFile.id);
-          } else {
-            throw new Error("Drive API nicht aktiviert.");
-          }
-        } catch (convertErr) {
-          throw new Error("Fehler bei der Excel-Konvertierung! Detail: " + convertErr.message);
+    google.script.run
+      .withSuccessHandler(files => {
+        list.innerHTML = '';
+
+        if (!files || files.length === 0) {
+          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
+          return;
         }
-      } else {
-        if (textData.includes(";") && textData.split(";").length > textData.split(",").length) {
-          data = Utilities.parseCsv(textData, ";");
+
+        files.forEach(f => {
+          const d = new Date(f.dateCreated);
+          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+          list.innerHTML += `
+            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-200 transition group">
+              <div>
+                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                  <i class="fa-solid fa-database text-modern-green"></i> ${escapeHtml(f.name)}
+                </div>
+                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
+              </div>
+              <button onclick="runPlanoStundenerfassungImport('${f.id}', this)" class="bg-white border border-gray-300 text-modern-green px-3 py-1.5 rounded text-xs font-bold hover:bg-modern-green hover:text-white transition shadow-sm">
+                Datenbank Import
+              </button>
+            </div>`;
+        });
+      })
+      .withFailureHandler(err => {
+        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message || err}</div>`;
+      })
+      .getPlanoFilesList();
+  }
+
+  function closePlanoStundenerfassungModal() {
+    closeModalById('planoStundenerfassungModal', 'planoStundenerfassungModalContent');
+  }
+
+  function runPlanoStundenerfassungImport(fileId, btnEl) {
+    const oldContent = btnEl.innerHTML;
+
+    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importiere...';
+    btnEl.disabled = true;
+    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
+
+    const allBtns = document.getElementById('plano-st-files-list').querySelectorAll('button');
+    allBtns.forEach(b => b.disabled = true);
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        closePlanoStundenerfassungModal();
+        alert(response);
+      })
+      .withFailureHandler(function(error) {
+        btnEl.innerHTML = oldContent;
+        btnEl.disabled = false;
+        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
+        allBtns.forEach(b => b.disabled = false);
+        alert("Kritischer Fehler: " + (error.message || error));
+      })
+      .libProcessSelectedFile(fileId);
+  }
+
+  function openUebermittelnModal() {
+    openModalById('uebermittelnModal', 'uebermittelnModalContent');
+
+    document.getElementById('st-filename-display').innerText = "Lade Dateinamen aus Einstellungen...";
+
+    google.script.run
+      .withSuccessHandler(name => {
+        document.getElementById('st-filename-display').innerText = name;
+      })
+      .withFailureHandler(() => {
+        document.getElementById('st-filename-display').innerText = "Fehler beim Laden";
+      })
+      .libGetStundenerfassungFileName();
+  }
+
+  function closeUebermittelnModal() {
+    closeModalById('uebermittelnModal', 'uebermittelnModalContent');
+  }
+
+  function toggleUebermittelnButtons(disabled) {
+    ['btn-st-transfer', 'btn-st-delete', 'btn-st-sync', 'uebermitteln-date'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = disabled;
+    });
+  }
+
+  function startTransfer() {
+    const dateVal = document.getElementById('uebermitteln-date').value;
+
+    if (!dateVal) {
+      alert("Bitte wähle ein Datum aus.");
+      return;
+    }
+
+    toggleUebermittelnButtons(true);
+
+    const btn = document.getElementById('btn-st-transfer');
+    const oldHtml = btn.innerHTML;
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Übermittlung läuft...';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        alert("Erfolgreich! " + res);
+        btn.innerHTML = oldHtml;
+        toggleUebermittelnButtons(false);
+        closeUebermittelnModal();
+      })
+      .withFailureHandler(err => {
+        alert("FEHLER: " + (err.message || err));
+        btn.innerHTML = oldHtml;
+        toggleUebermittelnButtons(false);
+      })
+      .libProcessStundenerfassung(dateVal);
+  }
+
+  function startDelete() {
+    const dateVal = document.getElementById('uebermitteln-date').value;
+
+    if (!dateVal) {
+      alert("Bitte wähle ein Datum aus.");
+      return;
+    }
+
+    if (!confirm("Möchtest du wirklich alle eingetragenen Zeiten für dieses Datum in der Stundenerfassung löschen?")) {
+      return;
+    }
+
+    toggleUebermittelnButtons(true);
+
+    const btn = document.getElementById('btn-st-delete');
+    const oldHtml = btn.innerHTML;
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lösche Daten...';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        alert("Gelöscht! " + res);
+        btn.innerHTML = oldHtml;
+        toggleUebermittelnButtons(false);
+        closeUebermittelnModal();
+      })
+      .withFailureHandler(err => {
+        alert("FEHLER: " + (err.message || err));
+        btn.innerHTML = oldHtml;
+        toggleUebermittelnButtons(false);
+      })
+      .libDeleteStundenerfassung(dateVal);
+  }
+
+  function startSync() {
+    const dateVal = document.getElementById('uebermitteln-date').value;
+
+    if (!dateVal) {
+      alert("Bitte wähle irgendein Datum aus dem Monat.");
+      return;
+    }
+
+    toggleUebermittelnButtons(true);
+
+    const btn = document.getElementById('btn-st-sync');
+    const oldHtml = btn.innerHTML;
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Synchronisiere...';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        alert("Erfolgreich! " + res);
+        btn.innerHTML = oldHtml;
+        toggleUebermittelnButtons(false);
+        closeUebermittelnModal();
+      })
+      .withFailureHandler(err => {
+        alert("FEHLER: " + (err.message || err));
+        btn.innerHTML = oldHtml;
+        toggleUebermittelnButtons(false);
+      })
+      .libSyncStundenerfassung(dateVal);
+  }
+
+  function openPlanoImportModal() {
+    const list = document.getElementById('plano-files-list');
+
+    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
+
+    openModalById('planoModal', 'planoModalContent');
+
+    google.script.run
+      .withSuccessHandler(files => {
+        list.innerHTML = '';
+
+        if (!files || files.length === 0) {
+          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
+          return;
+        }
+
+        files.forEach(f => {
+          const d = new Date(f.dateCreated);
+          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+          list.innerHTML += `
+            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition group">
+              <div>
+                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                  <i class="fa-solid fa-file-excel text-green-600"></i> ${escapeHtml(f.name)}
+                </div>
+                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
+              </div>
+              <button onclick="runPlanoImport('${f.id}', this)" class="bg-white border border-gray-300 text-lidl-blue px-3 py-1.5 rounded text-xs font-bold hover:bg-lidl-blue hover:text-white transition shadow-sm">
+                Importieren
+              </button>
+            </div>`;
+        });
+      })
+      .withFailureHandler(err => {
+        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message || err}</div>`;
+      })
+      .getPlanoFilesList();
+  }
+
+  function closePlanoModal() {
+    closeModalById('planoModal', 'planoModalContent');
+  }
+
+  function runPlanoImport(fileId, btnEl) {
+    const oldContent = btnEl.innerHTML;
+
+    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lade...';
+    btnEl.disabled = true;
+    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
+
+    const allBtns = document.getElementById('plano-files-list').querySelectorAll('button');
+
+    allBtns.forEach(b => b.disabled = true);
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        closePlanoModal();
+
+        if (response.success) {
+          alert("Import erfolgreich! " + response.count + " Schichten importiert.\nDie Seite wird nun aktualisiert.");
+
+          const loader = document.getElementById('loader');
+          if (loader) loader.classList.remove('hidden');
+
+          google.script.run
+            .withSuccessHandler(onDataLoaded)
+            .withFailureHandler(onDataError)
+            .getData();
         } else {
-          data = Utilities.parseCsv(textData);
+          alert("Import fehlgeschlagen: " + response.message);
+        }
+      })
+      .withFailureHandler(function(error) {
+        btnEl.innerHTML = oldContent;
+        btnEl.disabled = false;
+        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
+
+        allBtns.forEach(b => b.disabled = false);
+
+        alert("Kritischer Fehler: " + (error.message || error));
+      })
+      .importSelectedPlano(fileId);
+  }
+
+  function renderControl(data) {
+    const listFrueh = document.getElementById('list-frueh');
+    const listMittel = document.getElementById('list-mittel');
+    const listSpaet = document.getElementById('list-spaet');
+
+    if (!listFrueh || !listMittel || !listSpaet) return;
+
+    let allActivities = new Set();
+
+    const sorted = [...data].sort((a, b) => {
+      if (activeControlSort === 'plus') return b.stundenSaldo - a.stundenSaldo;
+      if (activeControlSort === 'minus') return a.stundenSaldo - b.stundenSaldo;
+
+      if (activeControlSort === 'time') {
+        const timeA = parseStartTimeMinutes(getRelevantTimeStr(a, activeActivityFilter));
+        const timeB = parseStartTimeMinutes(getRelevantTimeStr(b, activeActivityFilter));
+
+        return timeA - timeB;
+      }
+
+      return 0;
+    });
+
+    sorted.forEach(e => {
+      const visibleActivities = getVisibleShiftActivities(e);
+
+      if (visibleActivities.length > 0) {
+        visibleActivities.forEach(act => allActivities.add(act));
+      }
+    });
+
+    buildActivityFilters(Array.from(allActivities).sort());
+
+    listFrueh.innerHTML = '';
+    listMittel.innerHTML = '';
+    listSpaet.innerHTML = '';
+
+    let cF = 0;
+    let cM = 0;
+    let cS = 0;
+
+    let sF = 0;
+    let sM = 0;
+    let sS = 0;
+
+    sorted.forEach(e => {
+      if (e.schicht && e.schicht.type) {
+        const visibleActivities = getVisibleShiftActivities(e);
+
+        let showItem = true;
+
+        if (activeActivityFilter !== 'Alle') {
+          if (!visibleActivities.includes(activeActivityFilter)) {
+            showItem = false;
+          }
+        }
+
+        if (showItem) {
+          const col = getBalanceColor(e.stundenSaldo);
+
+          let actHtml = "";
+
+          if (visibleActivities.length > 0) {
+            const actsStr = visibleActivities.join(' • ');
+            actHtml = `<div class="text-[9px] text-gray-400 mt-1 truncate" title="${escapeHtml(actsStr)}"><i class="fa-solid fa-briefcase mr-1"></i>${escapeHtml(actsStr)}</div>`;
+          }
+
+          const displayTime = getRelevantTimeStr(e, activeActivityFilter);
+
+          let timeClass = "text-lidl-blue bg-blue-50 border border-blue-100";
+
+          if (activeActivityFilter !== 'Alle' && displayTime !== e.schicht.time) {
+            timeClass = "text-white bg-lidl-blue shadow-sm border-transparent";
+          }
+
+          const item = `
+            <div onclick="openShiftDetailsModal(${e.id})" class="p-3 border border-gray-100 rounded-xl bg-white hover:border-blue-300 hover:shadow-md cursor-pointer flex flex-col gap-1 text-sm transition-all group">
+              <div class="flex justify-between items-start">
+                <div class="overflow-hidden pr-2">
+                  <div class="font-bold text-slate-700 truncate">${escapeHtml(e.fullName)}</div>
+                  <div class="flex items-center text-[10px] text-gray-500 mt-0.5">
+                    <span class="truncate max-w-[80px]" title="${escapeHtml(e.skill)}">${escapeHtml(e.skill)}</span>
+                    <span class="mx-1 text-gray-300">|</span>
+                    <span class="font-mono font-bold ${col}">${decimalToTime(e.stundenSaldo)}</span>
+                  </div>
+                </div>
+                <div class="text-right flex flex-col items-end shrink-0">
+                  <div class="font-mono text-[10px] font-bold px-2 py-0.5 rounded ${timeClass} whitespace-nowrap">${escapeHtml(displayTime)}</div>
+                </div>
+              </div>
+              ${actHtml}
+            </div>`;
+
+          const saldoVal = parseFloat(e.stundenSaldo) || 0;
+
+          if (e.schicht.type === "Früh") {
+            listFrueh.innerHTML += item;
+            cF++;
+            if (saldoVal > 0) sF += saldoVal;
+          } else if (e.schicht.type === "Mittel") {
+            listMittel.innerHTML += item;
+            cM++;
+            if (saldoVal > 0) sM += saldoVal;
+          } else if (e.schicht.type === "Spät") {
+            listSpaet.innerHTML += item;
+            cS++;
+            if (saldoVal > 0) sS += saldoVal;
+          }
         }
       }
-    }
-  } catch (e) {
-    throw new Error("Fehler beim Lesen der Datei: " + e.message);
+    });
+
+    document.getElementById('count-frueh').innerText = cF;
+    document.getElementById('sum-frueh').innerText = "+" + decimalToTime(sF) + " Std";
+
+    document.getElementById('count-mittel').innerText = cM;
+    document.getElementById('sum-mittel').innerText = "+" + decimalToTime(sM) + " Std";
+
+    document.getElementById('count-spaet').innerText = cS;
+    document.getElementById('sum-spaet').innerText = "+" + decimalToTime(sS) + " Std";
   }
 
-  return data;
-}
+  function getRelevantTimeStr(emp, filter) {
+    if (!emp || !emp.schicht) return "";
 
-/**
- * Erstellt die Zielspalten analog zum bestehenden KO_SKILL Aufbau.
- */
-function prepareKoSkillHeaders_(ss, sheetName, skillMap) {
-  let sheet = ss.getSheetByName(sheetName);
+    const visibleDetails = getVisibleShiftDetails(emp);
 
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    sheet.appendRow(["Datum", "KW", "Mitarbeitername"]);
-    sheet.getRange("A1:C1").setFontWeight("bold");
-  }
-
-  const lastCol = Math.max(sheet.getLastColumn(), 3);
-  let headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-
-  const requiredHeaders = [...new Set(Object.values(skillMap))];
-
-  ["Differenz", "Team", "Schicht", "Soll", "Ist", "Ausgleichstag"].forEach(headerName => {
-    if (!requiredHeaders.some(x => String(x).trim().toUpperCase() === headerName.toUpperCase())) {
-      requiredHeaders.push(headerName);
-    }
-  });
-
-  requiredHeaders.forEach(headerName => {
-    const exists = headers.some(h => String(h).trim().toUpperCase() === String(headerName).trim().toUpperCase());
-
-    if (!exists) {
-      headers.push(headerName);
-      sheet.getRange(1, headers.length).setValue(headerName);
-      sheet.getRange(1, headers.length).setFontWeight("bold");
-    }
-  });
-
-  return headers;
-}
-
-/**
- * Erkennt alle Wochenplan-Blöcke untereinander.
- */
-function parsePlanoMonthRecords_(data, ctx) {
-  const records = {};
-
-  let r = 0;
-
-  while (r < data.length) {
-    const rowStr = data[r].join(" ");
-
-    if (!rowStr.includes("Wochenplan KW")) {
-      r++;
-      continue;
+    if (filter === 'Alle' || visibleDetails.length === 0) {
+      return emp.schicht.time || "";
     }
 
-    const titleStr = rowStr;
+    const matches = visibleDetails.filter(d => d.activity === filter);
 
-    const kwMatch = titleStr.match(/KW\s+(\d+)/i);
-    const yearMatch = titleStr.match(/\/\s*(\d{4})/);
+    if (matches.length > 0) {
+      if (matches.length === 1) {
+        return matches[0].time;
+      }
 
-    const kw = kwMatch ? kwMatch[1] : "";
-    const year = yearMatch ? yearMatch[1] : new Date().getFullYear().toString();
+      let minStart = null;
+      let maxEnd = null;
+      let minStartMins = 99999;
+      let maxEndMins = -1;
 
-    const nextBlockRow = findNextPlanoBlockRow_(data, r + 1);
-    const blockEndRow = nextBlockRow === -1 ? data.length : nextBlockRow;
+      matches.forEach(m => {
+        const tMatch = String(m.time || '').match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
 
-    const headerRowIndex = findHeaderRowInBlock_(data, r + 1, blockEndRow);
+        if (tMatch) {
+          const sStr = tMatch[1];
+          const eStr = tMatch[2];
 
-    if (headerRowIndex === -1) {
-      r = blockEndRow;
-      continue;
-    }
+          const sMins = parseInt(sStr.split(':')[0], 10) * 60 + parseInt(sStr.split(':')[1], 10);
+          let eMins = parseInt(eStr.split(':')[0], 10) * 60 + parseInt(eStr.split(':')[1], 10);
 
-    parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year, records, ctx);
+          if (eMins <= sMins) {
+            eMins += 24 * 60;
+          }
 
-    r = blockEndRow;
-  }
+          if (sMins < minStartMins) {
+            minStartMins = sMins;
+            minStart = sStr;
+          }
 
-  return records;
-}
-
-/**
- * Findet den nächsten Wochenplan-Block.
- */
-function findNextPlanoBlockRow_(data, startRow) {
-  for (let i = startRow; i < data.length; i++) {
-    const rowStr = data[i].join(" ");
-
-    if (rowStr.includes("Wochenplan KW")) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-/**
- * Findet die Kopfzeile innerhalb eines Blocks.
- */
-function findHeaderRowInBlock_(data, startRow, endRow) {
-  for (let i = startRow; i < Math.min(endRow, startRow + 20); i++) {
-    const rowStr = data[i].join(" ");
-    const firstCell = String(data[i][0]).trim();
-
-    const hasNameHeader = firstCell === "Name" || rowStr.includes("Name");
-    const hasDate = rowStr.match(/\d{1,2}\.\d{1,2}\./);
-
-    if (hasNameHeader && hasDate) {
-      return i;
-    }
-
-    if (
-      rowStr.includes("Montag,") ||
-      rowStr.includes("Dienstag,") ||
-      rowStr.includes("Mittwoch,") ||
-      rowStr.includes("Donnerstag,") ||
-      rowStr.includes("Freitag,") ||
-      rowStr.includes("Samstag,") ||
-      rowStr.includes("Sonntag,")
-    ) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-/**
- * Wertet einen Wochenplan-Block aus.
- */
-function parsePlanoBlockIntoRecords_(data, headerRowIndex, blockEndRow, kw, year, records, ctx) {
-  const headerRow = data[headerRowIndex];
-  const dateColumns = [];
-
-  let differenzColIndex = headerRow.findIndex(h => String(h).trim() === "Differenz");
-  if (differenzColIndex === -1) differenzColIndex = 10;
-
-  let isthColIndex = headerRow.findIndex(h => String(h).trim() === "Isth");
-  if (isthColIndex === -1) isthColIndex = 12;
-
-  let vertragColIndex = headerRow.findIndex(h => String(h).trim() === "Vertrag h");
-  if (vertragColIndex === -1) vertragColIndex = 14;
-
-  for (let c = 0; c < headerRow.length; c++) {
-    const dateInfo = extractDateFromHeaderCell_(headerRow[c], year);
-
-    if (dateInfo) {
-      dateColumns.push({
-        colIndex: c,
-        date: dateInfo.dateStr,
-        dayOfWeek: dateInfo.dayOfWeek,
-        isSaturday: dateInfo.isSaturday,
-        isSunday: dateInfo.isSunday,
-        isWeekend: dateInfo.isWeekend
+          if (eMins > maxEndMins) {
+            maxEndMins = eMins;
+            maxEnd = eStr;
+          }
+        }
       });
+
+      if (minStart && maxEnd) {
+        return `${minStart}-${maxEnd}`;
+      }
+
+      return matches.map(m => m.time).join(', ');
+    }
+
+    return emp.schicht.time || "";
+  }
+
+  function parseStartTimeMinutes(timeStr) {
+    if (!timeStr) return 9999;
+
+    const match = String(timeStr).match(/(\d{2}):(\d{2})/);
+
+    if (match) {
+      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    }
+
+    return 9999;
+  }
+
+  function buildActivityFilters(activities) {
+    const container = document.getElementById('activity-filter-container');
+
+    if (!container) return;
+
+    const cleanActivities = (activities || [])
+      .filter(act => act && !isIgnoredDashboardActivity(act))
+      .filter((act, index, arr) => arr.indexOf(act) === index);
+
+    container.innerHTML = '';
+
+    const btnAll = document.createElement('button');
+
+    btnAll.innerText = 'Alle anzeigen';
+    btnAll.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === 'Alle' ? 'active' : 'default'}`;
+    btnAll.onclick = () => {
+      activeActivityFilter = 'Alle';
+      applyFilters();
+    };
+
+    container.appendChild(btnAll);
+
+    cleanActivities.forEach(act => {
+      const btn = document.createElement('button');
+
+      btn.innerText = act;
+      btn.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === act ? 'active' : 'default'}`;
+      btn.onclick = () => {
+        activeActivityFilter = act;
+        applyFilters();
+      };
+
+      container.appendChild(btn);
+    });
+
+    if (activeActivityFilter !== 'Alle' && !cleanActivities.includes(activeActivityFilter)) {
+      activeActivityFilter = 'Alle';
     }
   }
 
-  if (dateColumns.length === 0) {
-    return;
+  function openShiftDetailsModal(id) {
+    const emp = allData.find(d => d.id == id);
+
+    if (!emp || !emp.schicht) return;
+
+    currentEmpId = id;
+
+    document.getElementById('shift-modal-name').innerText = emp.fullName;
+    document.getElementById('shift-modal-skill').innerText = `${emp.skill || '-'} | ${emp.tmaVorname || '-'}`;
+    document.getElementById('shift-modal-time').innerText = emp.schicht.time || '--:--';
+
+    const timelineContainer = document.getElementById('shift-modal-timeline');
+
+    if (!timelineContainer) return;
+
+    let html = '';
+
+    const details = getVisibleShiftDetails(emp);
+
+    if (details.length === 0) {
+      html = `
+        <div class="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-400">
+          <i class="fa-regular fa-clock text-3xl mb-3"></i>
+          <p class="font-bold text-slate-600">Keine produktiven Tätigkeitsdetails vorhanden</p>
+          <p class="text-xs mt-1">Schichtzeit: ${escapeHtml(emp.schicht.time || '-')}</p>
+        </div>
+      `;
+    } else {
+      html = '<div class="space-y-3">';
+
+      details.forEach(item => {
+        html += `
+          <div class="bg-white border border-blue-100 rounded-xl p-3 shadow-sm flex gap-3 items-start hover:border-lidl-blue transition">
+            <div class="w-24 shrink-0 font-mono text-xs font-bold text-lidl-blue bg-blue-50 rounded-lg px-2 py-1 text-center">
+              ${escapeHtml(item.time || '-')}
+            </div>
+            <div class="flex-1">
+              <div class="font-bold text-sm text-slate-700">${escapeHtml(item.activity || '-')}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+    }
+
+    timelineContainer.innerHTML = html;
+
+    openModalById('shiftDetailsModal', 'shiftDetailsModalContent');
   }
 
-  const startRow = headerRowIndex + 2;
+  function closeShiftDetailsModal() {
+    closeModalById('shiftDetailsModal', 'shiftDetailsModalContent');
+  }
 
-  for (let r = startRow; r < blockEndRow; r++) {
-    const nameCell = String(data[r][0]);
+  function toggleRadar() {
+    const panel = document.getElementById('shift-radar-panel');
 
-    if (!nameCell.includes("Lidl Kundenservice DE")) {
-      continue;
+    if (!panel) return;
+
+    isRadarOpen = !isRadarOpen;
+
+    if (isRadarOpen) {
+      panel.classList.remove('hidden');
+      panel.classList.add('flex');
+      updateRadar();
+    } else {
+      panel.classList.add('hidden');
+      panel.classList.remove('flex');
+    }
+  }
+
+  function updateRadar() {
+    const list = document.getElementById('radar-list');
+    const badge = document.getElementById('radar-badge');
+    const time = document.getElementById('radar-time');
+
+    if (time) {
+      time.innerText = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     }
 
-    const planoCleanName = normalizeStr(nameCell.split("\n")[0]);
+    if (!list || !badge || !allData) return;
 
-    if (ctx.ignoreSet.has(planoCleanName)) {
-      continue;
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+
+    const upcoming = [];
+
+    allData.forEach(emp => {
+      const visibleDetails = getVisibleShiftDetails(emp);
+
+      visibleDetails.forEach(detail => {
+        const match = String(detail.time || '').match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+
+        if (!match) return;
+
+        const start = Number(match[1]) * 60 + Number(match[2]);
+        const diff = start - nowMins;
+
+        if (diff >= -5 && diff <= 30) {
+          upcoming.push({
+            id: emp.id,
+            name: emp.fullName,
+            time: detail.time,
+            activity: detail.activity,
+            diff: diff
+          });
+        }
+      });
+    });
+
+    upcoming.sort((a, b) => a.diff - b.diff);
+
+    badge.innerText = upcoming.length;
+    badge.classList.toggle('hidden', upcoming.length === 0);
+
+    if (upcoming.length === 0) {
+      list.innerHTML = '<div class="p-5 text-center text-xs text-gray-400">Keine produktiven Wechsel in den nächsten 30 Minuten.</div>';
+      return;
     }
 
-    const mappedName = ctx.nameMap[planoCleanName] || planoCleanName;
-    const assignedTeam = ctx.localTeamMap[mappedName] || ctx.localTeamMap[planoCleanName] || ctx.teamMap[mappedName];
+    list.innerHTML = '';
 
-    if (!assignedTeam) {
-      ctx.unmappedEmployees.add(planoCleanName);
+    upcoming.forEach(item => {
+      const diffText = item.diff < 0
+        ? `seit ${Math.abs(item.diff)} Min.`
+        : `in ${item.diff} Min.`;
+
+      list.innerHTML += `
+        <button type="button" onclick="openShiftDetailsModal(${item.id})" class="w-full text-left p-3 border-b border-gray-100 bg-white hover:bg-blue-50 transition cursor-pointer">
+          <div class="flex justify-between items-center gap-2">
+            <div class="font-bold text-sm text-slate-700 truncate">${escapeHtml(item.name)}</div>
+            <div class="font-mono text-xs font-bold text-lidl-blue shrink-0">${escapeHtml(item.time)}</div>
+          </div>
+          <div class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(item.activity)}</div>
+          <div class="text-[10px] font-bold text-gray-400 mt-1">${escapeHtml(diffText)}</div>
+        </button>
+      `;
+    });
+  }
+
+  function openCapacityOverviewModal(forceRefresh) {
+    const content = document.getElementById('capacity-overview-content');
+
+    openModalById('capacityOverviewModal', 'capacityOverviewModalContent');
+
+    if (!content) return;
+
+    content.innerHTML = `
+      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
+        <p class="font-medium">Kapazitäten werden berechnet...</p>
+        <p class="text-xs mt-1">Basis: aktuelles Schichtmodell aus dem Plano Backup</p>
+      </div>
+    `;
+
+    capacitySkillFilter = 'Alle';
+
+    google.script.run
+      .withSuccessHandler(data => {
+        capacityOverviewCache = data;
+        renderCapacityOverview(data);
+      })
+      .withFailureHandler(err => {
+        content.innerHTML = `
+          <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 text-center">
+            <i class="fa-solid fa-triangle-exclamation text-3xl mb-3"></i>
+            <h4 class="font-bold text-lg">Fehler beim Laden</h4>
+            <p class="text-sm mt-2">${err.message || err}</p>
+          </div>
+        `;
+      })
+      .getCapacityOverviewData();
+  }
+
+  function closeCapacityOverviewModal() {
+    closeModalById('capacityOverviewModal', 'capacityOverviewModalContent');
+  }
+
+  function setCapacitySkillFilter(encodedSkill) {
+    capacitySkillFilter = decodeURIComponent(encodedSkill || 'Alle');
+
+    if (capacityOverviewCache) {
+      renderCapacityOverview(capacityOverviewCache);
+    }
+  }
+
+  function renderCapacityOverview(data) {
+    const content = document.getElementById('capacity-overview-content');
+
+    if (!content) return;
+
+    if (!data || !data.success) {
+      content.innerHTML = '<div class="text-center text-gray-400 py-10">Keine Daten gefunden.</div>';
+      return;
     }
 
-    const rawDifferenzVal = data[r][differenzColIndex];
-    const rawIsthVal = data[r][isthColIndex];
-    const rawVertragVal = data[r][vertragColIndex];
-
-    const differenzVal = parsePlanoHoursValue_(rawDifferenzVal);
-    const weeklyIstVal = parsePlanoHoursValue_(rawIsthVal);
-    const weeklyVertragVal = parsePlanoHoursValue_(rawVertragVal);
-
-    const dayInfos = buildEmployeeDayInfos_(
-      data,
-      r,
-      blockEndRow,
-      dateColumns,
-      weeklyIstVal,
-      weeklyVertragVal
+    let allAreas = (data.areas || []).filter(a =>
+      a.area &&
+      String(a.area).trim() !== '' &&
+      String(a.area).toLowerCase() !== 'ohne skill'
     );
 
-    for (const info of dayInfos) {
-      const recKey = `${info.date}|${kw}|${mappedName}`;
+    const skills = allAreas.map(a => a.area);
 
-      if (!records[recKey]) {
-        records[recKey] = {
-          date: info.date,
-          kw: kw,
-          name: mappedName,
-          skills: {},
-          differenz: differenzVal,
-          soll: 0,
-          ist: 0,
-          isAnw: false,
-          schicht: info.dayCell,
-          team: assignedTeam || "Unbekannt"
-        };
-      }
+    let areas = allAreas;
 
-      const rec = records[recKey];
-
-      if (info.isUrlaub || info.isAbw || info.isUeberstunden || info.isWunschfrei || info.isAusgleichstag) {
-        let matchedPlanoSkill = "ABW";
-
-        if (info.isUrlaub) matchedPlanoSkill = "Urlaub";
-        if (info.isUeberstunden) matchedPlanoSkill = "Überstundenfrei";
-        if (info.isWunschfrei) matchedPlanoSkill = "Wunschfrei";
-        if (info.isAusgleichstag) matchedPlanoSkill = "Ausgleichstag";
-
-        const dbSkill = ctx.skillMap[matchedPlanoSkill] || matchedPlanoSkill;
-
-        if (!ctx.skillMap[matchedPlanoSkill] && !info.isAusgleichstag) {
-          ctx.unmappedSkills.add(matchedPlanoSkill);
-        }
-
-        const absenceHours = roundToTwoDecimals_(info.dailyContractMinutes / 60);
-
-        rec.skills[dbSkill] = (rec.skills[dbSkill] || 0) + absenceHours;
-
-        if (info.isAusgleichstag) {
-          rec.soll = 0;
-          rec.ist = 0;
-        } else if (info.isUeberstunden || info.isWunschfrei) {
-          rec.soll = info.dailyContractMinutes / 60;
-          rec.ist = 0;
-        } else {
-          rec.soll = info.dailyContractMinutes / 60;
-          rec.ist = info.dailyContractMinutes / 60;
-        }
-      } else {
-        if (info.upperDayCell.includes("ANW") || info.upperDayCell === "ANW") {
-          rec.isAnw = true;
-        }
-
-        if (info.isWeekend && info.detailIstMinutes > 0) {
-          rec.soll = info.detailIstMinutes / 60;
-        } else {
-          rec.soll = info.dailyContractMinutes / 60;
-        }
-
-        rec.ist = info.detailIstMinutes / 60;
-      }
-
-      parseDetailSkillsIntoRecord_(info.detailCell, rec, ctx);
-
-      ctx.debugRows.push([
-        info.date,
-        kw,
-        mappedName,
-        assignedTeam || "Unbekannt",
-        info.dayCell,
-        rawIsthVal,
-        weeklyIstVal,
-        rawVertragVal,
-        weeklyVertragVal,
-        info.detailIstMinutes,
-        minutesToHHMM(info.detailIstMinutes),
-        info.dailyContractMinutes,
-        minutesToHHMM(info.dailyContractMinutes),
-        rec.soll,
-        minutesToHHMM(Math.round(rec.soll * 60)),
-        rec.ist,
-        info.isAusgleichstag,
-        info.isUrlaub,
-        info.isAbw,
-        info.isUeberstunden,
-        info.isWunschfrei,
-        info.countsForContractDistribution,
-        info.contractDayCount,
-        info.isWeekend,
-        info.hasPlanText,
-        info.hasHours
-      ]);
-    }
-  }
-}
-
-/**
- * Baut pro Mitarbeiter alle Tagesinfos eines Wochenblocks.
- */
-function buildEmployeeDayInfos_(data, employeeRowIndex, blockEndRow, dateColumns, weeklyIstVal, weeklyVertragVal) {
-  const infos = [];
-
-  for (const dc of dateColumns) {
-    const dayCell = String(data[employeeRowIndex][dc.colIndex]).trim();
-    const upperDayCell = dayCell.toUpperCase();
-
-    const detailCell = employeeRowIndex + 1 < blockEndRow
-      ? String(data[employeeRowIndex + 1][dc.colIndex])
-      : "";
-
-    const detailIstMinutes = calculateWorkMinutesFromDetailCell_(detailCell);
-    const dayCellTimeMinutes = calculateMinutesFromAnyTimeRanges_(dayCell);
-
-    const isUrlaub = upperDayCell.includes("URLAUB");
-    const isAbw = upperDayCell.includes("ABW");
-    const isUeberstunden = upperDayCell.includes("ÜBERSTUNDEN");
-    const isWunschfrei = upperDayCell.includes("WUNSCHFREI");
-
-    const hasAbsenceLabel = isUrlaub || isAbw || isUeberstunden || isWunschfrei;
-    const hasHours = detailIstMinutes > 0 || dayCellTimeMinutes > 0;
-    const hasPlanText = upperDayCell !== "" && upperDayCell !== "-";
-
-    const isAusgleichstag =
-      upperDayCell === "-" &&
-      !dc.isWeekend &&
-      !hasHours &&
-      !hasAbsenceLabel &&
-      weeklyVertragVal > 0;
-
-    const isWeekendFreeDash =
-      dc.isWeekend &&
-      upperDayCell === "-" &&
-      !hasHours &&
-      !hasAbsenceLabel;
-
-    const isEmptyFreeDay =
-      upperDayCell === "-" &&
-      !hasHours &&
-      !hasAbsenceLabel &&
-      !isAusgleichstag;
-
-    let countsForContractDistribution = false;
-
-    if (isWeekendFreeDash) {
-      countsForContractDistribution = false;
-    } else if (isAusgleichstag) {
-      countsForContractDistribution = true;
-    } else if (hasAbsenceLabel) {
-      countsForContractDistribution = !dc.isWeekend;
-    } else if (!dc.isWeekend && hasPlanText) {
-      countsForContractDistribution = true;
-    } else if (!dc.isWeekend && hasHours) {
-      countsForContractDistribution = true;
-    } else {
-      countsForContractDistribution = false;
+    if (capacitySkillFilter !== 'Alle') {
+      areas = allAreas.filter(a => a.area === capacitySkillFilter);
     }
 
-    infos.push({
-      colIndex: dc.colIndex,
-      date: dc.date,
-      dayOfWeek: dc.dayOfWeek,
-      isWeekend: dc.isWeekend,
-      isSaturday: dc.isSaturday,
-      isSunday: dc.isSunday,
-      dayCell,
-      upperDayCell,
-      detailCell,
-      detailIstMinutes,
-      detailIstHours: detailIstMinutes / 60,
-      dayCellTimeMinutes,
-      dayCellTimeHours: dayCellTimeMinutes / 60,
-      isUrlaub,
-      isAbw,
-      isUeberstunden,
-      isWunschfrei,
-      isAusgleichstag,
-      isEmptyFreeDay,
-      hasHours,
-      hasAbsenceLabel,
-      hasPlanText,
-      countsForContractDistribution,
-      dailyContractMinutes: 0,
-      contractDayCount: 0
+    const totalHours = areas.reduce((sum, area) => sum + Number(area.totalHours || 0), 0);
+    const remainingHours = areas.reduce((sum, area) => sum + Number(area.remainingHours || 0), 0);
+    const usedHours = areas.reduce((sum, area) => sum + Number(area.usedHours || 0), 0);
+
+    let html = `
+      <div class="space-y-5">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <div class="text-[10px] uppercase font-bold text-gray-400">Gesamtkapazität Tag</div>
+            <div class="font-mono text-3xl font-bold text-slate-700 mt-1">${capacityDecimalToTime(totalHours)}</div>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <div class="text-[10px] uppercase font-bold text-gray-400">Bereits vergangen</div>
+            <div class="font-mono text-3xl font-bold text-lidl-blue mt-1">${capacityDecimalToTime(usedHours)}</div>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <div class="text-[10px] uppercase font-bold text-gray-400">Restkapazität ab jetzt</div>
+            <div class="font-mono text-3xl font-bold text-modern-green mt-1">${capacityDecimalToTime(remainingHours)}</div>
+          </div>
+        </div>
+
+        ${renderCapacitySkillFilters(skills)}
+
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 flex items-center justify-between">
+            <div>
+              <h4 class="font-bold text-slate-700 flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-lidl-blue"></i> Kapazität nach Skill
+              </h4>
+              <p class="text-xs text-gray-400 mt-0.5">Nur produktive Skill-Zeiträume aus den Tätigkeitsblöcken</p>
+            </div>
+            <div class="text-xs text-gray-400">Stand: ${escapeHtml(data.updatedAt || '-')}</div>
+          </div>
+
+          <div class="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+    `;
+
+    if (areas.length === 0) {
+      html += `
+        <div class="col-span-full text-center py-10 text-gray-400">
+          <i class="fa-regular fa-folder-open text-3xl mb-3"></i>
+          <p>Keine produktiven Skill-Zeiten gefunden.</p>
+        </div>
+      `;
+    }
+
+    areas.forEach(area => {
+      html += `
+        <div class="border border-gray-100 rounded-2xl p-4 bg-white hover:shadow-md transition">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <div class="font-bold text-slate-700">${escapeHtml(area.area)}</div>
+              <div class="text-[10px] text-gray-400 mt-0.5 truncate" title="${escapeHtml((area.originalSkills || []).join(', '))}">
+                ${(area.originalSkills || []).length ? escapeHtml((area.originalSkills || []).join(' • ')) : 'Produktiver Skill'}
+              </div>
+            </div>
+            <div class="w-9 h-9 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center">
+              <i class="fa-solid fa-clock"></i>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 text-right">
+            <div class="rounded-xl bg-gray-50 border border-gray-100 p-2">
+              <div class="text-[9px] uppercase font-bold text-gray-400">Gesamt</div>
+              <div class="font-mono font-bold text-slate-700">${capacityDecimalToTime(area.totalHours)}</div>
+            </div>
+            <div class="rounded-xl bg-blue-50 border border-blue-100 p-2">
+              <div class="text-[9px] uppercase font-bold text-gray-400">Vergangen</div>
+              <div class="font-mono font-bold text-lidl-blue">${capacityDecimalToTime(area.usedHours)}</div>
+            </div>
+            <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-2">
+              <div class="text-[9px] uppercase font-bold text-gray-400">Rest</div>
+              <div class="font-mono font-bold text-modern-green">${capacityDecimalToTime(area.remainingHours)}</div>
+            </div>
+          </div>
+        </div>
+      `;
     });
+
+    html += `
+          </div>
+        </div>
+      </div>
+    `;
+
+    content.innerHTML = html;
   }
 
-  const contractInfos = infos.filter(info => info.countsForContractDistribution);
-  const contractDayCount = contractInfos.length;
-  const weeklyContractMinutes = Math.round((weeklyVertragVal || 0) * 60);
+  function renderCapacitySkillFilters(skills) {
+    const safeSkills = (skills || []).filter(s => s && String(s).trim() !== "" && String(s).toLowerCase() !== "ohne skill");
 
-  if (weeklyContractMinutes > 0 && contractDayCount > 0) {
-    const baseMinutes = Math.floor(weeklyContractMinutes / contractDayCount);
-    let restMinutes = weeklyContractMinutes - (baseMinutes * contractDayCount);
+    let html = `
+      <div class="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+        <div class="flex flex-wrap gap-2 items-center">
+          <span class="text-[10px] uppercase font-bold text-gray-400 mr-1">
+            <i class="fa-solid fa-filter text-lidl-blue mr-1"></i> Skill Filter:
+          </span>
+    `;
 
-    contractInfos.forEach(info => {
-      info.dailyContractMinutes = baseMinutes;
+    const allClass = capacitySkillFilter === 'Alle'
+      ? 'bg-lidl-blue text-white border-lidl-blue'
+      : 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-lidl-blue hover:border-blue-200';
 
-      if (restMinutes > 0) {
-        info.dailyContractMinutes += 1;
-        restMinutes--;
-      }
+    html += `
+      <button onclick="setCapacitySkillFilter('${encodeURIComponent('Alle')}')" class="px-3 py-1 rounded-full border text-xs font-bold transition ${allClass}">
+        Alle Skills
+      </button>
+    `;
+
+    safeSkills.forEach(skill => {
+      const active = capacitySkillFilter === skill;
+      const cls = active
+        ? 'bg-lidl-blue text-white border-lidl-blue'
+        : 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-lidl-blue hover:border-blue-200';
+
+      html += `
+        <button onclick="setCapacitySkillFilter('${encodeURIComponent(skill)}')" class="px-3 py-1 rounded-full border text-xs font-bold transition ${cls}">
+          ${escapeHtml(skill)}
+        </button>
+      `;
     });
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    return html;
   }
 
-  infos.forEach(info => {
-    info.contractDayCount = contractDayCount;
-  });
+  function capacityDecimalToTime(decimalVal) {
+    decimalVal = Number(decimalVal || 0);
 
-  return infos;
-}
+    const isNegative = decimalVal < 0;
+    decimalVal = Math.abs(decimalVal);
 
-/**
- * Schreibt Skillzeiten aus der Detailzelle in den Record.
- */
-function parseDetailSkillsIntoRecord_(detailCell, rec, ctx) {
-  if (!detailCell || String(detailCell).trim() === "") {
-    return;
-  }
+    let hours = Math.floor(decimalVal);
+    let minutes = Math.round((decimalVal - hours) * 60);
 
-  const lines = String(detailCell).split("\n").map(l => l.trim());
-  let currentTimeRange = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    if (line.match(/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/)) {
-      currentTimeRange = normalizeTimeRange_(line);
-      continue;
+    if (minutes === 60) {
+      hours += 1;
+      minutes = 0;
     }
 
-    if (!currentTimeRange) {
-      continue;
-    }
-
-    const lineUpper = line.toUpperCase();
-
-    if (!line || lineUpper === "PAUSE" || lineUpper.includes("PAUSE")) {
-      currentTimeRange = null;
-      continue;
-    }
-
-    let matchedDbSkill = null;
-    const normalizedLineUpper = normalizeStr(line).toUpperCase();
-
-    for (const planoSkill of ctx.planoSkillsSorted) {
-      if (normalizedLineUpper.includes(planoSkill.toUpperCase())) {
-        matchedDbSkill = ctx.skillMap[planoSkill];
-        break;
-      }
-    }
-
-    if (matchedDbSkill) {
-      const hrs = calculateMinutes(currentTimeRange) / 60;
-      rec.skills[matchedDbSkill] = (rec.skills[matchedDbSkill] || 0) + hrs;
-    } else {
-      if (line && lineUpper !== "ANW") {
-        ctx.unmappedSkills.add(line.trim());
-      }
-    }
-
-    currentTimeRange = null;
-  }
-}
-
-/**
- * Holt Datum aus einer Tageszelle.
- */
-function extractDateFromHeaderCell_(cellValue, year) {
-  let valStr = "";
-
-  if (cellValue instanceof Date) {
-    valStr = Utilities.formatDate(cellValue, Session.getScriptTimeZone(), "dd.MM.yyyy");
-  } else {
-    valStr = String(cellValue).trim();
+    return `${isNegative ? '-' : ''}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
   }
 
-  const match = valStr.match(/(\d{1,2})\.(\d{1,2})\./);
+  function openModalById(modalId, contentId) {
+    const modal = document.getElementById(modalId);
+    const content = document.getElementById(contentId);
 
-  if (!match) {
-    return null;
+    if (!modal || !content) return;
+
+    modal.classList.remove('hidden');
+
+    setTimeout(() => {
+      modal.classList.remove('opacity-0');
+      content.classList.remove('scale-95');
+      content.classList.add('scale-100');
+    }, 10);
   }
 
-  const day = ("0" + match[1]).slice(-2);
-  const month = ("0" + match[2]).slice(-2);
-  const dateStr = `${day}.${month}.${year}`;
+  function closeModalById(modalId, contentId) {
+    const modal = document.getElementById(modalId);
+    const content = document.getElementById(contentId);
 
-  const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
-  const dayOfWeek = dateObj.getDay();
-  const isSaturday = dayOfWeek === 6;
-  const isSunday = dayOfWeek === 0;
-  const isWeekend = isSaturday || isSunday;
+    if (!modal || !content) return;
 
-  return {
-    dateStr,
-    dayOfWeek,
-    isSaturday,
-    isSunday,
-    isWeekend
-  };
-}
+    modal.classList.add('opacity-0');
+    content.classList.remove('scale-100');
+    content.classList.add('scale-95');
 
-/**
- * Berechnet Minuten aus Detailzelle.
- */
-function calculateWorkMinutesFromDetailCell_(detailCell) {
-  if (!detailCell) {
-    return 0;
+    setTimeout(() => {
+      modal.classList.add('hidden');
+    }, 300);
   }
 
-  const lines = String(detailCell).split("\n").map(l => l.trim());
-  let currentTimeRange = null;
-  let totalMinutes = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    if (line.match(/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/)) {
-      currentTimeRange = normalizeTimeRange_(line);
-      continue;
-    }
-
-    if (!currentTimeRange) {
-      continue;
-    }
-
-    const lineUpper = line.toUpperCase();
-
-    if (line && lineUpper !== "PAUSE" && !lineUpper.includes("PAUSE")) {
-      totalMinutes += calculateMinutes(currentTimeRange);
-    }
-
-    currentTimeRange = null;
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
-
-  return totalMinutes;
-}
-
-/**
- * Erkennt Zeiträume in beliebigem Text.
- */
-function calculateMinutesFromAnyTimeRanges_(text) {
-  if (!text) {
-    return 0;
-  }
-
-  const str = String(text);
-  const regex = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g;
-
-  let match;
-  let totalMinutes = 0;
-
-  while ((match = regex.exec(str)) !== null) {
-    totalMinutes += calculateMinutes(`${match[1]}-${match[2]}`);
-  }
-
-  return totalMinutes;
-}
-
-/**
- * Normalisiert Zeitzeile.
- */
-function normalizeTimeRange_(line) {
-  const match = String(line).match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
-
-  if (!match) {
-    return "";
-  }
-
-  return `${match[1]}-${match[2]}`;
-}
-
-/**
- * Berechnet Minuten aus "07:00-09:15".
- */
-function calculateMinutes(timeRange) {
-  try {
-    const [start, end] = timeRange.split("-");
-    const [h1, m1] = start.split(":").map(Number);
-    const [h2, m2] = end.split(":").map(Number);
-
-    let diffMinutes = (h2 * 60 + m2) - (h1 * 60 + m1);
-
-    if (diffMinutes < 0) {
-      diffMinutes += 24 * 60;
-    }
-
-    return diffMinutes;
-  } catch (e) {
-    return 0;
-  }
-}
-
-/**
- * Robuste Stunden-Erkennung für Plano Werte.
- */
-function parsePlanoHoursValue_(value) {
-  if (value === null || value === undefined || value === "") {
-    return 0;
-  }
-
-  if (value instanceof Date) {
-    const hours = value.getHours();
-    const minutes = value.getMinutes();
-    const seconds = value.getSeconds();
-
-    return hours + (minutes / 60) + (seconds / 3600);
-  }
-
-  if (typeof value === "number") {
-    if (value > 0 && value < 1.5) {
-      return value * 24;
-    }
-
-    return value;
-  }
-
-  let str = String(value).trim();
-
-  if (!str) {
-    return 0;
-  }
-
-  str = str.replace(/\s/g, "");
-
-  const sign = str.startsWith("-") ? -1 : 1;
-  str = str.replace(/^[+-]/, "");
-
-  const timeMatch = str.match(/^(\d{1,3}):(\d{2})(?::(\d{2}))?$/);
-
-  if (timeMatch) {
-    const hours = Number(timeMatch[1]);
-    const minutes = Number(timeMatch[2]);
-    const seconds = timeMatch[3] ? Number(timeMatch[3]) : 0;
-
-    return sign * (hours + (minutes / 60) + (seconds / 3600));
-  }
-
-  const decimal = str.replace(",", ".");
-  const parsed = parseFloat(decimal);
-
-  if (isNaN(parsed)) {
-    return 0;
-  }
-
-  return sign * parsed;
-}
-
-/**
- * Baut Mitarbeiterzeilen für KO_SKILL.
- */
-function buildKoSkillRows_(records, headers, abwDbName) {
-  const results = [];
-
-  Object.keys(records).sort(sortRecordKeys_).forEach(key => {
-    const rec = records[key];
-    const rowData = new Array(headers.length).fill("");
-
-    rowData[0] = rec.date;
-    rowData[1] = rec.kw;
-    rowData[2] = rec.name;
-
-    let hasSkillData = false;
-
-    for (const dbSkill in rec.skills) {
-      const colIndex = headers.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
-
-      if (colIndex !== -1) {
-        if (shouldFormatSkillAsHHMM_(dbSkill, abwDbName)) {
-          rowData[colIndex] = minutesToHHMM(Math.round(rec.skills[dbSkill] * 60));
-        } else {
-          rowData[colIndex] = roundToTwoDecimals_(rec.skills[dbSkill]);
-        }
-
-        hasSkillData = true;
-      }
-    }
-
-    if (hasSkillData || rec.isAnw) {
-      setRowValueByHeader_(rowData, headers, "Differenz", rec.differenz);
-      setRowValueByHeader_(rowData, headers, "Soll", minutesToHHMM(Math.round(rec.soll * 60)));
-      setRowValueByHeader_(rowData, headers, "Ist", rec.ist);
-      setRowValueByHeader_(rowData, headers, "Team", rec.team);
-      setRowValueByHeader_(rowData, headers, "Schicht", rec.schicht);
-
-      results.push(rowData);
-    }
-  });
-
-  return results;
-}
-
-/**
- * Baut Teamaggregation für Datenbank_Gesamt_Test.
- */
-function buildGesamtTeamRows_(records, headers, abwDbName) {
-  const teamRecords = {};
-
-  for (const key in records) {
-    const rec = records[key];
-
-    if (Object.keys(rec.skills).length === 0 && !rec.isAnw) {
-      continue;
-    }
-
-    const teamName = rec.team || "Ohne Team";
-    const teamKey = `${rec.date}|${rec.kw}|${teamName}`;
-
-    if (!teamRecords[teamKey]) {
-      teamRecords[teamKey] = {
-        date: rec.date,
-        kw: rec.kw,
-        team: teamName,
-        skills: {},
-        differenz: 0,
-        sollMins: 0,
-        ist: 0
-      };
-    }
-
-    for (const dbSkill in rec.skills) {
-      teamRecords[teamKey].skills[dbSkill] = (teamRecords[teamKey].skills[dbSkill] || 0) + rec.skills[dbSkill];
-    }
-
-    teamRecords[teamKey].differenz += rec.differenz || 0;
-    teamRecords[teamKey].sollMins += Math.round((rec.soll || 0) * 60);
-    teamRecords[teamKey].ist += rec.ist || 0;
-  }
-
-  const results = [];
-
-  Object.keys(teamRecords).sort(sortRecordKeys_).forEach(teamKey => {
-    const tr = teamRecords[teamKey];
-    const rowData = new Array(headers.length).fill("");
-
-    rowData[0] = tr.date;
-    rowData[1] = tr.kw;
-    rowData[2] = tr.team;
-
-    for (const dbSkill in tr.skills) {
-      const colIndex = headers.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
-
-      if (colIndex !== -1) {
-        if (shouldFormatSkillAsHHMM_(dbSkill, abwDbName)) {
-          rowData[colIndex] = minutesToHHMM(Math.round(tr.skills[dbSkill] * 60));
-        } else {
-          rowData[colIndex] = roundToTwoDecimals_(tr.skills[dbSkill]);
-        }
-      }
-    }
-
-    setRowValueByHeader_(rowData, headers, "Differenz", tr.differenz);
-    setRowValueByHeader_(rowData, headers, "Soll", minutesToHHMM(tr.sollMins));
-    setRowValueByHeader_(rowData, headers, "Ist", tr.ist);
-
-    results.push(rowData);
-  });
-
-  return results;
-}
-
-/**
- * Nur ABW als HH:MM formatieren.
- * Ausgleichstag bleibt Dezimalzahl.
- */
-function shouldFormatSkillAsHHMM_(dbSkill, abwDbName) {
-  const upper = String(dbSkill).trim().toUpperCase();
-
-  return upper === String(abwDbName).trim().toUpperCase();
-}
-
-/**
- * Rundet Dezimalstunden.
- */
-function roundToTwoDecimals_(value) {
-  const num = Number(value);
-
-  if (isNaN(num)) {
-    return 0;
-  }
-
-  return Math.round(num * 100) / 100;
-}
-
-/**
- * Schreibt ein Sheet komplett neu.
- */
-function writeRowsToSheet_(ss, sheetName, headers, rows) {
-  let sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-  }
-
-  sheet.clearContents();
-
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
-
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-  }
-
-  sheet.autoResizeColumns(1, Math.min(headers.length, 20));
-}
-
-/**
- * Nutzt bei Datenbank_Gesamt_Test die vorhandene Kopfzeile.
- */
-function getExistingHeadersOrCreateGesamtHeaders_(ss, sheetName, fallbackKoHeaders) {
-  let sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-
-    const fallbackHeaders = [...fallbackKoHeaders];
-    fallbackHeaders[2] = "Team";
-
-    sheet.getRange(1, 1, 1, fallbackHeaders.length).setValues([fallbackHeaders]);
-    sheet.getRange(1, 1, 1, fallbackHeaders.length).setFontWeight("bold");
-
-    return fallbackHeaders;
-  }
-
-  const lastCol = sheet.getLastColumn();
-
-  if (lastCol < 1) {
-    const fallbackHeaders = [...fallbackKoHeaders];
-    fallbackHeaders[2] = "Team";
-
-    sheet.getRange(1, 1, 1, fallbackHeaders.length).setValues([fallbackHeaders]);
-    sheet.getRange(1, 1, 1, fallbackHeaders.length).setFontWeight("bold");
-
-    return fallbackHeaders;
-  }
-
-  const existingHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  const hasUsableHeaders = existingHeaders.some(h => String(h).trim() !== "");
-
-  if (!hasUsableHeaders) {
-    const fallbackHeaders = [...fallbackKoHeaders];
-    fallbackHeaders[2] = "Team";
-
-    sheet.getRange(1, 1, 1, fallbackHeaders.length).setValues([fallbackHeaders]);
-    sheet.getRange(1, 1, 1, fallbackHeaders.length).setFontWeight("bold");
-
-    return fallbackHeaders;
-  }
-
-  return existingHeaders;
-}
-
-/**
- * Schreibt nur Daten ab Zeile 2.
- */
-function writeRowsToExistingHeaderSheet_(ss, sheetName, headers, rows) {
-  let sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
-  }
-
-  const lastRow = sheet.getLastRow();
-  const lastCol = Math.max(sheet.getLastColumn(), headers.length);
-
-  if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
-  }
-
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-  }
-}
-
-/**
- * Schreibt fehlende Zuordnungen.
- */
-function writeMonthImportErrors_(ss, sheetName, unmappedEmployees, unmappedSkills) {
-  let sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-  }
-
-  sheet.clear();
-
-  const rows = [["Typ", "Fehlender Eintrag"]];
-
-  unmappedEmployees.forEach(emp => rows.push(["Mitarbeiter ohne Team", emp]));
-  unmappedSkills.forEach(skill => rows.push(["Unbekannte Tätigkeit", skill]));
-
-  if (rows.length === 1) {
-    rows.push(["OK", "Alle Mitarbeiter und Tätigkeiten konnten zugeordnet werden."]);
-  }
-
-  sheet.getRange(1, 1, rows.length, 2).setValues(rows);
-  sheet.getRange(1, 1, 1, 2).setFontWeight("bold");
-  sheet.autoResizeColumns(1, 2);
-}
-
-/**
- * Schreibt Debug-Reiter für Soll.
- */
-function writeMonthSollDebug_(ss, sheetName, debugRows) {
-  let sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-  }
-
-  sheet.clear();
-
-  const headers = [
-    "Datum",
-    "KW",
-    "Mitarbeiter",
-    "Team",
-    "Tageszelle",
-    "Rohwert Isth",
-    "Isth interpretiert",
-    "Rohwert Vertrag h",
-    "Vertrag h interpretiert",
-    "Detail Ist Minuten",
-    "Detail Ist HH:MM",
-    "Tagesvertrag Minuten",
-    "Tagesvertrag HH:MM",
-    "Berechnetes Soll Dezimal",
-    "Berechnetes Soll HH:MM",
-    "Berechnetes Ist Dezimal",
-    "Ist Ausgleichstag",
-    "Ist Urlaub",
-    "Ist ABW",
-    "Ist Überstundenfrei",
-    "Ist Wunschfrei",
-    "Zählt für Vertragsverteilung",
-    "Anzahl Vertragstage",
-    "Ist Wochenende",
-    "Hat Plantext",
-    "Hat Stunden"
-  ];
-
-  const rows = [headers].concat(debugRows);
-
-  sheet.getRange(1, 1, rows.length, headers.length).setValues(rows);
-  sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
-  sheet.autoResizeColumns(1, Math.min(headers.length, 12));
-}
-
-/**
- * Setzt einen Wert anhand des Spaltennamens.
- */
-function setRowValueByHeader_(rowData, headers, headerName, value) {
-  const idx = headers.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
-
-  if (idx !== -1) {
-    rowData[idx] = value;
-  }
-}
-
-/**
- * Sortiert nach Datum und danach nach Rest-Key.
- */
-function sortRecordKeys_(a, b) {
-  const da = parseDateFromKey_(a);
-  const db = parseDateFromKey_(b);
-
-  if (da.getTime() !== db.getTime()) {
-    return da.getTime() - db.getTime();
-  }
-
-  return a.localeCompare(b);
-}
-
-/**
- * Holt das Datum aus einem Key wie 04.05.2026|19|Name.
- */
-function parseDateFromKey_(key) {
-  const dateStr = key.split("|")[0];
-  const parts = dateStr.split(".");
-
-  return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-}
+</script>
