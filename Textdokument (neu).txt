@@ -1,1831 +1,1169 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
-  <button onclick="toggleControlPanel('admin-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
-    <div>
-      <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
-        <i class="fa-solid fa-user-shield text-lidl-blue"></i> Administration
-      </h3>
-      <p class="text-[11px] text-gray-400 mt-0.5">Import, Übermittlung und Plano-Analyse</p>
-    </div>
-
-    <div class="flex items-center gap-2 text-gray-400">
-      <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
-      <i id="admin-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
-    </div>
-  </button>
-
-  <div id="admin-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-    <button onclick="openImportTypeModal()" id="btn-import-modal-open" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
-        <i class="fa-solid fa-file-import"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Plano Backup importieren</div>
-        <div class="text-[11px] text-gray-400 truncate">Tagesdaten oder Stundenerfassung übernehmen</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
-    </button>
-
-    <button onclick="openUebermittelnModal()" class="group relative overflow-hidden bg-white border border-emerald-100 rounded-xl p-3 hover:border-modern-green hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-emerald-50 text-modern-green flex items-center justify-center shrink-0 group-hover:bg-modern-green group-hover:text-white transition">
-        <i class="fa-solid fa-paper-plane"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Stundenerfassung übermitteln</div>
-        <div class="text-[11px] text-gray-400 truncate">Tag löschen, übertragen oder Monat synchronisieren</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-modern-green transition"></i>
-    </button>
-
-    <a href="https://docs.google.com/spreadsheets/d/1aq-TtGaW4yzRqKng_ZLT1sNmmNVi9BqAbrdYgj5FQrg/edit?gid=986034657#gid=986034657"
-       target="_blank"
-       rel="noopener noreferrer"
-       class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gray-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
-        <i class="fa-solid fa-up-right-from-square"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Plano Overview öffnen</div>
-        <div class="text-[11px] text-gray-400 truncate">Monatsübersicht und Analyse in Google Sheets</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-slate-600 transition"></i>
-    </a>
-  </div>
-</div>
-
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
-  <button onclick="toggleControlPanel('steering-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-slate-50 via-white to-blue-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
-    <div>
-      <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
-        <i class="fa-solid fa-gauge-high text-lidl-blue"></i> Steuerung
-      </h3>
-      <p class="text-[11px] text-gray-400 mt-0.5">Operative Tagesplanung und Kapazitätssteuerung</p>
-    </div>
-
-    <div class="flex items-center gap-2 text-gray-400">
-      <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
-      <i id="steering-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
-    </div>
-  </button>
-
-  <div id="steering-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-    <button onclick="openDayPlanningModal()" class="group relative overflow-hidden bg-white border border-yellow-100 rounded-xl p-3 hover:border-lidl-yellow hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-yellow-50 text-yellow-600 flex items-center justify-center shrink-0 group-hover:bg-lidl-yellow group-hover:text-lidl-blue transition">
-        <i class="fa-solid fa-calendar-day"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate flex items-center gap-2">
-          Tagesplanung
-          <span id="day-planning-save-pill" class="hidden text-[9px] bg-emerald-50 text-modern-green border border-emerald-100 rounded-full px-2 py-0.5 uppercase">gespeichert</span>
-        </div>
-        <div class="text-[11px] text-gray-400 truncate">Backlog, Produktivität und schaffbare Cases je Team</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-yellow-600 transition"></i>
-    </button>
-
-    <button onclick="openCapacityOverviewModal()" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
-        <i class="fa-solid fa-chart-simple"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Kapazitätenübersicht</div>
-        <div class="text-[11px] text-gray-400 truncate">Stunden und Restkapazität je Skill</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
-    </button>
-  </div>
-</div>
-
-<div class="flex justify-between items-center shrink-0 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-  <div class="flex gap-2 items-center">
-    <span class="text-xs font-bold text-gray-400 uppercase mr-2">
-      <i class="fa-solid fa-arrow-down-up-across-line"></i> Sortierung:
-    </span>
-
-    <button onclick="setControlSort('plus')" id="btn-ctrl-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
-      <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
-    </button>
-    <button onclick="setControlSort('minus')" id="btn-ctrl-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
-      <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
-    </button>
-    <button onclick="setControlSort('time')" id="btn-ctrl-time" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
-      <i class="fa-regular fa-clock"></i> Zeit
-    </button>
-  </div>
-
-  <div class="hidden xl:flex items-center gap-2 text-xs text-gray-400">
-    <i class="fa-solid fa-circle-info text-lidl-blue"></i>
-    <span>Sortierung wirkt auf die Schichtkarten darunter</span>
-  </div>
-</div>
-
-<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex items-start gap-4">
-  <span class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap mt-1.5">
-    <i class="fa-solid fa-list-check"></i> Tätigkeiten:
-  </span>
-  <div id="activity-filter-container" class="flex flex-wrap gap-2 items-center"></div>
-</div>
-
-<div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Frühschicht</h3>
-        <span class="text-xs font-bold bg-blue-100 text-lidl-blue px-2 py-0.5 rounded" id="count-frueh">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-frueh">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-frueh"></div>
-  </div>
-
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Mittelschicht</h3>
-        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" id="count-mittel">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-mittel">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-mittel"></div>
-  </div>
-
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Spätschicht</h3>
-        <span class="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded" id="count-spaet">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-spaet">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-spaet"></div>
-  </div>
-</div>
-
-<div id="importTypeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 flex flex-col" id="importTypeModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-file-import"></i> Import-Typ wählen
-      </h3>
-      <button onclick="closeImportTypeModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 space-y-4">
-      <p class="text-sm text-gray-600">Für welchen Bereich möchtest du das Plano Backup importieren?</p>
-
-      <button onclick="closeImportTypeModal(); openPlanoImportModal();" class="w-full bg-blue-50 border border-blue-200 text-lidl-blue hover:bg-lidl-blue hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
-        <i class="fa-solid fa-clock"></i> Heutiger Tag
-      </button>
-
-      <button onclick="closeImportTypeModal(); openPlanoStundenerfassungModal();" class="w-full bg-emerald-50 border border-emerald-200 text-modern-green hover:bg-modern-green hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
-        <i class="fa-solid fa-database"></i> Stundenerfassung -/ Plano Overview
-      </button>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
-      <button onclick="closeImportTypeModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="planoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-file-excel"></i> Tagessteuerung Import
-      </h3>
-      <button onclick="closePlanoModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
-      <p class="text-sm text-gray-600 mb-4">Wähle die Datei für den heutigen Tag:</p>
-      <div id="plano-files-list" class="space-y-2">
-        <div class="text-center text-gray-400 py-4">
-          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
-        </div>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
-      <button onclick="closePlanoModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="planoStundenerfassungModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoStundenerfassungModalContent">
-    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-database"></i> Stundenerfassung Import
-      </h3>
-      <button onclick="closePlanoStundenerfassungModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
-      <p class="text-sm text-gray-600 mb-4">Wähle die Backup-Datei zur Übertragung in die Datenbank:</p>
-      <div id="plano-st-files-list" class="space-y-2">
-        <div class="text-center text-gray-400 py-4">
-          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
-        </div>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
-      <button onclick="closePlanoStundenerfassungModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="uebermittelnModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col" id="uebermittelnModalContent">
-    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-paper-plane"></i> Stundenerfassung übermitteln
-      </h3>
-      <button onclick="closeUebermittelnModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 space-y-5">
-      <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
-        <span class="text-[10px] text-modern-green font-bold uppercase block mb-1">Aktuelle Zieldatei aus Einstellungen</span>
-        <strong id="st-filename-display" class="text-emerald-800 text-sm">Wird geladen...</strong>
-      </div>
-
-      <div class="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-xl text-xs font-bold flex items-start gap-2">
-        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-orange-500 text-lg"></i>
-        <p>WICHTIG: Übermittle die Daten immer als HEUTE für HEUTE oder GESTERN für GESTERN.</p>
-      </div>
-
-      <div>
-        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Datum für die Übermittlung</label>
-        <input type="date" id="uebermitteln-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none bg-white">
-      </div>
-
-      <div class="space-y-3 pt-2">
-        <button id="btn-st-transfer" onclick="startTransfer()" class="w-full bg-modern-green text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-emerald-700 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-upload"></i> Übermittlung starten
-        </button>
-
-        <button id="btn-st-delete" onclick="startDelete()" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-red-600 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-trash-can"></i> Tag aus Stundenerfassung löschen
-        </button>
-
-        <button id="btn-st-sync" onclick="startSync()" class="w-full bg-lidl-blue text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-arrows-rotate"></i> Ganzen Monat synchronisieren
-        </button>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
-      <button onclick="closeUebermittelnModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-    </div>
-  </div>
-</div>
-
-<div id="capacityOverviewModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="capacityOverviewModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <div>
-        <h3 class="text-white font-bold text-lg flex items-center gap-2">
-          <i class="fa-solid fa-chart-simple"></i> Kapazitätenübersicht
-        </h3>
-        <p class="text-blue-100 text-xs mt-0.5">Stunden und Restkapazität aus dem aktuellen Plano Backup</p>
-      </div>
-
-      <button onclick="closeCapacityOverviewModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div id="capacity-overview-content" class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50">
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Kapazitäten werden berechnet...</p>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center border-t border-gray-200 shrink-0">
-      <div class="text-xs text-gray-400">
-        <i class="fa-solid fa-circle-info text-lidl-blue mr-1"></i>
-        Nicht produktive Tätigkeiten werden ausgeschlossen.
-      </div>
-
-      <div class="flex gap-3">
-        <button onclick="openCapacityOverviewModal(true)" class="px-4 py-2 rounded-lg bg-blue-50 text-lidl-blue border border-blue-100 hover:bg-blue-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-arrows-rotate"></i> Aktualisieren
-        </button>
-        <button onclick="closeCapacityOverviewModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="shiftDetailsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="shiftDetailsModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0 relative">
-      <div>
-        <h3 class="text-white font-bold text-lg" id="shift-modal-name">-</h3>
-        <p class="text-blue-200 text-xs" id="shift-modal-skill">-</p>
-      </div>
-      <div class="bg-white/20 px-3 py-1 rounded border border-white/30 text-white font-mono font-bold" id="shift-modal-time">--:--</div>
-      <button onclick="closeShiftDetailsModal()" class="absolute top-4 right-4 text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-0 overflow-y-auto flex-1 custom-scroll bg-gray-50">
-      <div id="shift-modal-timeline" class="p-6"></div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center shrink-0 border-t border-gray-200">
-      <button onclick="openEditModal(currentEmpId)" class="px-4 py-2 bg-blue-50 text-lidl-blue border border-blue-200 rounded-lg text-sm font-bold hover:bg-blue-100 transition flex items-center gap-2">
-        <i class="fa-solid fa-pen-to-square"></i> ESS Daten bearbeiten
-      </button>
-      <button onclick="closeShiftDetailsModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-    </div>
-  </div>
-</div>
-
-<div id="dayPlanningModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[320] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[92vh]" id="dayPlanningModalContent">
-    <div class="bg-gradient-to-r from-lidl-blue to-blue-800 px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <div>
-        <h3 class="text-white font-bold text-lg flex items-center gap-2">
-          <i class="fa-solid fa-calendar-day"></i> Tagesplanung
-        </h3>
-        <p class="text-blue-100 text-xs mt-0.5">Plano Produktivstunden, Backlog, Produktivität und schaffbare Cases je Team</p>
-      </div>
-
-      <button onclick="closeDayPlanningModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div id="day-planning-content" class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50">
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Tagesplanung wird geladen...</p>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 border-t border-gray-200 shrink-0">
-      <div class="text-xs text-gray-400 flex items-center gap-2">
-        <i class="fa-solid fa-database text-lidl-blue"></i>
-        <span id="day-planning-save-status">Änderungen werden automatisch zwischengespeichert.</span>
-      </div>
-
-      <div class="flex flex-wrap gap-2 justify-end">
-        <button onclick="openPlanningBacklogPasteModal('1st')" class="px-4 py-2 rounded-lg bg-blue-50 text-lidl-blue border border-blue-100 hover:bg-blue-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-paste"></i> 1st Backlog einfügen
-        </button>
-        <button onclick="openPlanningBacklogPasteModal('2nd')" class="px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-paste"></i> 2nd Backlog einfügen
-        </button>
-        <button onclick="openDayPlanningModal()" class="px-4 py-2 rounded-lg bg-gray-50 text-slate-600 border border-gray-200 hover:bg-gray-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-arrows-rotate"></i> Neu laden
-        </button>
-        <button onclick="saveDayPlanningNow(false)" class="px-4 py-2 rounded-lg bg-modern-green text-white hover:bg-emerald-700 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-floppy-disk"></i> Speichern
-        </button>
-        <button onclick="closeDayPlanningModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="dayPlanningBacklogModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[360] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="dayPlanningBacklogModalContent">
-    <div class="bg-gradient-to-r from-slate-800 to-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <div>
-        <h3 class="text-white font-bold text-lg flex items-center gap-2">
-          <i class="fa-solid fa-paste"></i> Backlog importieren
-        </h3>
-        <p class="text-blue-100 text-xs mt-0.5" id="day-planning-backlog-subtitle">Backlog-Text aus Salesforce einfügen</p>
-      </div>
-      <button onclick="closePlanningBacklogPasteModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50 space-y-4">
-      <div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label class="block md:col-span-1">
-            <span class="text-[10px] uppercase font-bold text-gray-400">Referenzdatum</span>
-            <input type="date" id="day-planning-backlog-ref-date" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none">
-          </label>
-          <div class="md:col-span-2 text-xs text-gray-500 flex items-center bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <i class="fa-solid fa-circle-info text-lidl-blue mr-2"></i>
-            Den Salesforce Backlog-Text einfügen. Die Werte werden je Team aggregiert und gespeichert.
-          </div>
-        </div>
-      </div>
-
-      <label class="block bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-        <span class="text-[10px] uppercase font-bold text-gray-400">Backlog-Text</span>
-        <textarea id="day-planning-backlog-text" rows="14" class="mt-2 w-full border border-gray-200 rounded-xl px-3 py-3 text-sm font-mono text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none resize-none" placeholder="Hier den Salesforce Backlog Text einfügen..."></textarea>
-      </label>
-
-      <div id="day-planning-backlog-result" class="hidden rounded-xl border p-4 text-sm"></div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t border-gray-200 shrink-0">
-      <button onclick="importPlanningBacklogFromMapping()" class="px-4 py-2 rounded-lg bg-gray-50 text-slate-600 border border-gray-200 hover:bg-gray-100 font-bold text-sm transition flex items-center gap-2 justify-center">
-        <i class="fa-solid fa-table-cells"></i> Aus Mapping übernehmen
-      </button>
-      <div class="flex gap-2 justify-end">
-        <button onclick="closePlanningBacklogPasteModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-        <button onclick="submitPlanningBacklogText()" class="px-4 py-2 rounded-lg bg-lidl-blue text-white hover:bg-blue-800 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-download"></i> Importieren & speichern
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-  let capacityOverviewCache = null;
-  let capacitySkillFilter = 'Alle';
-
-  let dayPlanningState = null;
-  let dayPlanningSaveTimer = null;
-  let dayPlanningIsSaving = false;
-  let dayPlanningBacklogLevel = '1st';
-
-  function toggleControlPanel(panelId) {
-    const body = document.getElementById(panelId + '-body');
-    const icon = document.getElementById(panelId + '-icon');
-
-    if (!body) return;
-
-    body.classList.toggle('hidden');
-
-    if (icon) {
-      icon.classList.toggle('rotate-180');
-    }
-  }
-
-  function openImportTypeModal() {
-    openModalById('importTypeModal', 'importTypeModalContent');
-  }
-
-  function closeImportTypeModal() {
-    closeModalById('importTypeModal', 'importTypeModalContent');
-  }
-
-  function openPlanoStundenerfassungModal() {
-    const modal = document.getElementById('planoStundenerfassungModal');
-    const list = document.getElementById('plano-st-files-list');
-
-    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
-
-    openModalById('planoStundenerfassungModal', 'planoStundenerfassungModalContent');
-
-    google.script.run
-      .withSuccessHandler(files => {
-        list.innerHTML = '';
-
-        if (!files || files.length === 0) {
-          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
-          return;
+/**
+ * Erstellt das Menü.
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('⚡ Dashboard')
+    .addItem('Dashboard öffnen', 'showDashboard')
+    .addToUi();
+}
+
+/**
+ * Öffnet das Dashboard.
+ */
+function showDashboard() {
+  var html = HtmlService.createTemplateFromFile('Dashboard')
+    .evaluate()
+    .setWidth(1850)
+    .setHeight(950)
+    .setTitle('Überstundenliste Dashboard');
+
+  SpreadsheetApp.getUi().showModalDialog(html, 'Überstundenliste Dashboard');
+}
+
+/**
+ * Holt den Inhalt der Dienstplanung.html für das Frontend.
+ */
+function getDienstplanungFragment() {
+  return HtmlService.createTemplateFromFile('Dienstplanung').evaluate().getContent();
+}
+
+/**
+ * WICHTIG:
+ * Includes werden als Template ausgewertet.
+ */
+function include(filename) {
+  return HtmlService
+    .createTemplateFromFile(filename)
+    .evaluate()
+    .getContent();
+}
+
+/**
+ * ZENTRALE BERECHTIGUNG
+ * Prüft differenziert nach Zugriff, Admin-Status und Dienstplaner-Status.
+ */
+function getUserPermissions(email) {
+  if (!email) return { hasAccess: false, isAdmin: false, isDienstplaner: false };
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const searchEmail = String(email).toLowerCase().trim();
+
+  let hasAccess = false;
+  let isAdmin = false;
+  let isDienstplaner = false;
+
+  const sheetTS = ss.getSheetByName('Tagessteuerung');
+
+  if (sheetTS && sheetTS.getLastRow() > 1) {
+    const data = sheetTS.getRange(2, 1, sheetTS.getLastRow() - 1, 2).getValues();
+
+    for (let i = 0; i < data.length; i++) {
+      const rowEmail = String(data[i][0]).toLowerCase().trim();
+
+      if (rowEmail === searchEmail) {
+        hasAccess = true;
+
+        const rowRole = String(data[i][1] || "").toLowerCase().trim();
+
+        if (rowRole.includes('tagessteuerung') || rowRole.includes('dienstplanung')) {
+          isAdmin = true;
         }
 
-        files.forEach(f => {
-          const d = new Date(f.dateCreated);
-          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
-          list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-200 transition group">
-              <div>
-                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <i class="fa-solid fa-database text-modern-green"></i> ${escapeHtml(f.name)}
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
-              </div>
-              <button onclick="runPlanoStundenerfassungImport('${f.id}', this)" class="bg-white border border-gray-300 text-modern-green px-3 py-1.5 rounded text-xs font-bold hover:bg-modern-green hover:text-white transition shadow-sm">
-                Datenbank Import
-              </button>
-            </div>`;
-        });
-      })
-      .withFailureHandler(err => {
-        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message || err}</div>`;
-      })
-      .getPlanoFilesList();
-  }
-
-  function closePlanoStundenerfassungModal() {
-    closeModalById('planoStundenerfassungModal', 'planoStundenerfassungModalContent');
-  }
-
-  function runPlanoStundenerfassungImport(fileId, btnEl) {
-    const oldContent = btnEl.innerHTML;
-
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importiere...';
-    btnEl.disabled = true;
-    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
-
-    const allBtns = document.getElementById('plano-st-files-list').querySelectorAll('button');
-    allBtns.forEach(b => b.disabled = true);
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        closePlanoStundenerfassungModal();
-        alert(response);
-      })
-      .withFailureHandler(function(error) {
-        btnEl.innerHTML = oldContent;
-        btnEl.disabled = false;
-        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
-        allBtns.forEach(b => b.disabled = false);
-        alert("Kritischer Fehler: " + (error.message || error));
-      })
-      .libProcessSelectedFile(fileId);
-  }
-
-  function openUebermittelnModal() {
-    openModalById('uebermittelnModal', 'uebermittelnModalContent');
-
-    document.getElementById('st-filename-display').innerText = "Lade Dateinamen aus Einstellungen...";
-
-    google.script.run
-      .withSuccessHandler(name => {
-        document.getElementById('st-filename-display').innerText = name;
-      })
-      .withFailureHandler(() => {
-        document.getElementById('st-filename-display').innerText = "Fehler beim Laden";
-      })
-      .libGetStundenerfassungFileName();
-  }
-
-  function closeUebermittelnModal() {
-    closeModalById('uebermittelnModal', 'uebermittelnModalContent');
-  }
-
-  function toggleUebermittelnButtons(disabled) {
-    ['btn-st-transfer', 'btn-st-delete', 'btn-st-sync', 'uebermitteln-date'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.disabled = disabled;
-    });
-  }
-
-  function startTransfer() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle ein Datum aus.");
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-transfer');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Übermittlung läuft...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Erfolgreich! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libProcessStundenerfassung(dateVal);
-  }
-
-  function startDelete() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle ein Datum aus.");
-      return;
-    }
-
-    if (!confirm("Möchtest du wirklich alle eingetragenen Zeiten für dieses Datum in der Stundenerfassung löschen?")) {
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-delete');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lösche Daten...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Gelöscht! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libDeleteStundenerfassung(dateVal);
-  }
-
-  function startSync() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle irgendein Datum aus dem Monat.");
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-sync');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Synchronisiere...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Erfolgreich! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libSyncStundenerfassung(dateVal);
-  }
-
-  function openPlanoImportModal() {
-    const list = document.getElementById('plano-files-list');
-
-    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
-
-    openModalById('planoModal', 'planoModalContent');
-
-    google.script.run
-      .withSuccessHandler(files => {
-        list.innerHTML = '';
-
-        if (!files || files.length === 0) {
-          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
-          return;
-        }
-
-        files.forEach(f => {
-          const d = new Date(f.dateCreated);
-          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
-          list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition group">
-              <div>
-                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <i class="fa-solid fa-file-excel text-green-600"></i> ${escapeHtml(f.name)}
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
-              </div>
-              <button onclick="runPlanoImport('${f.id}', this)" class="bg-white border border-gray-300 text-lidl-blue px-3 py-1.5 rounded text-xs font-bold hover:bg-lidl-blue hover:text-white transition shadow-sm">
-                Importieren
-              </button>
-            </div>`;
-        });
-      })
-      .withFailureHandler(err => {
-        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message || err}</div>`;
-      })
-      .getPlanoFilesList();
-  }
-
-  function closePlanoModal() {
-    closeModalById('planoModal', 'planoModalContent');
-  }
-
-  function runPlanoImport(fileId, btnEl) {
-    const oldContent = btnEl.innerHTML;
-
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lade...';
-    btnEl.disabled = true;
-    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
-
-    const allBtns = document.getElementById('plano-files-list').querySelectorAll('button');
-
-    allBtns.forEach(b => b.disabled = true);
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        closePlanoModal();
-
-        if (response.success) {
-          alert("Import erfolgreich! " + response.count + " Schichten importiert.\nDie Seite wird nun aktualisiert.");
-
-          const loader = document.getElementById('loader');
-          if (loader) loader.classList.remove('hidden');
-
-          google.script.run
-            .withSuccessHandler(onDataLoaded)
-            .withFailureHandler(onDataError)
-            .getData();
-        } else {
-          alert("Import fehlgeschlagen: " + response.message);
-        }
-      })
-      .withFailureHandler(function(error) {
-        btnEl.innerHTML = oldContent;
-        btnEl.disabled = false;
-        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
-
-        allBtns.forEach(b => b.disabled = false);
-
-        alert("Kritischer Fehler: " + (error.message || error));
-      })
-      .importSelectedPlano(fileId);
-  }
-
-  function renderControl(data) {
-    const listFrueh = document.getElementById('list-frueh');
-    const listMittel = document.getElementById('list-mittel');
-    const listSpaet = document.getElementById('list-spaet');
-
-    if (!listFrueh || !listMittel || !listSpaet) return;
-
-    let allActivities = new Set();
-
-    const sorted = [...data].sort((a, b) => {
-      if (activeControlSort === 'plus') return b.stundenSaldo - a.stundenSaldo;
-      if (activeControlSort === 'minus') return a.stundenSaldo - b.stundenSaldo;
-
-      if (activeControlSort === 'time') {
-        const timeA = parseStartTimeMinutes(getRelevantTimeStr(a, activeActivityFilter));
-        const timeB = parseStartTimeMinutes(getRelevantTimeStr(b, activeActivityFilter));
-
-        return timeA - timeB;
-      }
-
-      return 0;
-    });
-
-    sorted.forEach(e => {
-      if (e.schicht && e.schicht.activities && e.schicht.activities.length > 0) {
-        e.schicht.activities.forEach(act => allActivities.add(act));
-      }
-    });
-
-    buildActivityFilters(Array.from(allActivities).sort());
-
-    listFrueh.innerHTML = '';
-    listMittel.innerHTML = '';
-    listSpaet.innerHTML = '';
-
-    let cF = 0;
-    let cM = 0;
-    let cS = 0;
-
-    let sF = 0;
-    let sM = 0;
-    let sS = 0;
-
-    sorted.forEach(e => {
-      if (e.schicht && e.schicht.type) {
-        let showItem = true;
-
-        if (activeActivityFilter !== 'Alle') {
-          if (!e.schicht.activities || !e.schicht.activities.includes(activeActivityFilter)) {
-            showItem = false;
-          }
-        }
-
-        if (showItem) {
-          const col = getBalanceColor(e.stundenSaldo);
-
-          let pauseBadge = "";
-
-          if (e.schicht.pause) {
-            pauseBadge = `<span class="bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-block" title="Pause"><i class="fa-solid fa-mug-hot mr-1"></i>${escapeHtml(e.schicht.pause)}</span>`;
-          }
-
-          let actHtml = "";
-
-          if (e.schicht.activities && e.schicht.activities.length > 0) {
-            const actsStr = e.schicht.activities.join(' • ');
-            actHtml = `<div class="text-[9px] text-gray-400 mt-1 truncate" title="${escapeHtml(actsStr)}"><i class="fa-solid fa-briefcase mr-1"></i>${escapeHtml(actsStr)}</div>`;
-          }
-
-          const displayTime = getRelevantTimeStr(e, activeActivityFilter);
-
-          let timeClass = "text-lidl-blue bg-blue-50 border border-blue-100";
-
-          if (activeActivityFilter !== 'Alle' && displayTime !== e.schicht.time) {
-            timeClass = "text-white bg-lidl-blue shadow-sm border-transparent";
-          }
-
-          const item = `
-            <div onclick="openShiftDetailsModal(${e.id})" class="p-3 border border-gray-100 rounded-xl bg-white hover:border-blue-300 hover:shadow-md cursor-pointer flex flex-col gap-1 text-sm transition-all group">
-              <div class="flex justify-between items-start">
-                <div class="overflow-hidden pr-2">
-                  <div class="font-bold text-slate-700 truncate">${escapeHtml(e.fullName)}</div>
-                  <div class="flex items-center text-[10px] text-gray-500 mt-0.5">
-                    <span class="truncate max-w-[80px]" title="${escapeHtml(e.skill)}">${escapeHtml(e.skill)}</span>
-                    <span class="mx-1 text-gray-300">|</span>
-                    <span class="font-mono font-bold ${col}">${decimalToTime(e.stundenSaldo)}</span>
-                  </div>
-                </div>
-                <div class="text-right flex flex-col items-end shrink-0">
-                  <div class="font-mono text-[10px] font-bold px-2 py-0.5 rounded ${timeClass} whitespace-nowrap">${escapeHtml(displayTime)}</div>
-                  ${pauseBadge}
-                </div>
-              </div>
-              ${actHtml}
-            </div>`;
-
-          const saldoVal = parseFloat(e.stundenSaldo) || 0;
-
-          if (e.schicht.type === "Früh") {
-            listFrueh.innerHTML += item;
-            cF++;
-            if (saldoVal > 0) sF += saldoVal;
-          } else if (e.schicht.type === "Mittel") {
-            listMittel.innerHTML += item;
-            cM++;
-            if (saldoVal > 0) sM += saldoVal;
-          } else if (e.schicht.type === "Spät") {
-            listSpaet.innerHTML += item;
-            cS++;
-            if (saldoVal > 0) sS += saldoVal;
-          }
+        if (rowRole.includes('dienstplanung')) {
+          isDienstplaner = true;
         }
       }
-    });
-
-    document.getElementById('count-frueh').innerText = cF;
-    document.getElementById('sum-frueh').innerText = "+" + decimalToTime(sF) + " Std";
-
-    document.getElementById('count-mittel').innerText = cM;
-    document.getElementById('sum-mittel').innerText = "+" + decimalToTime(sM) + " Std";
-
-    document.getElementById('count-spaet').innerText = cS;
-    document.getElementById('sum-spaet').innerText = "+" + decimalToTime(sS) + " Std";
+    }
   }
 
-  function getRelevantTimeStr(emp, filter) {
-    if (filter === 'Alle' || !emp.schicht || !emp.schicht.details || emp.schicht.details.length === 0) {
-      return emp.schicht ? emp.schicht.time : "";
-    }
+  if (!isAdmin) {
+    const sheetDB = ss.getSheetByName('Data_DB');
 
-    const matches = emp.schicht.details.filter(d => d.activity === filter);
+    if (sheetDB && sheetDB.getLastRow() > 1) {
+      const lastRow = sheetDB.getLastRow();
+      const dataDB = sheetDB.getRange(2, 1, lastRow - 1, 14).getValues();
 
-    if (matches.length > 0) {
-      if (matches.length === 1) {
-        return matches[0].time;
-      }
+      const isDienstplanerInDB = dataDB.some(row => {
+        const dbEmail = String(row[13] || "").trim().toLowerCase();
+        const skill = String(row[4] || "").trim().toLowerCase();
 
-      let minStart = null;
-      let maxEnd = null;
-      let minStartMins = 99999;
-      let maxEndMins = -1;
-
-      matches.forEach(m => {
-        const tMatch = String(m.time || '').match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
-
-        if (tMatch) {
-          const sStr = tMatch[1];
-          const eStr = tMatch[2];
-
-          const sMins = parseInt(sStr.split(':')[0], 10) * 60 + parseInt(sStr.split(':')[1], 10);
-          let eMins = parseInt(eStr.split(':')[0], 10) * 60 + parseInt(eStr.split(':')[1], 10);
-
-          if (eMins <= sMins) {
-            eMins += 24 * 60;
-          }
-
-          if (sMins < minStartMins) {
-            minStartMins = sMins;
-            minStart = sStr;
-          }
-
-          if (eMins > maxEndMins) {
-            maxEndMins = eMins;
-            maxEnd = eStr;
-          }
-        }
+        return dbEmail === searchEmail && skill === 'dienstplanung';
       });
 
-      if (minStart && maxEnd) {
-        return `${minStart}-${maxEnd}`;
+      if (isDienstplanerInDB) {
+        hasAccess = true;
+        isAdmin = true;
+        isDienstplaner = true;
+      }
+    }
+  }
+
+  return { hasAccess, isAdmin, isDienstplaner };
+}
+
+/**
+ * Hauptfunktion: Daten laden.
+ */
+function getData() {
+  try {
+    const userEmail = Session.getActiveUser().getEmail().toLowerCase();
+    const permissions = getUserPermissions(userEmail);
+
+    if (!permissions.hasAccess) {
+      throw new Error("⛔ Zugriff verweigert: Ihre E-Mail (" + userEmail + ") ist nicht berechtigt.");
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    let sheetDB = ss.getSheetByName('Data_DB');
+    let sheetAuftrag = ss.getSheetByName('Auftrag');
+    let sheetTS = ss.getSheetByName('Tagessteuerung');
+    let sheetSchicht = ss.getSheetByName('Schichtmodelle');
+    let sheetAbbau = ss.getSheetByName('AbbauKW');
+
+    if (!sheetDB) throw new Error('Blatt "Data_DB" fehlt.');
+
+    if (!sheetAuftrag) {
+      sheetAuftrag = ss.insertSheet('Auftrag');
+      sheetAuftrag.appendRow(['Name', 'Vorname', 'Datum', 'Stunden', 'Notizen', 'Erstellt von']);
+    }
+
+    if (!sheetSchicht) {
+      sheetSchicht = ss.insertSheet('Schichtmodelle');
+      sheetSchicht.appendRow(['Nachname', 'Vorname', 'Schichtzeit', 'Typ', 'Pause', 'Taetigkeiten']);
+    }
+
+    processAuftragExpiry(sheetDB, sheetAuftrag);
+
+    const lastRow = sheetDB.getLastRow();
+
+    if (lastRow < 2) {
+      return {
+        employees: [],
+        stats: {},
+        currentWeek: getWeekNumber(new Date()),
+        currentYear: new Date().getFullYear(),
+        isAdmin: permissions.isAdmin,
+        isDienstplaner: permissions.isDienstplaner,
+        abbauHistory: []
+      };
+    }
+
+    const data = sheetDB.getRange(2, 1, lastRow - 1, 14).getValues();
+    const rawAuftraege = getAuftraege(sheetAuftrag);
+
+    const tsNames = new Set();
+
+    if (sheetTS && sheetTS.getLastRow() > 1) {
+      const tsData = sheetTS.getRange(2, 3, sheetTS.getLastRow() - 1, 1).getValues();
+
+      tsData.forEach(r => {
+        const full = String(r[0]).trim();
+
+        if (full) {
+          tsNames.add(full.split(' ')[0].toLowerCase());
+        }
+      });
+    }
+
+    const shiftMap = new Map();
+
+    if (sheetSchicht.getLastRow() > 1) {
+      const lastColS = sheetSchicht.getLastColumn();
+      const colsToLoad = Math.min(lastColS, 6);
+
+      if (colsToLoad >= 1) {
+        const sData = sheetSchicht
+          .getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad)
+          .getValues();
+
+        sData.forEach(r => {
+          const key = (String(r[1] || "").trim() + " " + String(r[0] || "").trim()).toLowerCase();
+
+          let activitiesArr = [];
+          let detailsArr = [];
+
+          const rawActivities = colsToLoad >= 6 ? String(r[5] || "").trim() : "";
+
+          if (rawActivities) {
+            try {
+              const parsed = JSON.parse(rawActivities);
+
+              if (Array.isArray(parsed)) {
+                detailsArr = parsed
+                  .map(item => ({
+                    time: String(item.time || "").trim(),
+                    activity: String(item.activity || "").trim()
+                  }))
+                  .filter(item => item.time || item.activity);
+
+                detailsArr.forEach(item => {
+                  const activity = item.activity.trim();
+
+                  if (
+                    activity &&
+                    activity !== '-' &&
+                    !activity.toLowerCase().includes('pause') &&
+                    !activitiesArr.includes(activity)
+                  ) {
+                    activitiesArr.push(activity);
+                  }
+                });
+              }
+            } catch (jsonErr) {
+              const parts = rawActivities.split(/(?=\d{2}:\d{2}\s*-\s*\d{2}:\d{2})/);
+
+              parts.forEach(p => {
+                const match = p.match(/(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\s+(.+)/);
+
+                if (match) {
+                  const time = match[1].replace(/\s/g, '').trim();
+                  const activity = match[2].replace(/\n/g, '').trim();
+
+                  if (activity) {
+                    detailsArr.push({
+                      time: time,
+                      activity: activity
+                    });
+
+                    if (
+                      !activity.toLowerCase().includes('pause') &&
+                      !activitiesArr.includes(activity)
+                    ) {
+                      activitiesArr.push(activity);
+                    }
+                  }
+                }
+              });
+
+              if (activitiesArr.length === 0) {
+                activitiesArr = rawActivities
+                  .split(',')
+                  .map(a => a.trim())
+                  .filter(a => a);
+              }
+            }
+          }
+
+          shiftMap.set(key, {
+            time: colsToLoad >= 3 ? String(r[2] || "") : "",
+            type: colsToLoad >= 4 ? String(r[3] || "") : "",
+            pause: colsToLoad >= 5 ? String(r[4] || "") : "",
+            activities: activitiesArr,
+            details: detailsArr
+          });
+        });
+      }
+    }
+
+    let abbauRaw = [];
+
+    if (sheetAbbau && sheetAbbau.getLastRow() > 1) {
+      const rows = sheetAbbau.getDataRange().getValues();
+      const headers = rows[0];
+
+      for (let r = 1; r < rows.length; r++) {
+        const rowData = rows[r];
+        const rYear = rowData[0];
+        const rKw = rowData[1];
+
+        for (let c = 3; c < rowData.length; c++) {
+          const val = Number(rowData[c]);
+          const teamName = String(headers[c]);
+
+          if (val !== 0 && teamName) {
+            abbauRaw.push({
+              y: rYear,
+              kw: rKw,
+              val: val,
+              team: teamName,
+              tma: ""
+            });
+          }
+        }
+      }
+    }
+
+    const formattedData = data.map((row, index) => {
+      if (!row[0]) return null;
+
+      const austrittRaw = row[12];
+      let isAustritt = false;
+
+      if (austrittRaw) {
+        let aDate = null;
+
+        if (austrittRaw instanceof Date) {
+          aDate = austrittRaw;
+        } else if (typeof austrittRaw === 'string' && austrittRaw.trim() !== "") {
+          const parts = extractDates(austrittRaw);
+
+          if (parts.length > 0) {
+            aDate = parts[0];
+          }
+        }
+
+        if (aDate) {
+          aDate.setHours(0, 0, 0, 0);
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          if (aDate <= today) {
+            isAustritt = true;
+          }
+        }
       }
 
-      return matches.map(m => m.time).join(', ');
-    }
+      if (isAustritt) return null;
 
-    return emp.schicht.time;
-  }
+      const nachname = String(row[0] || "").trim();
+      const vorname = String(row[1] || "").trim();
+      const dbKey = (vorname + " " + nachname).toLowerCase();
 
-  function parseStartTimeMinutes(timeStr) {
-    if (!timeStr) return 9999;
+      const myAuftraege = rawAuftraege
+        .filter(a =>
+          a.name.toLowerCase() === nachname.toLowerCase() &&
+          a.vorname.toLowerCase() === vorname.toLowerCase()
+        )
+        .map(a => {
+          let isTs = false;
 
-    const match = String(timeStr).match(/(\d{2}):(\d{2})/);
+          if (a.erstelltVon) {
+            const creatorFirst = a.erstelltVon.split(' ')[0].toLowerCase();
 
-    if (match) {
-      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-    }
+            if (tsNames.has(creatorFirst)) {
+              isTs = true;
+            }
+          }
 
-    return 9999;
-  }
+          return { ...a, isTsRelevant: isTs };
+        });
 
-  function buildActivityFilters(activities) {
-    const container = document.getElementById('activity-filter-container');
+      const rawEss = row[5];
+      const essDecimal = timeToDecimal(rawEss);
+      const plannedDecimal = myAuftraege.reduce((sum, order) => sum + (order.stunden || 0), 0);
 
-    if (!container) return;
+      let saldoDecimal = essDecimal - plannedDecimal;
+      saldoDecimal = Math.round(saldoDecimal * 100) / 100;
 
-    container.innerHTML = '';
-
-    const btnAll = document.createElement('button');
-
-    btnAll.innerText = 'Alle anzeigen';
-    btnAll.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === 'Alle' ? 'active' : 'default'}`;
-    btnAll.onclick = () => {
-      activeActivityFilter = 'Alle';
-      applyFilters();
-    };
-
-    container.appendChild(btnAll);
-
-    activities.forEach(act => {
-      const btn = document.createElement('button');
-
-      btn.innerText = act;
-      btn.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === act ? 'active' : 'default'}`;
-      btn.onclick = () => {
-        activeActivityFilter = act;
-        applyFilters();
+      const shiftInfo = shiftMap.get(dbKey) || {
+        time: "",
+        type: "",
+        pause: "",
+        activities: [],
+        details: []
       };
 
-      container.appendChild(btn);
+      const austrittDisplay = row[12] instanceof Date ? formatDateCompat(row[12]) : "";
+
+      return {
+        id: index + 2,
+        nachname: nachname,
+        vorname: vorname,
+        fullName: `${vorname} ${nachname}`,
+        tmaVorname: String(row[3] || "Ohne TMA"),
+        skill: String(row[4] || "-"),
+        stundenEss: rawEss,
+        stundenSaldo: saldoDecimal,
+        letzteAktualisierung: row[6] ? formatDateCompat(row[6]) : "-",
+        notizen: String(row[11] || ""),
+        austrittDatum: austrittDisplay,
+        auftraege: myAuftraege,
+        schicht: shiftInfo
+      };
+    }).filter(item => item !== null);
+
+    return {
+      employees: formattedData,
+      currentWeek: getWeekNumber(new Date()),
+      currentYear: new Date().getFullYear(),
+      isAdmin: permissions.isAdmin,
+      isDienstplaner: permissions.isDienstplaner,
+      abbauHistory: abbauRaw
+    };
+
+  } catch (e) {
+    Logger.log("Fehler in getData: " + e.toString());
+    throw e;
+  }
+}
+
+function processAuftragExpiry(sheetDB, sheetAuftrag) {
+  const lastRowA = sheetAuftrag.getLastRow();
+
+  if (lastRowA < 2) return;
+
+  const dbDataRange = sheetDB.getDataRange();
+  const dbData = dbDataRange.getValues();
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dbMap = new Map();
+
+  for (let i = 1; i < dbData.length; i++) {
+    const key = (String(dbData[i][1]).trim() + " " + String(dbData[i][0]).trim()).toLowerCase();
+    dbMap.set(key, i);
+  }
+
+  const auftragData = sheetAuftrag.getRange(2, 1, lastRowA - 1, 6).getValues();
+
+  let dbDirty = false;
+  let auftragDirty = false;
+
+  const validAuftraege = [];
+
+  auftragData.forEach(row => {
+    const n = String(row[0]);
+    const v = String(row[1]);
+    const rawDate = row[2];
+    const hoursVal = row[3];
+    const notiz = row[4];
+    const creator = row[5];
+
+    let dates = [];
+
+    if (rawDate instanceof Date) {
+      dates.push(rawDate);
+    } else {
+      dates = extractDates(String(rawDate));
+    }
+
+    let isExpired = false;
+
+    if (dates.length > 0) {
+      const lastDate = dates[dates.length - 1];
+      lastDate.setHours(0, 0, 0, 0);
+
+      if (lastDate < today) {
+        isExpired = true;
+      }
+    }
+
+    let processed = false;
+
+    if (isExpired) {
+      const dbKey = (v.trim() + " " + n.trim()).toLowerCase();
+
+      if (dbMap.has(dbKey)) {
+        const dbIdx = dbMap.get(dbKey);
+
+        const currentEssStr = dbData[dbIdx][5];
+        const currentEssDec = timeToDecimal(currentEssStr);
+        const orderHoursDec = timeToDecimal(hoursVal);
+        const newEssDec = currentEssDec - orderHoursDec;
+
+        dbData[dbIdx][5] = decimalToTime(newEssDec);
+        dbData[dbIdx][6] = today;
+
+        dbDirty = true;
+        processed = true;
+        auftragDirty = true;
+      }
+    }
+
+    if (!processed) {
+      validAuftraege.push([n, v, rawDate, hoursVal, notiz, creator]);
+    }
+  });
+
+  if (dbDirty) {
+    const dataToWrite = dbData.slice(1);
+    const rangeFG = sheetDB.getRange(2, 6, dataToWrite.length, 2);
+
+    rangeFG.setNumberFormat("@");
+
+    const valuesFG = rangeFG.getValues();
+
+    let rangeDirty = false;
+
+    for (let i = 0; i < dataToWrite.length; i++) {
+      const newF = dataToWrite[i][5];
+      const newG = dataToWrite[i][6];
+
+      if (valuesFG[i][0] !== newF) {
+        valuesFG[i][0] = newF;
+        valuesFG[i][1] = newG;
+        rangeDirty = true;
+      }
+    }
+
+    if (rangeDirty) {
+      rangeFG.setValues(valuesFG);
+    }
+  }
+
+  if (auftragDirty) {
+    sheetAuftrag.getRange(2, 1, lastRowA - 1, 6).clearContent();
+
+    if (validAuftraege.length > 0) {
+      sheetAuftrag.getRange(2, 1, validAuftraege.length, 6).setValues(validAuftraege);
+    }
+
+    SpreadsheetApp.flush();
+  }
+}
+
+function getAuftraege(sheet) {
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) return [];
+
+  const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+
+  return data.map((row, idx) => ({
+    rowId: idx + 2,
+    name: String(row[0]),
+    vorname: String(row[1]),
+    datum: formatDateCompat(row[2]),
+    stunden: timeToDecimal(row[3]),
+    stundenDisplay: row[3],
+    notizen: String(row[4]),
+    erstelltVon: String(row[5] || "")
+  }));
+}
+
+function addAuftrag(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheetAuftrag = ss.getSheetByName('Auftrag');
+
+  if (!sheetAuftrag) {
+    sheetAuftrag = ss.insertSheet('Auftrag');
+  }
+
+  const userEmail = Session.getActiveUser().getEmail();
+  const editorName = getEditorNameFromEmail(userEmail);
+  const lastRow = sheetAuftrag.getLastRow() + 1;
+
+  sheetAuftrag.getRange(lastRow, 4).setNumberFormat("@");
+
+  sheetAuftrag.getRange(lastRow, 1, 1, 6).setValues([[
+    data.nachname.trim(),
+    data.vorname.trim(),
+    data.datum,
+    data.stunden,
+    data.notizen,
+    editorName
+  ]]);
+
+  const team = getEmployeeTeam(data.nachname, data.vorname);
+
+  updateAbbauStats(data.datum, timeToDecimal(data.stunden), 'add', team);
+
+  SpreadsheetApp.flush();
+
+  return getData();
+}
+
+function deleteAuftrag(rowId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Auftrag');
+
+  if (sheet) {
+    const r = Number(rowId);
+    const val = sheet.getRange(r, 1, 1, 6).getValues()[0];
+    const team = getEmployeeTeam(val[0], val[1]);
+
+    updateAbbauStats(val[2], timeToDecimal(val[3]), 'remove', team);
+
+    sheet.deleteRow(r);
+  }
+
+  return getData();
+}
+
+function updateEmployeeBase(formData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Data_DB');
+  const row = parseInt(formData.id, 10);
+
+  const essCell = sheet.getRange(row, 6);
+
+  essCell.setNumberFormat("@");
+  essCell.setValue(formData.stundenEss);
+
+  sheet.getRange(row, 7).setValue(new Date()).setNumberFormat("dd.MM.yyyy");
+  sheet.getRange(row, 12).setValue(formData.notizen);
+
+  if (formData.austrittDatum) {
+    const parts = formData.austrittDatum.split('-');
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+
+    sheet.getRange(row, 13).setValue(d).setNumberFormat("dd.MM.yyyy");
+  } else {
+    sheet.getRange(row, 13).setValue("");
+  }
+
+  SpreadsheetApp.flush();
+
+  return getData();
+}
+
+function getEditorNameFromEmail(email) {
+  if (!email) return "";
+
+  try {
+    const localPart = email.split('@')[0];
+    const parts = localPart.split('.');
+
+    if (parts.length > 0) {
+      const firstNamePart = parts[0].replace(/_/g, ' ');
+
+      return firstNamePart.replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    return email;
+  } catch (e) {
+    return email;
+  }
+}
+
+function extractDates(str) {
+  const regex = /(\d{1,2})\.(\d{1,2})\.(\d{4})/g;
+  const matches = [];
+
+  let match;
+
+  while ((match = regex.exec(str)) !== null) {
+    matches.push(new Date(match[3], match[2] - 1, match[1]));
+  }
+
+  return matches.sort((a, b) => a - b);
+}
+
+function formatDateCompat(dateObj) {
+  if (!dateObj) return "-";
+
+  let d = null;
+
+  if (dateObj instanceof Date) {
+    d = dateObj;
+  } else if (typeof dateObj === 'string') {
+    if (dateObj.match(/[A-Za-z]{3}\s[A-Za-z]{3}\s\d{2}/) || dateObj.includes("GMT")) {
+      const tryD = new Date(dateObj);
+
+      if (!isNaN(tryD.getTime())) {
+        d = tryD;
+      } else {
+        return dateObj;
+      }
+    } else {
+      return dateObj;
+    }
+  }
+
+  if (d && !isNaN(d.getTime())) {
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  }
+
+  return String(dateObj);
+}
+
+function getWeekNumber(d) {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function doGet(e) {
+  const userEmail = Session.getActiveUser().getEmail();
+  const permissions = getUserPermissions(userEmail);
+
+  if (permissions.hasAccess) {
+    return HtmlService
+      .createTemplateFromFile('Dashboard')
+      .evaluate()
+      .setTitle('Überstundenliste Dashboard')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  return HtmlService
+    .createHtmlOutput('Zugriff verweigert')
+    .setTitle("Zugriff verweigert");
+}
+
+function checkAccess(email) {
+  return getUserPermissions(email).hasAccess;
+}
+
+/* =========================================================================
+   HILFSFUNKTIONEN FÜR ZEIT-UMRECHNUNG
+   ========================================================================= */
+
+function timeToDecimal(timeStr) {
+  if (timeStr === null || timeStr === undefined || timeStr === "") return 0;
+
+  if (typeof timeStr === 'number') return timeStr;
+
+  if (timeStr instanceof Date) {
+    const h = timeStr.getHours();
+    const m = timeStr.getMinutes();
+
+    return h + (m / 60);
+  }
+
+  timeStr = String(timeStr).trim();
+
+  let isNegative = timeStr.startsWith("-");
+
+  if (isNegative) {
+    timeStr = timeStr.substring(1);
+  }
+
+  const parts = timeStr.split(':');
+
+  if (parts.length < 2) {
+    return parseFloat(timeStr) || 0;
+  }
+
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+
+  let decimal = hours + (minutes / 60);
+
+  return isNegative ? -decimal : decimal;
+}
+
+function decimalToTime(decimalVal) {
+  if (decimalVal === null || decimalVal === undefined || decimalVal === "") return "00:00";
+
+  decimalVal = Number(decimalVal) || 0;
+
+  const isNegative = decimalVal < 0;
+
+  decimalVal = Math.abs(decimalVal);
+
+  let hours = Math.floor(decimalVal);
+  let minutes = Math.round((decimalVal - hours) * 60);
+
+  if (minutes === 60) {
+    hours += 1;
+    minutes = 0;
+  }
+
+  const hStr = String(hours).padStart(2, '0');
+  const mStr = String(minutes).padStart(2, '0');
+
+  return (isNegative ? "-" : "") + hStr + ":" + mStr;
+}
+
+function updateAbbauStats(dateStr, hoursDecimal, operation, teamName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheet = ss.getSheetByName('AbbauKW');
+
+  if (!sheet) {
+    sheet = ss.insertSheet('AbbauKW');
+    sheet.appendRow(['Jahr', 'KW', 'Gesamt']);
+    sheet.setFrozenRows(1);
+    sheet.setFrozenColumns(2);
+  }
+
+  let dateObj = dateStr instanceof Date ? dateStr : extractDates(String(dateStr))[0];
+
+  if (!dateObj) return;
+
+  const year = dateObj.getFullYear();
+  const kw = getWeekNumber(dateObj);
+  const team = teamName || "Sonstiges";
+
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  let colIndex = -1;
+
+  for (let c = 0; c < headers.length; c++) {
+    if (String(headers[c]).toLowerCase() === String(team).toLowerCase()) {
+      colIndex = c + 1;
+      break;
+    }
+  }
+
+  if (colIndex === -1) {
+    colIndex = lastCol + 1;
+    sheet.getRange(1, colIndex).setValue(team).setFontWeight("bold");
+  }
+
+  const lastRow = sheet.getLastRow();
+
+  let rowIndex = -1;
+
+  if (lastRow > 1) {
+    const timeData = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+
+    for (let r = 0; r < timeData.length; r++) {
+      if (timeData[r][0] == year && timeData[r][1] == kw) {
+        rowIndex = r + 2;
+        break;
+      }
+    }
+  }
+
+  if (rowIndex === -1) {
+    sheet.appendRow([year, kw, 0]);
+    rowIndex = sheet.getLastRow();
+  }
+
+  const cell = sheet.getRange(rowIndex, colIndex);
+  const oldVal = Number(cell.getValue()) || 0;
+
+  let newVal = oldVal;
+
+  if (operation === 'add') {
+    newVal += hoursDecimal;
+  } else {
+    newVal -= hoursDecimal;
+  }
+
+  newVal = Math.round(newVal * 100) / 100;
+
+  cell.setValue(newVal);
+}
+
+function getEmployeeTeam(nachname, vorname) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetDB = ss.getSheetByName('Data_DB');
+
+  if (!sheetDB) return "Unbekannt";
+
+  const data = sheetDB.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (
+      String(data[i][0]).toLowerCase().trim() === String(nachname).toLowerCase().trim() &&
+      String(data[i][1]).toLowerCase().trim() === String(vorname).toLowerCase().trim()
+    ) {
+      return String(data[i][4]);
+    }
+  }
+
+  return "Unbekannt";
+}
+
+/* =========================================================================
+   WRAPPER FÜR BIBLIOTHEK: StundenerfassungPlano
+   ========================================================================= */
+
+function libProcessSelectedFile(fileId) {
+  return StundenerfassungPlano.processSelectedFile(fileId);
+}
+
+function libProcessStundenerfassung(dateStr) {
+  return StundenerfassungPlano.processStundenerfassung(dateStr);
+}
+
+function libDeleteStundenerfassung(dateStr) {
+  return StundenerfassungPlano.deleteStundenerfassung(dateStr);
+}
+
+function libSyncStundenerfassung(dateStr) {
+  return StundenerfassungPlano.syncStundenerfassung(dateStr);
+}
+
+function libGetStundenerfassungFileName() {
+  return StundenerfassungPlano.getStundenerfassungFileName();
+}
+
+/* =========================================================================
+   KAPAZITÄTENÜBERSICHT TAGESSTEUERUNG
+   Basis: Schichtmodelle aus Plano Backup
+   ========================================================================= */
+
+function getCapacityOverviewData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetSchicht = ss.getSheetByName('Schichtmodelle');
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  if (!sheetSchicht || sheetSchicht.getLastRow() < 2) {
+    return {
+      success: true,
+      updatedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
+      sourceRows: 0,
+      totalHours: 0,
+      remainingHours: 0,
+      usedHours: 0,
+      activeNowCount: 0,
+      foundSkills: [],
+      areas: []
+    };
+  }
+
+  const colsToLoad = Math.min(sheetSchicht.getLastColumn(), 6);
+  const rows = sheetSchicht.getRange(2, 1, sheetSchicht.getLastRow() - 1, colsToLoad).getValues();
+
+  const groupMap = new Map();
+
+  let totalHoursAll = 0;
+  let remainingHoursAll = 0;
+  let activeNowCount = 0;
+  let sourceSegments = 0;
+
+  rows.forEach(row => {
+    const rawActivities = colsToLoad >= 6 ? String(row[5] || "").trim() : "";
+    const segments = parseCapacitySkillSegments(rawActivities);
+
+    if (segments.length === 0) return;
+
+    segments.forEach(segment => {
+      const rawSkill = String(segment.activity || "").trim();
+
+      if (!rawSkill || isCapacityIgnoredActivity(rawSkill)) return;
+
+      const capacitySkill = mapCapacitySkillGroup(rawSkill);
+
+      if (!capacitySkill || capacitySkill === "-" || capacitySkill.toLowerCase() === "ohne skill") return;
+
+      const duration = calculateCapacitySegmentDuration(segment.start, segment.end, nowMinutes);
+
+      if (duration.totalHours <= 0) return;
+
+      if (!groupMap.has(capacitySkill)) {
+        groupMap.set(capacitySkill, {
+          area: capacitySkill,
+          totalHours: 0,
+          remainingHours: 0,
+          usedHours: 0,
+          activeNowCount: 0,
+          originalSkills: new Set()
+        });
+      }
+
+      const group = groupMap.get(capacitySkill);
+
+      group.totalHours += duration.totalHours;
+      group.remainingHours += duration.remainingHours;
+      group.usedHours += duration.usedHours;
+      group.originalSkills.add(rawSkill);
+
+      if (duration.isActiveNow) {
+        group.activeNowCount += 1;
+        activeNowCount += 1;
+      }
+
+      totalHoursAll += duration.totalHours;
+      remainingHoursAll += duration.remainingHours;
+      sourceSegments += 1;
     });
-  }
+  });
 
-  function openShiftDetailsModal(id) {
-    const emp = allData.find(d => d.id == id);
+  const preferredOrder = [
+    "1st Level Filiale",
+    "2nd Level Filiale",
+    "One 1st Level",
+    "One 2nd Level"
+  ];
 
-    if (!emp || !emp.schicht) return;
+  const areas = Array.from(groupMap.values()).map(group => ({
+    area: group.area,
+    totalHours: Math.round(group.totalHours * 100) / 100,
+    remainingHours: Math.round(group.remainingHours * 100) / 100,
+    usedHours: Math.round(group.usedHours * 100) / 100,
+    activeNowCount: group.activeNowCount,
+    originalSkills: Array.from(group.originalSkills).sort()
+  })).sort((a, b) => {
+    const aIdx = preferredOrder.indexOf(a.area);
+    const bIdx = preferredOrder.indexOf(b.area);
 
-    currentEmpId = id;
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
 
-    document.getElementById('shift-modal-name').innerText = emp.fullName;
-    document.getElementById('shift-modal-skill').innerText = `${emp.skill || '-'} | ${emp.tmaVorname || '-'}`;
-    document.getElementById('shift-modal-time').innerText = emp.schicht.time || '--:--';
+    return a.area.localeCompare(b.area);
+  });
 
-    const timelineContainer = document.getElementById('shift-modal-timeline');
+  return {
+    success: true,
+    updatedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm"),
+    sourceRows: sourceSegments,
+    totalHours: Math.round(totalHoursAll * 100) / 100,
+    remainingHours: Math.round(remainingHoursAll * 100) / 100,
+    usedHours: Math.round((totalHoursAll - remainingHoursAll) * 100) / 100,
+    activeNowCount: activeNowCount,
+    foundSkills: areas.map(a => a.area),
+    areas: areas
+  };
+}
 
-    if (!timelineContainer) return;
+function parseCapacitySkillSegments(rawActivities) {
+  const segments = [];
 
-    let html = '';
+  if (!rawActivities) return segments;
 
-    const details = emp.schicht.details || [];
+  try {
+    const parsed = JSON.parse(rawActivities);
 
-    if (details.length === 0) {
-      html = `
-        <div class="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-400">
-          <i class="fa-regular fa-clock text-3xl mb-3"></i>
-          <p class="font-bold text-slate-600">Keine Tätigkeitsdetails vorhanden</p>
-          <p class="text-xs mt-1">Schichtzeit: ${escapeHtml(emp.schicht.time || '-')}</p>
-        </div>
-      `;
-    } else {
-      html = '<div class="space-y-3">';
+    if (Array.isArray(parsed)) {
+      parsed.forEach(item => {
+        const time = String(item.time || "").trim();
+        const activity = String(item.activity || "").trim();
 
-      details.forEach(item => {
-        const isPause = String(item.activity || '').toLowerCase().includes('pause');
+        if (!activity || isCapacityIgnoredActivity(activity)) return;
 
-        html += `
-          <div class="bg-white border ${isPause ? 'border-gray-200' : 'border-blue-100'} rounded-xl p-3 shadow-sm flex gap-3 items-start">
-            <div class="w-24 shrink-0 font-mono text-xs font-bold ${isPause ? 'text-gray-400 bg-gray-50' : 'text-lidl-blue bg-blue-50'} rounded-lg px-2 py-1 text-center">
-              ${escapeHtml(item.time || '-')}
-            </div>
-            <div class="flex-1">
-              <div class="font-bold text-sm ${isPause ? 'text-gray-400' : 'text-slate-700'}">${escapeHtml(item.activity || '-')}</div>
-            </div>
-          </div>
-        `;
-      });
+        const range = parseTimeRangeToMinutes(time);
 
-      html += '</div>';
-    }
-
-    timelineContainer.innerHTML = html;
-
-    openModalById('shiftDetailsModal', 'shiftDetailsModalContent');
-  }
-
-  function closeShiftDetailsModal() {
-    closeModalById('shiftDetailsModal', 'shiftDetailsModalContent');
-  }
-
-  function toggleRadar() {
-    const panel = document.getElementById('shift-radar-panel');
-
-    if (!panel) return;
-
-    isRadarOpen = !isRadarOpen;
-
-    if (isRadarOpen) {
-      panel.classList.remove('hidden');
-      panel.classList.add('flex');
-      updateRadar();
-    } else {
-      panel.classList.add('hidden');
-      panel.classList.remove('flex');
-    }
-  }
-
-  function updateRadar() {
-    const list = document.getElementById('radar-list');
-    const badge = document.getElementById('radar-badge');
-    const time = document.getElementById('radar-time');
-
-    if (time) {
-      time.innerText = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    if (!list || !badge || !allData) return;
-
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-
-    const upcoming = [];
-
-    allData.forEach(emp => {
-      if (!emp.schicht || !Array.isArray(emp.schicht.details)) return;
-
-      emp.schicht.details.forEach(detail => {
-        const match = String(detail.time || '').match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
-
-        if (!match) return;
-
-        const start = Number(match[1]) * 60 + Number(match[2]);
-        const diff = start - nowMins;
-
-        if (diff >= -5 && diff <= 30) {
-          upcoming.push({
-            name: emp.fullName,
-            time: detail.time,
-            activity: detail.activity,
-            diff: diff
+        if (range) {
+          segments.push({
+            start: range.start,
+            end: range.end,
+            activity: activity
           });
         }
       });
-    });
 
-    upcoming.sort((a, b) => a.diff - b.diff);
-
-    badge.innerText = upcoming.length;
-    badge.classList.toggle('hidden', upcoming.length === 0);
-
-    if (upcoming.length === 0) {
-      list.innerHTML = '<div class="p-5 text-center text-xs text-gray-400">Keine anstehenden Wechsel in den nächsten 30 Minuten.</div>';
-      return;
+      return segments;
     }
-
-    list.innerHTML = '';
-
-    upcoming.forEach(item => {
-      list.innerHTML += `
-        <div class="p-3 border-b border-gray-100 bg-white">
-          <div class="flex justify-between items-center">
-            <div class="font-bold text-sm text-slate-700">${escapeHtml(item.name)}</div>
-            <div class="font-mono text-xs font-bold text-lidl-blue">${escapeHtml(item.time)}</div>
-          </div>
-          <div class="text-xs text-gray-500 mt-1">${escapeHtml(item.activity)}</div>
-        </div>
-      `;
-    });
+  } catch (e) {
+    // Text-Fallback
   }
 
-  function openCapacityOverviewModal(forceRefresh) {
-    const content = document.getElementById('capacity-overview-content');
+  const regex = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s+([\s\S]*?)(?=\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}|$)/g;
+  let match;
 
-    openModalById('capacityOverviewModal', 'capacityOverviewModalContent');
+  while ((match = regex.exec(rawActivities)) !== null) {
+    const time = `${match[1]}-${match[2]}`;
+    const activity = String(match[3] || "").replace(/\n/g, " ").trim();
 
-    if (!content) return;
+    if (!activity || isCapacityIgnoredActivity(activity)) continue;
 
-    content.innerHTML = `
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Kapazitäten werden berechnet...</p>
-        <p class="text-xs mt-1">Basis: aktuelles Schichtmodell aus dem Plano Backup</p>
-      </div>
-    `;
+    const range = parseTimeRangeToMinutes(time);
 
-    capacitySkillFilter = 'Alle';
-
-    google.script.run
-      .withSuccessHandler(data => {
-        capacityOverviewCache = data;
-        renderCapacityOverview(data);
-      })
-      .withFailureHandler(err => {
-        content.innerHTML = `
-          <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 text-center">
-            <i class="fa-solid fa-triangle-exclamation text-3xl mb-3"></i>
-            <h4 class="font-bold text-lg">Fehler beim Laden</h4>
-            <p class="text-sm mt-2">${err.message || err}</p>
-          </div>
-        `;
-      })
-      .getCapacityOverviewData();
-  }
-
-  function closeCapacityOverviewModal() {
-    closeModalById('capacityOverviewModal', 'capacityOverviewModalContent');
-  }
-
-  function setCapacitySkillFilter(encodedSkill) {
-    capacitySkillFilter = decodeURIComponent(encodedSkill || 'Alle');
-
-    if (capacityOverviewCache) {
-      renderCapacityOverview(capacityOverviewCache);
-    }
-  }
-
-  function renderCapacityOverview(data) {
-    const content = document.getElementById('capacity-overview-content');
-
-    if (!content) return;
-
-    if (!data || !data.success) {
-      content.innerHTML = '<div class="text-center text-gray-400 py-10">Keine Daten gefunden.</div>';
-      return;
-    }
-
-    let allAreas = (data.areas || []).filter(a =>
-      a.area &&
-      String(a.area).trim() !== '' &&
-      String(a.area).toLowerCase() !== 'ohne skill'
-    );
-
-    const skills = allAreas.map(a => a.area);
-
-    let areas = allAreas;
-
-    if (capacitySkillFilter !== 'Alle') {
-      areas = allAreas.filter(a => a.area === capacitySkillFilter);
-    }
-
-    const totalHours = areas.reduce((sum, area) => sum + Number(area.totalHours || 0), 0);
-    const remainingHours = areas.reduce((sum, area) => sum + Number(area.remainingHours || 0), 0);
-    const usedHours = areas.reduce((sum, area) => sum + Number(area.usedHours || 0), 0);
-
-    let html = `
-      <div class="space-y-5">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Gesamtkapazität Tag</div>
-            <div class="font-mono text-3xl font-bold text-slate-700 mt-1">${capacityDecimalToTime(totalHours)}</div>
-          </div>
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Bereits vergangen</div>
-            <div class="font-mono text-3xl font-bold text-lidl-blue mt-1">${capacityDecimalToTime(usedHours)}</div>
-          </div>
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Restkapazität ab jetzt</div>
-            <div class="font-mono text-3xl font-bold text-modern-green mt-1">${capacityDecimalToTime(remainingHours)}</div>
-          </div>
-        </div>
-
-        ${renderCapacitySkillFilters(skills)}
-
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <div class="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 flex items-center justify-between">
-            <div>
-              <h4 class="font-bold text-slate-700 flex items-center gap-2">
-                <i class="fa-solid fa-layer-group text-lidl-blue"></i> Kapazität nach Skill
-              </h4>
-              <p class="text-xs text-gray-400 mt-0.5">Nur produktive Skill-Zeiträume aus den Tätigkeitsblöcken</p>
-            </div>
-            <div class="text-xs text-gray-400">Stand: ${escapeHtml(data.updatedAt || '-')}</div>
-          </div>
-
-          <div class="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-    `;
-
-    if (areas.length === 0) {
-      html += `
-        <div class="col-span-full text-center py-10 text-gray-400">
-          <i class="fa-regular fa-folder-open text-3xl mb-3"></i>
-          <p>Keine produktiven Skill-Zeiten gefunden.</p>
-        </div>
-      `;
-    }
-
-    areas.forEach(area => {
-      html += `
-        <div class="border border-gray-100 rounded-2xl p-4 bg-white hover:shadow-md transition">
-          <div class="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <div class="font-bold text-slate-700">${escapeHtml(area.area)}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5 truncate" title="${escapeHtml((area.originalSkills || []).join(', '))}">
-                ${(area.originalSkills || []).length ? escapeHtml((area.originalSkills || []).join(' • ')) : 'Produktiver Skill'}
-              </div>
-            </div>
-            <div class="w-9 h-9 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center">
-              <i class="fa-solid fa-clock"></i>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-3 gap-2 text-right">
-            <div class="rounded-xl bg-gray-50 border border-gray-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Gesamt</div>
-              <div class="font-mono font-bold text-slate-700">${capacityDecimalToTime(area.totalHours)}</div>
-            </div>
-            <div class="rounded-xl bg-blue-50 border border-blue-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Vergangen</div>
-              <div class="font-mono font-bold text-lidl-blue">${capacityDecimalToTime(area.usedHours)}</div>
-            </div>
-            <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Rest</div>
-              <div class="font-mono font-bold text-modern-green">${capacityDecimalToTime(area.remainingHours)}</div>
-            </div>
-          </div>
-        </div>
-      `;
-    });
-
-    html += `
-          </div>
-        </div>
-      </div>
-    `;
-
-    content.innerHTML = html;
-  }
-
-  function renderCapacitySkillFilters(skills) {
-    const safeSkills = (skills || []).filter(s => s && String(s).trim() !== "" && String(s).toLowerCase() !== "ohne skill");
-
-    let html = `
-      <div class="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
-        <div class="flex flex-wrap gap-2 items-center">
-          <span class="text-[10px] uppercase font-bold text-gray-400 mr-1">
-            <i class="fa-solid fa-filter text-lidl-blue mr-1"></i> Skill Filter:
-          </span>
-    `;
-
-    const allClass = capacitySkillFilter === 'Alle'
-      ? 'bg-lidl-blue text-white border-lidl-blue'
-      : 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-lidl-blue hover:border-blue-200';
-
-    html += `
-      <button onclick="setCapacitySkillFilter('${encodeURIComponent('Alle')}')" class="px-3 py-1 rounded-full border text-xs font-bold transition ${allClass}">
-        Alle Skills
-      </button>
-    `;
-
-    safeSkills.forEach(skill => {
-      const active = capacitySkillFilter === skill;
-      const cls = active
-        ? 'bg-lidl-blue text-white border-lidl-blue'
-        : 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-lidl-blue hover:border-blue-200';
-
-      html += `
-        <button onclick="setCapacitySkillFilter('${encodeURIComponent(skill)}')" class="px-3 py-1 rounded-full border text-xs font-bold transition ${cls}">
-          ${escapeHtml(skill)}
-        </button>
-      `;
-    });
-
-    html += `
-        </div>
-      </div>
-    `;
-
-    return html;
-  }
-
-  function openDayPlanningModal() {
-    const content = document.getElementById('day-planning-content');
-
-    openModalById('dayPlanningModal', 'dayPlanningModalContent');
-
-    content.innerHTML = `
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Tagesplanung wird geladen...</p>
-        <p class="text-xs mt-1">Plano Produktivstunden und gespeicherte Planung werden zusammengeführt</p>
-      </div>
-    `;
-
-    google.script.run
-      .withSuccessHandler(data => {
-        dayPlanningState = data;
-        renderDayPlanning(data);
-        setDayPlanningSaveStatus(data.savedAt ? `Letzter Speicherstand: ${data.savedAt}` : 'Noch kein Speicherstand für heute.');
-      })
-      .withFailureHandler(err => {
-        content.innerHTML = `
-          <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 text-center">
-            <i class="fa-solid fa-triangle-exclamation text-3xl mb-3"></i>
-            <h4 class="font-bold text-lg">Fehler beim Laden</h4>
-            <p class="text-sm mt-2">${err.message || err}</p>
-          </div>
-        `;
-      })
-      .getDayPlanningData();
-  }
-
-  function closeDayPlanningModal() {
-    if (dayPlanningState) {
-      collectDayPlanningInputs();
-      saveDayPlanningNow(true);
-    }
-
-    closeModalById('dayPlanningModal', 'dayPlanningModalContent');
-  }
-
-  function renderDayPlanning(data) {
-    const content = document.getElementById('day-planning-content');
-
-    if (!content) return;
-
-    if (!data || !data.success) {
-      content.innerHTML = `
-        <div class="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          <i class="fa-regular fa-folder-open text-4xl mb-3"></i>
-          <h4 class="font-bold text-slate-600 text-lg">Keine Tagesplanung geladen</h4>
-          <p class="text-sm mt-2">Bitte importiere zuerst das heutige Plano Backup.</p>
-        </div>
-      `;
-      return;
-    }
-
-    const totals = data.totals || {};
-    const gap = Number(totals.gap || 0);
-    const remainingGap = Number(totals.remainingGap || 0);
-    const gapClass = gap >= 0 ? 'text-modern-green' : 'text-red-600';
-    const remainingGapClass = remainingGap >= 0 ? 'text-modern-green' : 'text-red-600';
-
-    let html = `
-      <div class="space-y-5">
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <div class="bg-gradient-to-r from-blue-50 via-white to-yellow-50 p-4 border-b border-gray-100 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-            <div>
-              <div class="text-[10px] uppercase font-bold text-gray-400">Planungstag</div>
-              <div class="text-2xl font-bold text-slate-700 flex items-center gap-3">
-                ${escapeHtml(data.displayDate)}
-                <span class="text-xs bg-blue-50 text-lidl-blue border border-blue-100 rounded-full px-2 py-1">KW ${escapeHtml(data.kw)}</span>
-              </div>
-              <p class="text-xs text-gray-400 mt-1">Produktivität kommt aus dem Blatt <strong>Produktivität</strong>. Fehlt ein Wert, wird mit 5 Cases pro Stunde gerechnet.</p>
-            </div>
-
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 w-full xl:w-auto">
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Plano Std.</div>
-                <div class="font-mono text-xl font-bold text-slate-700">${capacityDecimalToTime(totals.planoHours || 0)}</div>
-              </div>
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Rest Std.</div>
-                <div class="font-mono text-xl font-bold text-modern-green">${capacityDecimalToTime(totals.remainingHours || 0)}</div>
-              </div>
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Backlog</div>
-                <div class="font-mono text-xl font-bold text-slate-700">${Math.round(Number(totals.backlog || 0))}</div>
-              </div>
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Schaffbar</div>
-                <div class="font-mono text-xl font-bold text-lidl-blue">${Math.round(Number(totals.possibleCases || 0))}</div>
-              </div>
-              <div class="bg-white rounded-xl border border-gray-100 p-3 text-right shadow-sm">
-                <div class="text-[9px] uppercase font-bold text-gray-400">Gap Gesamt</div>
-                <div class="font-mono text-xl font-bold ${gapClass}">${gap >= 0 ? '+' : ''}${Math.round(gap)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="p-4 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div class="text-xs text-gray-500 flex items-center gap-2">
-              <i class="fa-solid fa-circle-info text-lidl-blue"></i>
-              Werte werden automatisch in <strong>Tagessteuerung_Planung</strong> zwischengespeichert und in <strong>Datenbank_Tagessteuerung</strong> historisiert.
-            </div>
-            <div class="text-xs font-bold ${remainingGapClass} bg-gray-50 border border-gray-100 rounded-full px-3 py-1">
-              Rest-Gap ab jetzt: ${remainingGap >= 0 ? '+' : ''}${Math.round(remainingGap)} Cases
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-4 gap-4" id="day-planning-team-grid">
-    `;
-
-    (data.teams || []).forEach((team, index) => {
-      html += renderDayPlanningTeamCard(team, index);
-    });
-
-    html += `
-        </div>
-      </div>
-    `;
-
-    content.innerHTML = html;
-  }
-
-  function renderDayPlanningTeamCard(team, index) {
-    const backlog = Number(team.backlog || 0);
-    const productivity = Number(team.productivity || 5);
-    const planoHours = Number(team.planoHours || 0);
-    const remainingHours = Number(team.remainingHours || 0);
-    const possibleCases = Math.round(planoHours * productivity);
-    const possibleRemainingCases = Math.round(remainingHours * productivity);
-    const gap = possibleCases - backlog;
-    const isOk = gap >= 0;
-    const status = team.status || 'offen';
-    const note = team.note || '';
-
-    const statusClass = isOk
-      ? 'bg-emerald-50 text-modern-green border-emerald-100'
-      : 'bg-red-50 text-red-600 border-red-100';
-
-    return `
-      <div class="day-planning-card bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden" data-team-index="${index}">
-        <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-white to-blue-50">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h4 class="font-bold text-slate-700 flex items-center gap-2 truncate">
-                <i class="fa-solid fa-circle text-[7px] text-lidl-blue"></i>
-                <span title="${escapeHtml(team.team)}">${escapeHtml(team.team)}</span>
-              </h4>
-              <div class="text-[11px] text-gray-400 mt-1 truncate" title="${escapeHtml((team.originalSkills || []).join(', '))}">
-                ${(team.originalSkills || []).length ? escapeHtml((team.originalSkills || []).join(' • ')) : 'Plano Skillgruppe'}
-              </div>
-            </div>
-            <div class="text-[10px] font-bold border rounded-full px-2 py-1 ${statusClass}">
-              ${isOk ? 'Schaffbar' : 'Risiko'}
-            </div>
-          </div>
-        </div>
-
-        <div class="p-4 space-y-4">
-          <div class="grid grid-cols-2 gap-3">
-            <div class="rounded-xl bg-gray-50 border border-gray-100 p-3">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Plano Produktivstunden</div>
-              <div class="font-mono text-xl font-bold text-slate-700">${capacityDecimalToTime(planoHours)}</div>
-            </div>
-            <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Reststunden</div>
-              <div class="font-mono text-xl font-bold text-modern-green">${capacityDecimalToTime(remainingHours)}</div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <label class="block">
-              <span class="text-[10px] uppercase font-bold text-gray-400">Aktueller Backlog</span>
-              <input type="number" min="0" step="1" value="${backlog}" data-planning-field="backlog" data-team-index="${index}" oninput="handleDayPlanningInput(${index})" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 font-mono font-bold text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none">
-            </label>
-            <label class="block">
-              <span class="text-[10px] uppercase font-bold text-gray-400">Produktivität</span>
-              <input type="number" min="0" step="0.1" value="${productivity}" data-planning-field="productivity" data-team-index="${index}" oninput="handleDayPlanningInput(${index})" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 font-mono font-bold text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none">
-            </label>
-          </div>
-
-          <div class="grid grid-cols-3 gap-2 text-right">
-            <div class="rounded-xl border border-blue-100 bg-blue-50 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Schaffbar</div>
-              <div class="font-mono font-bold text-lidl-blue text-lg" data-planning-output="possible" data-team-index="${index}">${possibleCases}</div>
-            </div>
-            <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Rest schaffbar</div>
-              <div class="font-mono font-bold text-modern-green text-lg" data-planning-output="possibleRemaining" data-team-index="${index}">${possibleRemainingCases}</div>
-            </div>
-            <div class="rounded-xl border ${isOk ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'} p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Gap</div>
-              <div class="font-mono font-bold ${isOk ? 'text-modern-green' : 'text-red-600'} text-lg" data-planning-output="gap" data-team-index="${index}">${gap >= 0 ? '+' : ''}${gap}</div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-3">
-            <label class="block">
-              <span class="text-[10px] uppercase font-bold text-gray-400">Status</span>
-              <select data-planning-field="status" data-team-index="${index}" onchange="handleDayPlanningInput(${index})" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none bg-white">
-                <option value="offen" ${status === 'offen' ? 'selected' : ''}>Offen</option>
-                <option value="halten" ${status === 'halten' ? 'selected' : ''}>Halten möglich</option>
-                <option value="abbauen" ${status === 'abbauen' ? 'selected' : ''}>Abbau möglich</option>
-                <option value="risiko" ${status === 'risiko' ? 'selected' : ''}>Risiko</option>
-              </select>
-            </label>
-            <label class="block">
-              <span class="text-[10px] uppercase font-bold text-gray-400">Notiz</span>
-              <textarea data-planning-field="note" data-team-index="${index}" oninput="handleDayPlanningInput(${index})" rows="2" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-lidl-blue outline-none resize-none" placeholder="Kurznotiz für die Steuerung...">${escapeHtml(note)}</textarea>
-            </label>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function handleDayPlanningInput(index) {
-    collectDayPlanningInputs();
-    recalculateDayPlanningCard(index);
-    recalculateDayPlanningTotals();
-    scheduleDayPlanningSave();
-  }
-
-  function collectDayPlanningInputs() {
-    if (!dayPlanningState || !dayPlanningState.teams) return;
-
-    dayPlanningState.teams.forEach((team, index) => {
-      const fields = document.querySelectorAll(`[data-team-index="${index}"][data-planning-field]`);
-
-      fields.forEach(field => {
-        const key = field.getAttribute('data-planning-field');
-
-        if (key === 'backlog' || key === 'productivity') {
-          team[key] = Number(field.value || 0);
-        } else {
-          team[key] = field.value || '';
-        }
+    if (range) {
+      segments.push({
+        start: range.start,
+        end: range.end,
+        activity: activity
       });
-
-      team.possibleCases = Math.round(Number(team.planoHours || 0) * Number(team.productivity || 0));
-      team.possibleRemainingCases = Math.round(Number(team.remainingHours || 0) * Number(team.productivity || 0));
-      team.gap = Math.round(Number(team.possibleCases || 0) - Number(team.backlog || 0));
-      team.remainingGap = Math.round(Number(team.possibleRemainingCases || 0) - Number(team.backlog || 0));
-    });
-  }
-
-  function recalculateDayPlanningCard(index) {
-    if (!dayPlanningState || !dayPlanningState.teams || !dayPlanningState.teams[index]) return;
-
-    const team = dayPlanningState.teams[index];
-    const possible = Math.round(Number(team.planoHours || 0) * Number(team.productivity || 0));
-    const possibleRemaining = Math.round(Number(team.remainingHours || 0) * Number(team.productivity || 0));
-    const gap = possible - Number(team.backlog || 0);
-
-    const possibleEl = document.querySelector(`[data-planning-output="possible"][data-team-index="${index}"]`);
-    const possibleRemainingEl = document.querySelector(`[data-planning-output="possibleRemaining"][data-team-index="${index}"]`);
-    const gapEl = document.querySelector(`[data-planning-output="gap"][data-team-index="${index}"]`);
-
-    if (possibleEl) possibleEl.innerText = possible;
-    if (possibleRemainingEl) possibleRemainingEl.innerText = possibleRemaining;
-
-    if (gapEl) {
-      gapEl.innerText = `${gap >= 0 ? '+' : ''}${gap}`;
-      gapEl.className = `font-mono font-bold ${gap >= 0 ? 'text-modern-green' : 'text-red-600'} text-lg`;
     }
   }
 
-  function recalculateDayPlanningTotals() {
-    if (!dayPlanningState || !dayPlanningState.teams) return;
+  return segments;
+}
 
-    const totals = dayPlanningState.teams.reduce((acc, team) => {
-      acc.planoHours += Number(team.planoHours || 0);
-      acc.remainingHours += Number(team.remainingHours || 0);
-      acc.usedHours += Number(team.usedHours || 0);
-      acc.backlog += Number(team.backlog || 0);
-      acc.possibleCases += Number(team.possibleCases || 0);
-      acc.possibleRemainingCases += Number(team.possibleRemainingCases || 0);
-      return acc;
-    }, {
-      planoHours: 0,
-      remainingHours: 0,
-      usedHours: 0,
-      backlog: 0,
-      possibleCases: 0,
-      possibleRemainingCases: 0
-    });
+function calculateCapacitySegmentDuration(startMinutes, endMinutes, nowMinutes) {
+  const totalMinutes = Math.max(0, endMinutes - startMinutes);
 
-    totals.gap = Math.round(totals.possibleCases - totals.backlog);
-    totals.remainingGap = Math.round(totals.possibleRemainingCases - totals.backlog);
-    dayPlanningState.totals = totals;
+  let adjustedNow = nowMinutes;
+
+  if (endMinutes > 1440 && adjustedNow < startMinutes) {
+    adjustedNow += 1440;
   }
 
-  function scheduleDayPlanningSave() {
-    setDayPlanningSaveStatus('Änderungen erkannt – speichere gleich automatisch...');
+  let remainingMinutes = 0;
+  let isActiveNow = false;
 
-    if (dayPlanningSaveTimer) {
-      clearTimeout(dayPlanningSaveTimer);
-    }
-
-    dayPlanningSaveTimer = setTimeout(() => {
-      saveDayPlanningNow(true);
-    }, 900);
+  if (adjustedNow < startMinutes) {
+    remainingMinutes = totalMinutes;
+  } else if (adjustedNow >= startMinutes && adjustedNow < endMinutes) {
+    remainingMinutes = Math.max(0, endMinutes - adjustedNow);
+    isActiveNow = true;
   }
 
-  function saveDayPlanningNow(silent) {
-    if (!dayPlanningState || dayPlanningIsSaving) return;
+  const usedMinutes = Math.max(0, totalMinutes - remainingMinutes);
 
-    collectDayPlanningInputs();
-    dayPlanningIsSaving = true;
+  return {
+    totalHours: totalMinutes / 60,
+    remainingHours: remainingMinutes / 60,
+    usedHours: usedMinutes / 60,
+    isActiveNow: isActiveNow
+  };
+}
 
-    if (!silent) {
-      setDayPlanningSaveStatus('Speichere Tagesplanung...');
-    }
+function parseTimeRangeToMinutes(timeRange) {
+  if (!timeRange) return null;
 
-    google.script.run
-      .withSuccessHandler(res => {
-        dayPlanningIsSaving = false;
-        const savedAt = res && res.savedAt ? res.savedAt : 'gerade eben';
-        setDayPlanningSaveStatus(`Gespeichert: ${savedAt}`);
-        showDayPlanningSavePill();
-      })
-      .withFailureHandler(err => {
-        dayPlanningIsSaving = false;
-        setDayPlanningSaveStatus(`Fehler beim Speichern: ${err.message || err}`);
-      })
-      .saveDayPlanningData({
-        dateKey: dayPlanningState.dateKey,
-        teams: dayPlanningState.teams,
-        backlogDetails: dayPlanningState.backlogDetails || {},
-        saveReason: silent ? 'Auto-Speicherung' : 'Manuelle Speicherung'
-      });
+  const match = String(timeRange).match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+
+  if (!match) return null;
+
+  const start = Number(match[1]) * 60 + Number(match[2]);
+  let end = Number(match[3]) * 60 + Number(match[4]);
+
+  if (end <= start) {
+    end += 1440;
   }
 
-  function openPlanningBacklogPasteModal(level) {
-    dayPlanningBacklogLevel = level || '1st';
+  return {
+    start: start,
+    end: end
+  };
+}
 
-    const subtitle = document.getElementById('day-planning-backlog-subtitle');
-    const text = document.getElementById('day-planning-backlog-text');
-    const result = document.getElementById('day-planning-backlog-result');
-    const refDate = document.getElementById('day-planning-backlog-ref-date');
+function isCapacityIgnoredActivity(activity) {
+  const a = String(activity || "").toLowerCase().trim();
 
-    if (subtitle) subtitle.innerText = `${level === '2nd' ? '2nd' : '1st'} Level Backlog aus Salesforce einfügen oder aus Mapping übernehmen`;
-    if (text) text.value = '';
-    if (result) {
-      result.classList.add('hidden');
-      result.innerHTML = '';
-    }
-    if (refDate) {
-      refDate.value = dayPlanningState && dayPlanningState.dateKey ? dayPlanningState.dateKey : new Date().toISOString().slice(0, 10);
-    }
+  return (
+    !a ||
+    a === "-" ||
+    a.includes("pause") ||
+    a.includes("break") ||
+    a.includes("systemstörung") ||
+    a.includes("systemstoerung") ||
+    a.includes("störung") ||
+    a.includes("stoerung") ||
+    a.includes("meeting") ||
+    a.includes("coaching") ||
+    a.includes("coaching lks de") ||
+    a.includes("schulung") ||
+    a.includes("schulung lks") ||
+    a.includes("paypal") ||
+    a.includes("briefdruck") ||
+    a.includes("andere tätigkeiten") ||
+    a.includes("andere taetigkeiten") ||
+    a.includes("trainer") ||
+    a.includes("quality mng") ||
+    a.includes("wissen & training") ||
+    a.includes("training") ||
+    a.includes("bot")
+  );
+}
 
-    openModalById('dayPlanningBacklogModal', 'dayPlanningBacklogModalContent');
+function mapCapacitySkillGroup(skill) {
+  const original = String(skill || "").trim();
+  const s = original.toLowerCase();
+
+  if (!s || s === "-" || s === "ohne skill") return "";
+
+  const hasFiliale = s.includes("filiale");
+  const hasOnlineshop = s.includes("onlineshop") || s.includes("online shop");
+  const hasLidlPlus = s.includes("lidl plus") || s.includes("lidlplus");
+  const hasTelefon = s.includes("telefon");
+  const has1st = s.includes("1st") || s.includes("first");
+  const has2nd = s.includes("2nd") || s.includes("second");
+  const hasOne = s.includes("one");
+  const hasKleineLines = s.includes("kleine line") || s.includes("kleine lines") || s.includes("kleinelines");
+
+  if (hasOne && has1st) return "One 1st Level";
+  if (hasOne && has2nd) return "One 2nd Level";
+
+  if ((has1st && (hasOnlineshop || hasLidlPlus)) || (hasTelefon && (hasOnlineshop || hasLidlPlus))) {
+    return "One 1st Level";
   }
 
-  function closePlanningBacklogPasteModal() {
-    closeModalById('dayPlanningBacklogModal', 'dayPlanningBacklogModalContent');
+  if (has2nd && (hasOnlineshop || hasLidlPlus)) {
+    return "One 2nd Level";
   }
 
-  function submitPlanningBacklogText() {
-    if (!dayPlanningState) return;
-
-    const pastedText = document.getElementById('day-planning-backlog-text').value || '';
-    const refDate = document.getElementById('day-planning-backlog-ref-date').value || dayPlanningState.dateKey;
-
-    if (!pastedText.trim()) {
-      showPlanningBacklogResult('Bitte füge zuerst Backlog-Text ein.', false);
-      return;
-    }
-
-    showPlanningBacklogResult('Import läuft...', true);
-
-    google.script.run
-      .withSuccessHandler(res => {
-        if (res && res.success) {
-          dayPlanningState = res.data;
-          renderDayPlanning(dayPlanningState);
-          showPlanningBacklogResult(res.message || 'Backlog importiert.', true);
-          saveDayPlanningNow(true);
-          setTimeout(closePlanningBacklogPasteModal, 700);
-        } else {
-          showPlanningBacklogResult('Backlog konnte nicht importiert werden.', false);
-        }
-      })
-      .withFailureHandler(err => {
-        showPlanningBacklogResult(`Fehler beim Import: ${err.message || err}`, false);
-      })
-      .importDayPlanningBacklogFromText(dayPlanningBacklogLevel, pastedText, refDate);
+  if ((has2nd && hasFiliale) || hasKleineLines) {
+    return "2nd Level Filiale";
   }
 
-  function importPlanningBacklogFromMapping() {
-    if (!dayPlanningState) return;
-
-    showPlanningBacklogResult('Backlog wird aus Mapping übernommen...', true);
-
-    google.script.run
-      .withSuccessHandler(res => {
-        if (res && res.success) {
-          dayPlanningState = res.data;
-          renderDayPlanning(dayPlanningState);
-          showPlanningBacklogResult(res.message || 'Backlog aus Mapping übernommen.', true);
-          saveDayPlanningNow(true);
-          setTimeout(closePlanningBacklogPasteModal, 700);
-        } else {
-          showPlanningBacklogResult('Backlog konnte nicht aus Mapping übernommen werden.', false);
-        }
-      })
-      .withFailureHandler(err => {
-        showPlanningBacklogResult(`Fehler beim Mapping-Import: ${err.message || err}`, false);
-      })
-      .importDayPlanningBacklogFromMapping();
+  if (
+    (has1st && hasFiliale) ||
+    (hasTelefon && hasFiliale) ||
+    s.includes("telefon filiale/lidl") ||
+    (hasTelefon && s.includes("lidl") && !hasLidlPlus)
+  ) {
+    return "1st Level Filiale";
   }
 
-  function showPlanningBacklogResult(message, success) {
-    const result = document.getElementById('day-planning-backlog-result');
-
-    if (!result) return;
-
-    result.classList.remove('hidden');
-
-    if (success) {
-      result.className = 'rounded-xl border p-4 text-sm bg-emerald-50 border-emerald-200 text-emerald-700';
-      result.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i>${escapeHtml(message)}`;
-    } else {
-      result.className = 'rounded-xl border p-4 text-sm bg-red-50 border-red-200 text-red-700';
-      result.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i>${escapeHtml(message)}`;
-    }
-  }
-
-  function setDayPlanningSaveStatus(text) {
-    const el = document.getElementById('day-planning-save-status');
-
-    if (el) {
-      el.innerText = text;
-    }
-  }
-
-  function showDayPlanningSavePill() {
-    const pill = document.getElementById('day-planning-save-pill');
-
-    if (!pill) return;
-
-    pill.classList.remove('hidden');
-
-    setTimeout(() => {
-      pill.classList.add('hidden');
-    }, 2500);
-  }
-
-  function capacityDecimalToTime(decimalVal) {
-    decimalVal = Number(decimalVal || 0);
-
-    const isNegative = decimalVal < 0;
-    decimalVal = Math.abs(decimalVal);
-
-    let hours = Math.floor(decimalVal);
-    let minutes = Math.round((decimalVal - hours) * 60);
-
-    if (minutes === 60) {
-      hours += 1;
-      minutes = 0;
-    }
-
-    return `${isNegative ? '-' : ''}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  }
-
-  function openModalById(modalId, contentId) {
-    const modal = document.getElementById(modalId);
-    const content = document.getElementById(contentId);
-
-    if (!modal || !content) return;
-
-    modal.classList.remove('hidden');
-
-    setTimeout(() => {
-      modal.classList.remove('opacity-0');
-      content.classList.remove('scale-95');
-      content.classList.add('scale-100');
-    }, 10);
-  }
-
-  function closeModalById(modalId, contentId) {
-    const modal = document.getElementById(modalId);
-    const content = document.getElementById(contentId);
-
-    if (!modal || !content) return;
-
-    modal.classList.add('opacity-0');
-    content.classList.remove('scale-100');
-    content.classList.add('scale-95');
-
-    setTimeout(() => {
-      modal.classList.add('hidden');
-    }, 300);
-  }
-
-  function escapeHtml(value) {
-    return String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-</script>
+  return original;
+}
