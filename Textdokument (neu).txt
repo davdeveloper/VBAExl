@@ -4,8 +4,8 @@
   <base target="_top">
   <style>
     :root {
-      --bg: #f7f8fa;
-      --card: #ffffff;
+      --bg: #f5f7fb;
+      --panel: #ffffff;
       --text: #202124;
       --muted: #6b7280;
       --border: #dfe3e8;
@@ -17,7 +17,7 @@
       --success-text: #137333;
       --warning-bg: #fff7e0;
       --warning-text: #8a5a00;
-      --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      --shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
     }
 
     * {
@@ -26,120 +26,107 @@
 
     body {
       margin: 0;
-      padding: 0;
       background: var(--bg);
       color: var(--text);
       font-family: Arial, sans-serif;
       font-size: 14px;
+      overflow: hidden;
     }
 
-    .wrap {
-      padding: 16px;
+    .app {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      height: 100vh;
     }
 
-    h1 {
-      margin: 0 0 4px;
-      font-size: 18px;
-      line-height: 1.3;
-      font-weight: 700;
+    .header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
     }
 
-    .subtitle {
-      margin: 0 0 16px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px;
-      box-shadow: var(--shadow);
-      margin-bottom: 12px;
-    }
-
-    label {
+    .title-wrap label {
       display: block;
-      margin-bottom: 6px;
-      font-weight: 700;
       font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      font-weight: 700;
     }
 
-    textarea,
-    input[type="search"] {
+    #title {
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 10px;
-      font-size: 13px;
+      padding: 10px 12px;
+      font-size: 18px;
+      font-weight: 700;
       outline: none;
-      background: #fff;
-      color: var(--text);
     }
 
-    textarea {
-      min-height: 78px;
-      resize: vertical;
-    }
-
-    textarea:focus,
-    input[type="search"]:focus {
+    #title:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
     }
 
+    .toolbar {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 18px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    select,
     button {
-      border: 0;
-      border-radius: 10px;
-      padding: 9px 10px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      border-radius: 9px;
+      padding: 8px 10px;
       font-size: 13px;
-      font-weight: 700;
       cursor: pointer;
-      transition: background 0.15s ease, opacity 0.15s ease;
+    }
+
+    button {
+      font-weight: 700;
+    }
+
+    button:hover:not(:disabled),
+    select:hover:not(:disabled) {
+      background: #f1f5f9;
     }
 
     button:disabled {
+      opacity: 0.5;
       cursor: not-allowed;
-      opacity: 0.55;
     }
 
     .btn-primary {
-      width: 100%;
-      margin-top: 10px;
-      color: #fff;
+      border-color: var(--primary);
       background: var(--primary);
+      color: #ffffff;
     }
 
     .btn-primary:hover:not(:disabled) {
       background: var(--primary-hover);
     }
 
-    .btn-light {
-      background: #eef3fb;
-      color: #174ea6;
-    }
-
-    .btn-light:hover:not(:disabled) {
-      background: #dbe8fb;
-    }
-
     .btn-danger {
+      border-color: var(--danger-bg);
       background: var(--danger-bg);
       color: var(--danger);
     }
 
-    .btn-danger:hover:not(:disabled) {
-      background: #f8d7d3;
-    }
-
     .status {
       display: none;
-      margin-top: 10px;
-      border-radius: 10px;
-      padding: 10px;
-      font-size: 12px;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
       line-height: 1.4;
     }
 
@@ -167,297 +154,535 @@
       color: var(--warning-text);
     }
 
-    .list-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
+    .editor-wrap {
+      overflow: auto;
+      padding: 22px;
+    }
+
+    #editor {
+      min-height: calc(100vh - 245px);
+      max-width: 980px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 42px;
+      box-shadow: var(--shadow);
+      line-height: 1.5;
+      outline: none;
+    }
+
+    #editor:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.10), var(--shadow);
+    }
+
+    #editor p {
+      margin: 0 0 10px;
+    }
+
+    #editor h1,
+    #editor h2,
+    #editor h3,
+    #editor h4,
+    #editor h5,
+    #editor h6 {
+      margin: 18px 0 8px;
+      line-height: 1.25;
+    }
+
+    #editor table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 14px 0;
+    }
+
+    #editor td,
+    #editor th {
+      border: 1px solid #cbd5e1;
+      padding: 8px;
+      vertical-align: top;
+      min-width: 80px;
+    }
+
+    #editor ul,
+    #editor ol {
+      margin-top: 8px;
       margin-bottom: 8px;
     }
 
-    .list-title {
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .count {
-      color: var(--muted);
-      font-size: 12px;
-      white-space: nowrap;
-    }
-
-    .refresh {
+    .mk-unsupported {
       display: inline-block;
-      margin-top: 8px;
-      color: var(--primary);
-      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #fff7e0;
+      color: #8a5a00;
       font-size: 12px;
-      text-decoration: none;
-    }
-
-    .refresh:hover {
-      text-decoration: underline;
-    }
-
-    .doc-list {
-      margin-top: 10px;
-    }
-
-    .doc-item {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 10px;
-      box-shadow: var(--shadow);
-    }
-
-    .doc-title {
       font-weight: 700;
-      line-height: 1.35;
-      margin-bottom: 4px;
-      overflow-wrap: anywhere;
     }
 
-    .doc-meta {
+    .footer {
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .hint {
       color: var(--muted);
-      font-size: 11px;
+      font-size: 12px;
       line-height: 1.4;
-      margin-bottom: 10px;
-      overflow-wrap: anywhere;
     }
 
-    .doc-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+    .actions {
+      display: flex;
       gap: 8px;
-    }
-
-    .empty {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.5;
-      padding: 16px 4px;
-      text-align: center;
+      align-items: center;
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Master Knowledge</h1>
-    <p class="subtitle">Google Docs importieren, bearbeiten und zentral verwalten.</p>
-
-    <div class="card">
-      <label for="docUrl">Google Docs Link</label>
-      <textarea id="docUrl" placeholder="https://docs.google.com/document/d/..."></textarea>
-      <button id="importBtn" class="btn-primary" onclick="importDocument()">Importieren</button>
-      <div id="status" class="status"></div>
-    </div>
-
-    <div class="card">
-      <div class="list-head">
-        <div class="list-title">Importierte Dokumente</div>
-        <div id="count" class="count">0</div>
+  <div class="app">
+    <div class="header">
+      <div class="title-wrap">
+        <label for="title">Kategorie / Überschrift 1 im Master-Dokument</label>
+        <input id="title" type="text" placeholder="Titel">
       </div>
-
-      <input id="search" type="search" placeholder="Liste durchsuchen..." oninput="renderList()">
-      <a class="refresh" onclick="loadImportedDocuments()">Liste aktualisieren</a>
+      <button class="btn-danger" onclick="closeEditor()">Schließen</button>
     </div>
 
-    <div id="docList" class="doc-list"></div>
+    <div class="toolbar">
+      <select id="blockFormat" onchange="applyBlockFormat()">
+        <option value="p">Absatz</option>
+        <option value="h2">Überschrift 2</option>
+        <option value="h3">Überschrift 3</option>
+        <option value="h4">Überschrift 4</option>
+        <option value="h5">Überschrift 5</option>
+        <option value="h6">Überschrift 6</option>
+      </select>
+
+      <button onclick="cmd('bold')">Fett</button>
+      <button onclick="cmd('italic')">Kursiv</button>
+      <button onclick="cmd('underline')">Unterstrichen</button>
+      <button onclick="cmd('strikeThrough')">Durchgestrichen</button>
+      <button onclick="cmd('insertUnorderedList')">Liste</button>
+      <button onclick="cmd('insertOrderedList')">Nummeriert</button>
+      <button onclick="createLink()">Link</button>
+      <button onclick="insertTable()">Tabelle 2x2</button>
+      <button onclick="removeFormatting()">Format entfernen</button>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <div class="editor-wrap">
+      <div id="editor" contenteditable="true"></div>
+    </div>
+
+    <div class="footer">
+      <div class="hint">
+        Hinweis: Der Editor speichert Text, Überschriften, Listen, Links und Tabellen. Bilder und Sonderobjekte besser im Quelldokument bearbeiten und danach neu importieren.
+      </div>
+      <div class="actions">
+        <button onclick="reloadContent()">Neu laden</button>
+        <button class="btn-primary" onclick="saveContent()">Speichern</button>
+      </div>
+    </div>
   </div>
 
   <script>
-    let importedDocuments = [];
+    const SOURCE_ID = '<?= sourceId ?>';
+    let isBusy = false;
 
     document.addEventListener('DOMContentLoaded', function () {
-      loadImportedDocuments();
+      reloadContent();
     });
 
-    function loadImportedDocuments() {
+    function reloadContent() {
       setBusy(true);
-      showStatus('Importierte Dokumente werden geladen...', 'info');
-
-      google.script.run
-        .withSuccessHandler(function (docs) {
-          importedDocuments = docs || [];
-          renderList();
-          hideStatus();
-          setBusy(false);
-        })
-        .withFailureHandler(function (err) {
-          showStatus(getErrorMessage(err), 'error');
-          setBusy(false);
-        })
-        .getImportedDocuments();
-    }
-
-    function importDocument() {
-      const input = document.getElementById('docUrl');
-      const value = input.value.trim();
-
-      if (!value) {
-        showStatus('Bitte zuerst einen Google Docs Link einfügen.', 'error');
-        return;
-      }
-
-      setBusy(true);
-      showStatus('Dokument wird geprüft...', 'info');
-
-      google.script.run
-        .withSuccessHandler(function (status) {
-          if (status && status.exists) {
-            const title = status.document && status.document.title ? status.document.title : status.sourceId;
-            const confirmed = confirm(
-              'Dieses Dokument wurde bereits importiert:\n\n' +
-              title +
-              '\n\nSoll der bestehende Bereich gelöscht und neu importiert werden?'
-            );
-
-            if (!confirmed) {
-              showStatus('Import abgebrochen. Es wurde nichts verändert.', 'warning');
-              setBusy(false);
-              return;
-            }
-
-            runImport(value, true);
-            return;
-          }
-
-          runImport(value, false);
-        })
-        .withFailureHandler(function (err) {
-          showStatus(getErrorMessage(err), 'error');
-          setBusy(false);
-        })
-        .getImportStatus(value);
-    }
-
-    function runImport(value, overwriteExisting) {
-      showStatus(overwriteExisting ? 'Bestehender Bereich wird überschrieben...' : 'Import läuft...', 'info');
+      showStatus('Inhalt wird geladen...', 'info');
 
       google.script.run
         .withSuccessHandler(function (result) {
-          if (result && result.duplicate) {
-            showStatus('Dieses Dokument wurde bereits importiert. Import wurde abgebrochen.', 'warning');
-            setBusy(false);
-            return;
-          }
+          document.getElementById('title').value = result.title || '';
+          document.getElementById('editor').innerHTML = result.contentHtml || '<p><br></p>';
 
-          document.getElementById('docUrl').value = '';
-
-          let message = result && result.message ? result.message : 'Dokument wurde importiert.';
-
-          if (result && result.warnings && result.warnings.length) {
-            message += '<br><br><strong>Hinweis:</strong><br>' + result.warnings.map(escapeHtml).join('<br>');
-            showStatus(message, 'warning');
+          if (result.warnings && result.warnings.length) {
+            showStatus(
+              '<strong>Hinweis:</strong><br>' + result.warnings.map(escapeHtml).join('<br>'),
+              'warning'
+            );
           } else {
-            showStatus(message, 'success');
+            hideStatus();
           }
 
-          loadImportedDocuments();
-        })
-        .withFailureHandler(function (err) {
-          showStatus(getErrorMessage(err), 'error');
-          setBusy(false);
-        })
-        .importDocumentFromLink(value, overwriteExisting);
-    }
-
-    function editDocument(sourceId) {
-      setBusy(true);
-      showStatus('Editor wird geöffnet...', 'info');
-
-      google.script.run
-        .withSuccessHandler(function () {
-          hideStatus();
           setBusy(false);
         })
         .withFailureHandler(function (err) {
           showStatus(getErrorMessage(err), 'error');
           setBusy(false);
         })
-        .showEditDialog(sourceId);
+        .getImportForEditing(SOURCE_ID);
     }
 
-    function removeDocument(sourceId, title) {
-      const confirmed = confirm(
-        'Soll dieser importierte Bereich wirklich vollständig aus dem Master-Dokument entfernt werden?\n\n' +
-        title
-      );
+    function saveContent() {
+      const title = document.getElementById('title').value.trim();
 
-      if (!confirmed) {
+      if (!title) {
+        showStatus('Der Titel darf nicht leer sein.', 'error');
         return;
       }
 
+      const editor = document.getElementById('editor');
+      const blocks = editorDomToBlocks(editor);
+
       setBusy(true);
-      showStatus('Bereich wird entfernt...', 'info');
+      showStatus('Änderungen werden gespeichert...', 'info');
 
       google.script.run
-        .withSuccessHandler(function (docs) {
-          importedDocuments = docs || [];
-          renderList();
-          showStatus('Bereich wurde entfernt.', 'success');
+        .withSuccessHandler(function (result) {
+          showStatus(result && result.message ? result.message : 'Änderungen wurden gespeichert.', 'success');
           setBusy(false);
         })
         .withFailureHandler(function (err) {
           showStatus(getErrorMessage(err), 'error');
           setBusy(false);
         })
-        .removeImportedDocument(sourceId);
+        .saveEditedImport({
+          sourceId: SOURCE_ID,
+          title: title,
+          blocks: blocks
+        });
     }
 
-    function renderList() {
-      const list = document.getElementById('docList');
-      const count = document.getElementById('count');
-      const search = document.getElementById('search').value.trim().toLowerCase();
+    function closeEditor() {
+      google.script.host.close();
+    }
 
-      const filtered = importedDocuments.filter(function (doc) {
-        const haystack = [
-          doc.title || '',
-          doc.sourceId || '',
-          doc.url || ''
-        ].join(' ').toLowerCase();
+    function cmd(command) {
+      focusEditor();
+      document.execCommand(command, false, null);
+    }
 
-        return !search || haystack.indexOf(search) !== -1;
+    function applyBlockFormat() {
+      const value = document.getElementById('blockFormat').value;
+      focusEditor();
+      document.execCommand('formatBlock', false, value);
+    }
+
+    function createLink() {
+      focusEditor();
+
+      const url = prompt('Link eingeben:');
+
+      if (!url) {
+        return;
+      }
+
+      document.execCommand('createLink', false, url);
+    }
+
+    function removeFormatting() {
+      focusEditor();
+      document.execCommand('removeFormat', false, null);
+    }
+
+    function insertTable() {
+      focusEditor();
+
+      const html = `
+        <table>
+          <tbody>
+            <tr>
+              <td><p><br></p></td>
+              <td><p><br></p></td>
+            </tr>
+            <tr>
+              <td><p><br></p></td>
+              <td><p><br></p></td>
+            </tr>
+          </tbody>
+        </table>
+        <p><br></p>
+      `;
+
+      document.execCommand('insertHTML', false, html);
+    }
+
+    function focusEditor() {
+      document.getElementById('editor').focus();
+    }
+
+    function editorDomToBlocks(root) {
+      const blocks = [];
+
+      Array.from(root.childNodes).forEach(function (node) {
+        collectBlockNode(node, blocks, 0);
       });
 
-      count.textContent = filtered.length + ' von ' + importedDocuments.length;
+      return blocks.length ? blocks : [{
+        type: 'paragraph',
+        heading: 'NORMAL',
+        segments: []
+      }];
+    }
 
-      if (!filtered.length) {
-        list.innerHTML = '<div class="empty">Keine passenden importierten Dokumente gefunden.</div>';
+    function collectBlockNode(node, blocks, level) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.nodeValue || '';
+
+        if (text.trim()) {
+          blocks.push({
+            type: 'paragraph',
+            heading: 'NORMAL',
+            segments: [{ text: text }]
+          });
+        }
+
         return;
       }
 
-      list.innerHTML = filtered.map(function (doc) {
-        const title = doc.title || doc.sourceId;
-        const date = doc.editedAt || doc.updatedAt || doc.importedAt || '';
-        const safeId = escapeAttr(doc.sourceId);
-        const safeTitle = escapeHtml(title);
-        const safeTitleAttr = escapeAttr(title);
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
 
-        return `
-          <div class="doc-item">
-            <div class="doc-title">${safeTitle}</div>
-            <div class="doc-meta">
-              ID: ${escapeHtml(doc.sourceId || '')}
-              ${date ? '<br>Zuletzt geändert: ' + escapeHtml(formatDate(date)) : ''}
-            </div>
-            <div class="doc-actions">
-              <button class="btn-light" onclick="editDocument('${safeId}')">Bearbeiten</button>
-              <button class="btn-danger" onclick="removeDocument('${safeId}', '${safeTitleAttr}')">Entfernen</button>
-            </div>
-          </div>
-        `;
-      }).join('');
+      const tag = node.tagName.toUpperCase();
+
+      if (tag === 'BR') {
+        return;
+      }
+
+      if (tag === 'P' || tag === 'DIV' || /^H[1-6]$/.test(tag)) {
+        blocks.push({
+          type: 'paragraph',
+          heading: htmlTagToHeading(tag),
+          segments: inlineSegmentsFromNode(node)
+        });
+        return;
+      }
+
+      if (tag === 'UL' || tag === 'OL') {
+        collectList(node, blocks, tag === 'OL', level);
+        return;
+      }
+
+      if (tag === 'TABLE') {
+        blocks.push(tableNodeToBlock(node));
+        return;
+      }
+
+      if (tag === 'BLOCKQUOTE') {
+        blocks.push({
+          type: 'paragraph',
+          heading: 'NORMAL',
+          segments: inlineSegmentsFromNode(node)
+        });
+        return;
+      }
+
+      blocks.push({
+        type: 'paragraph',
+        heading: 'NORMAL',
+        segments: inlineSegmentsFromNode(node)
+      });
+    }
+
+    function collectList(listNode, blocks, ordered, level) {
+      Array.from(listNode.children).forEach(function (child) {
+        if (child.tagName.toUpperCase() !== 'LI') {
+          return;
+        }
+
+        const storedLevel = child.getAttribute('data-level');
+        const realLevel = storedLevel !== null && storedLevel !== ''
+          ? Number(storedLevel)
+          : level;
+
+        blocks.push({
+          type: 'listItem',
+          ordered: ordered,
+          level: isNaN(realLevel) ? level : realLevel,
+          segments: inlineSegmentsFromNode(child, true)
+        });
+
+        Array.from(child.children).forEach(function (nested) {
+          const nestedTag = nested.tagName.toUpperCase();
+
+          if (nestedTag === 'UL' || nestedTag === 'OL') {
+            collectList(nested, blocks, nestedTag === 'OL', level + 1);
+          }
+        });
+      });
+    }
+
+    function tableNodeToBlock(tableNode) {
+      const rows = [];
+
+      Array.from(tableNode.rows).forEach(function (rowNode) {
+        const row = {
+          cells: []
+        };
+
+        Array.from(rowNode.cells).forEach(function (cellNode) {
+          row.cells.push({
+            blocks: editorDomToBlocks(cellNode)
+          });
+        });
+
+        rows.push(row);
+      });
+
+      return {
+        type: 'table',
+        rows: rows
+      };
+    }
+
+    function inlineSegmentsFromNode(root, ignoreNestedLists) {
+      const segments = [];
+
+      walkInline(root, {}, segments, ignoreNestedLists);
+      return mergeSegments(segments);
+    }
+
+    function walkInline(node, inherited, segments, ignoreNestedLists) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.nodeValue || '';
+
+        if (text) {
+          segments.push(Object.assign({}, inherited, { text: text }));
+        }
+
+        return;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+
+      const tag = node.tagName.toUpperCase();
+
+      if (tag === 'BR') {
+        segments.push(Object.assign({}, inherited, { text: '\n' }));
+        return;
+      }
+
+      if (ignoreNestedLists && (tag === 'UL' || tag === 'OL' || tag === 'TABLE')) {
+        return;
+      }
+
+      const next = Object.assign({}, inherited);
+
+      if (tag === 'B' || tag === 'STRONG') next.bold = true;
+      if (tag === 'I' || tag === 'EM') next.italic = true;
+      if (tag === 'U') next.underline = true;
+      if (tag === 'S' || tag === 'STRIKE' || tag === 'DEL') next.strikethrough = true;
+
+      if (tag === 'A') {
+        const href = node.getAttribute('href');
+
+        if (href) {
+          next.href = href;
+        }
+      }
+
+      const style = node.style || {};
+
+      if (style.fontWeight && (style.fontWeight === 'bold' || Number(style.fontWeight) >= 600)) {
+        next.bold = true;
+      }
+
+      if (style.fontStyle === 'italic') {
+        next.italic = true;
+      }
+
+      if (style.textDecoration && style.textDecoration.indexOf('underline') !== -1) {
+        next.underline = true;
+      }
+
+      if (style.textDecoration && style.textDecoration.indexOf('line-through') !== -1) {
+        next.strikethrough = true;
+      }
+
+      if (style.color) {
+        next.color = style.color;
+      }
+
+      if (style.backgroundColor) {
+        next.backgroundColor = style.backgroundColor;
+      }
+
+      if (style.fontFamily) {
+        next.fontFamily = style.fontFamily;
+      }
+
+      if (style.fontSize) {
+        const size = parseFloat(style.fontSize);
+
+        if (!isNaN(size)) {
+          next.fontSize = size;
+        }
+      }
+
+      Array.from(node.childNodes).forEach(function (child) {
+        walkInline(child, next, segments, ignoreNestedLists);
+      });
+    }
+
+    function mergeSegments(segments) {
+      const result = [];
+
+      segments.forEach(function (segment) {
+        if (!segment.text) {
+          return;
+        }
+
+        const last = result[result.length - 1];
+
+        if (last && sameAttrs(last, segment)) {
+          last.text += segment.text;
+          return;
+        }
+
+        result.push(segment);
+      });
+
+      return result;
+    }
+
+    function sameAttrs(a, b) {
+      return !!a.bold === !!b.bold &&
+        !!a.italic === !!b.italic &&
+        !!a.underline === !!b.underline &&
+        !!a.strikethrough === !!b.strikethrough &&
+        String(a.href || '') === String(b.href || '') &&
+        String(a.color || '') === String(b.color || '') &&
+        String(a.backgroundColor || '') === String(b.backgroundColor || '') &&
+        String(a.fontFamily || '') === String(b.fontFamily || '') &&
+        String(a.fontSize || '') === String(b.fontSize || '');
+    }
+
+    function htmlTagToHeading(tag) {
+      if (tag === 'H1') return 'HEADING2';
+      if (tag === 'H2') return 'HEADING2';
+      if (tag === 'H3') return 'HEADING3';
+      if (tag === 'H4') return 'HEADING4';
+      if (tag === 'H5') return 'HEADING5';
+      if (tag === 'H6') return 'HEADING6';
+
+      return 'NORMAL';
     }
 
     function setBusy(value) {
-      const buttons = document.querySelectorAll('button');
+      isBusy = value;
 
-      buttons.forEach(function (button) {
-        button.disabled = value;
+      Array.from(document.querySelectorAll('button, select, input')).forEach(function (element) {
+        element.disabled = value;
       });
+
+      document.getElementById('editor').setAttribute('contenteditable', value ? 'false' : 'true');
     }
 
     function showStatus(message, type) {
@@ -480,20 +705,6 @@
       return escapeHtml(err.message || String(err));
     }
 
-    function formatDate(value) {
-      if (!value) {
-        return '';
-      }
-
-      const date = new Date(value);
-
-      if (isNaN(date.getTime())) {
-        return value;
-      }
-
-      return date.toLocaleString('de-DE');
-    }
-
     function escapeHtml(value) {
       return String(value || '')
         .replace(/&/g, '&amp;')
@@ -501,10 +712,6 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
-    }
-
-    function escapeAttr(value) {
-      return escapeHtml(value).replace(/`/g, '&#096;');
     }
   </script>
 </body>
