@@ -1,718 +1,1374 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <base target="_top">
-  <style>
-    :root {
-      --bg: #f5f7fb;
-      --panel: #ffffff;
-      --text: #202124;
-      --muted: #6b7280;
-      --border: #dfe3e8;
-      --primary: #1a73e8;
-      --primary-hover: #1558b0;
-      --danger: #d93025;
-      --danger-bg: #fdecea;
-      --success-bg: #e6f4ea;
-      --success-text: #137333;
-      --warning-bg: #fff7e0;
-      --warning-text: #8a5a00;
-      --shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+const MK_CONFIG = {
+  MENU_NAME: 'Master Knowledge',
+  SIDEBAR_TITLE: 'Master Knowledge Import',
+  EDITOR_TITLE: 'Importierten Bereich bearbeiten',
+  RANGE_PREFIX: 'MK_IMPORT_',
+  META_PREFIX: 'MK_META_'
+};
+
+function onOpen() {
+  DocumentApp.getUi()
+    .createMenu(MK_CONFIG.MENU_NAME)
+    .addItem('Sidebar öffnen', 'showSidebar')
+    .addToUi();
+}
+
+function showSidebar() {
+  const html = HtmlService
+    .createHtmlOutputFromFile('Sidebar')
+    .setTitle(MK_CONFIG.SIDEBAR_TITLE);
+
+  DocumentApp.getUi().showSidebar(html);
+}
+
+function showEditDialog(sourceLinkOrId) {
+  const sourceId = extractGoogleDocId_(sourceLinkOrId);
+
+  const template = HtmlService.createTemplateFromFile('Editor');
+  template.sourceId = sourceId;
+
+  const html = template
+    .evaluate()
+    .setWidth(1200)
+    .setHeight(780);
+
+  DocumentApp.getUi().showModalDialog(html, MK_CONFIG.EDITOR_TITLE);
+}
+
+function getImportStatus(sourceLinkOrId) {
+  const sourceId = extractGoogleDocId_(sourceLinkOrId);
+  const targetCtx = getDocumentContext_(DocumentApp.getActiveDocument(), true);
+  const namedRange = findNamedRangeBySourceId_(sourceId, targetCtx);
+  const meta = getImportMeta_(sourceId);
+
+  return {
+    exists: !!namedRange,
+    sourceId: sourceId,
+    document: meta || {
+      sourceId: sourceId,
+      title: sourceId,
+      url: buildGoogleDocUrl_(sourceId)
+    }
+  };
+}
+
+function importDocumentFromLink(docLink, overwriteExisting) {
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+
+  try {
+    const sourceId = extractGoogleDocId_(docLink);
+    const targetDoc = DocumentApp.getActiveDocument();
+    const targetCtx = getDocumentContext_(targetDoc, true);
+
+    if (sourceId === targetDoc.getId()) {
+      throw new Error('Das Master-Dokument kann nicht in sich selbst importiert werden.');
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    const existingNamedRange = findNamedRangeBySourceId_(sourceId, targetCtx);
+    const existingMeta = getImportMeta_(sourceId);
 
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Arial, sans-serif;
-      font-size: 14px;
-      overflow: hidden;
-    }
-
-    .app {
-      display: grid;
-      grid-template-rows: auto auto 1fr auto;
-      height: 100vh;
-    }
-
-    .header {
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      padding: 14px 18px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 16px;
-      align-items: center;
-    }
-
-    .title-wrap label {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 4px;
-      font-weight: 700;
-    }
-
-    #title {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 18px;
-      font-weight: 700;
-      outline: none;
-    }
-
-    #title:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
-    }
-
-    .toolbar {
-      background: #ffffff;
-      border-bottom: 1px solid var(--border);
-      padding: 10px 18px;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    select,
-    button {
-      border: 1px solid var(--border);
-      background: #ffffff;
-      border-radius: 9px;
-      padding: 8px 10px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-
-    button {
-      font-weight: 700;
-    }
-
-    button:hover:not(:disabled),
-    select:hover:not(:disabled) {
-      background: #f1f5f9;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      border-color: var(--primary);
-      background: var(--primary);
-      color: #ffffff;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: var(--primary-hover);
-    }
-
-    .btn-danger {
-      border-color: var(--danger-bg);
-      background: var(--danger-bg);
-      color: var(--danger);
-    }
-
-    .status {
-      display: none;
-      padding: 10px 18px;
-      border-bottom: 1px solid var(--border);
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    .status.show {
-      display: block;
-    }
-
-    .status.info {
-      background: #eef3fb;
-      color: #174ea6;
-    }
-
-    .status.success {
-      background: var(--success-bg);
-      color: var(--success-text);
-    }
-
-    .status.error {
-      background: var(--danger-bg);
-      color: var(--danger);
-    }
-
-    .status.warning {
-      background: var(--warning-bg);
-      color: var(--warning-text);
-    }
-
-    .editor-wrap {
-      overflow: auto;
-      padding: 22px;
-    }
-
-    #editor {
-      min-height: calc(100vh - 245px);
-      max-width: 980px;
-      margin: 0 auto;
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 42px;
-      box-shadow: var(--shadow);
-      line-height: 1.5;
-      outline: none;
-    }
-
-    #editor:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.10), var(--shadow);
-    }
-
-    #editor p {
-      margin: 0 0 10px;
-    }
-
-    #editor h1,
-    #editor h2,
-    #editor h3,
-    #editor h4,
-    #editor h5,
-    #editor h6 {
-      margin: 18px 0 8px;
-      line-height: 1.25;
-    }
-
-    #editor table {
-      border-collapse: collapse;
-      width: 100%;
-      margin: 14px 0;
-    }
-
-    #editor td,
-    #editor th {
-      border: 1px solid #cbd5e1;
-      padding: 8px;
-      vertical-align: top;
-      min-width: 80px;
-    }
-
-    #editor ul,
-    #editor ol {
-      margin-top: 8px;
-      margin-bottom: 8px;
-    }
-
-    .mk-unsupported {
-      display: inline-block;
-      padding: 2px 6px;
-      border-radius: 6px;
-      background: #fff7e0;
-      color: #8a5a00;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .footer {
-      background: var(--panel);
-      border-top: 1px solid var(--border);
-      padding: 12px 18px;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .hint {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
-    .actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-  </style>
-</head>
-<body>
-  <div class="app">
-    <div class="header">
-      <div class="title-wrap">
-        <label for="title">Kategorie / Überschrift 1 im Master-Dokument</label>
-        <input id="title" type="text" placeholder="Titel">
-      </div>
-      <button class="btn-danger" onclick="closeEditor()">Schließen</button>
-    </div>
-
-    <div class="toolbar">
-      <select id="blockFormat" onchange="applyBlockFormat()">
-        <option value="p">Absatz</option>
-        <option value="h2">Überschrift 2</option>
-        <option value="h3">Überschrift 3</option>
-        <option value="h4">Überschrift 4</option>
-        <option value="h5">Überschrift 5</option>
-        <option value="h6">Überschrift 6</option>
-      </select>
-
-      <button onclick="cmd('bold')">Fett</button>
-      <button onclick="cmd('italic')">Kursiv</button>
-      <button onclick="cmd('underline')">Unterstrichen</button>
-      <button onclick="cmd('strikeThrough')">Durchgestrichen</button>
-      <button onclick="cmd('insertUnorderedList')">Liste</button>
-      <button onclick="cmd('insertOrderedList')">Nummeriert</button>
-      <button onclick="createLink()">Link</button>
-      <button onclick="insertTable()">Tabelle 2x2</button>
-      <button onclick="removeFormatting()">Format entfernen</button>
-    </div>
-
-    <div id="status" class="status"></div>
-
-    <div class="editor-wrap">
-      <div id="editor" contenteditable="true"></div>
-    </div>
-
-    <div class="footer">
-      <div class="hint">
-        Hinweis: Der Editor speichert Text, Überschriften, Listen, Links und Tabellen. Bilder und Sonderobjekte besser im Quelldokument bearbeiten und danach neu importieren.
-      </div>
-      <div class="actions">
-        <button onclick="reloadContent()">Neu laden</button>
-        <button class="btn-primary" onclick="saveContent()">Speichern</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const SOURCE_ID = '<?= sourceId ?>';
-    let isBusy = false;
-
-    document.addEventListener('DOMContentLoaded', function () {
-      reloadContent();
-    });
-
-    function reloadContent() {
-      setBusy(true);
-      showStatus('Inhalt wird geladen...', 'info');
-
-      google.script.run
-        .withSuccessHandler(function (result) {
-          document.getElementById('title').value = result.title || '';
-          document.getElementById('editor').innerHTML = result.contentHtml || '<p><br></p>';
-
-          if (result.warnings && result.warnings.length) {
-            showStatus(
-              '<strong>Hinweis:</strong><br>' + result.warnings.map(escapeHtml).join('<br>'),
-              'warning'
-            );
-          } else {
-            hideStatus();
-          }
-
-          setBusy(false);
-        })
-        .withFailureHandler(function (err) {
-          showStatus(getErrorMessage(err), 'error');
-          setBusy(false);
-        })
-        .getImportForEditing(SOURCE_ID);
-    }
-
-    function saveContent() {
-      const title = document.getElementById('title').value.trim();
-
-      if (!title) {
-        showStatus('Der Titel darf nicht leer sein.', 'error');
-        return;
-      }
-
-      const editor = document.getElementById('editor');
-      const blocks = editorDomToBlocks(editor);
-
-      setBusy(true);
-      showStatus('Änderungen werden gespeichert...', 'info');
-
-      google.script.run
-        .withSuccessHandler(function (result) {
-          showStatus(result && result.message ? result.message : 'Änderungen wurden gespeichert.', 'success');
-          setBusy(false);
-        })
-        .withFailureHandler(function (err) {
-          showStatus(getErrorMessage(err), 'error');
-          setBusy(false);
-        })
-        .saveEditedImport({
-          sourceId: SOURCE_ID,
-          title: title,
-          blocks: blocks
-        });
-    }
-
-    function closeEditor() {
-      google.script.host.close();
-    }
-
-    function cmd(command) {
-      focusEditor();
-      document.execCommand(command, false, null);
-    }
-
-    function applyBlockFormat() {
-      const value = document.getElementById('blockFormat').value;
-      focusEditor();
-      document.execCommand('formatBlock', false, value);
-    }
-
-    function createLink() {
-      focusEditor();
-
-      const url = prompt('Link eingeben:');
-
-      if (!url) {
-        return;
-      }
-
-      document.execCommand('createLink', false, url);
-    }
-
-    function removeFormatting() {
-      focusEditor();
-      document.execCommand('removeFormat', false, null);
-    }
-
-    function insertTable() {
-      focusEditor();
-
-      const html = `
-        <table>
-          <tbody>
-            <tr>
-              <td><p><br></p></td>
-              <td><p><br></p></td>
-            </tr>
-            <tr>
-              <td><p><br></p></td>
-              <td><p><br></p></td>
-            </tr>
-          </tbody>
-        </table>
-        <p><br></p>
-      `;
-
-      document.execCommand('insertHTML', false, html);
-    }
-
-    function focusEditor() {
-      document.getElementById('editor').focus();
-    }
-
-    function editorDomToBlocks(root) {
-      const blocks = [];
-
-      Array.from(root.childNodes).forEach(function (node) {
-        collectBlockNode(node, blocks, 0);
-      });
-
-      return blocks.length ? blocks : [{
-        type: 'paragraph',
-        heading: 'NORMAL',
-        segments: []
-      }];
-    }
-
-    function collectBlockNode(node, blocks, level) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.nodeValue || '';
-
-        if (text.trim()) {
-          blocks.push({
-            type: 'paragraph',
-            heading: 'NORMAL',
-            segments: [{ text: text }]
-          });
-        }
-
-        return;
-      }
-
-      if (node.nodeType !== Node.ELEMENT_NODE) {
-        return;
-      }
-
-      const tag = node.tagName.toUpperCase();
-
-      if (tag === 'BR') {
-        return;
-      }
-
-      if (tag === 'P' || tag === 'DIV' || /^H[1-6]$/.test(tag)) {
-        blocks.push({
-          type: 'paragraph',
-          heading: htmlTagToHeading(tag),
-          segments: inlineSegmentsFromNode(node)
-        });
-        return;
-      }
-
-      if (tag === 'UL' || tag === 'OL') {
-        collectList(node, blocks, tag === 'OL', level);
-        return;
-      }
-
-      if (tag === 'TABLE') {
-        blocks.push(tableNodeToBlock(node));
-        return;
-      }
-
-      if (tag === 'BLOCKQUOTE') {
-        blocks.push({
-          type: 'paragraph',
-          heading: 'NORMAL',
-          segments: inlineSegmentsFromNode(node)
-        });
-        return;
-      }
-
-      blocks.push({
-        type: 'paragraph',
-        heading: 'NORMAL',
-        segments: inlineSegmentsFromNode(node)
-      });
-    }
-
-    function collectList(listNode, blocks, ordered, level) {
-      Array.from(listNode.children).forEach(function (child) {
-        if (child.tagName.toUpperCase() !== 'LI') {
-          return;
-        }
-
-        const storedLevel = child.getAttribute('data-level');
-        const realLevel = storedLevel !== null && storedLevel !== ''
-          ? Number(storedLevel)
-          : level;
-
-        blocks.push({
-          type: 'listItem',
-          ordered: ordered,
-          level: isNaN(realLevel) ? level : realLevel,
-          segments: inlineSegmentsFromNode(child, true)
-        });
-
-        Array.from(child.children).forEach(function (nested) {
-          const nestedTag = nested.tagName.toUpperCase();
-
-          if (nestedTag === 'UL' || nestedTag === 'OL') {
-            collectList(nested, blocks, nestedTag === 'OL', level + 1);
-          }
-        });
-      });
-    }
-
-    function tableNodeToBlock(tableNode) {
-      const rows = [];
-
-      Array.from(tableNode.rows).forEach(function (rowNode) {
-        const row = {
-          cells: []
-        };
-
-        Array.from(rowNode.cells).forEach(function (cellNode) {
-          row.cells.push({
-            blocks: editorDomToBlocks(cellNode)
-          });
-        });
-
-        rows.push(row);
-      });
-
+    if (existingNamedRange && !overwriteExisting) {
       return {
-        type: 'table',
-        rows: rows
+        success: false,
+        duplicate: true,
+        message: 'Dieses Dokument wurde bereits importiert.',
+        document: existingMeta || {
+          sourceId: sourceId,
+          title: sourceId,
+          url: buildGoogleDocUrl_(sourceId)
+        }
       };
     }
 
-    function inlineSegmentsFromNode(root, ignoreNestedLists) {
-      const segments = [];
+    const sourceDoc = DocumentApp.openById(sourceId);
+    const sourceCtx = getDocumentContext_(sourceDoc, false);
 
-      walkInline(root, {}, segments, ignoreNestedLists);
-      return mergeSegments(segments);
+    let insertIndex = null;
+    let wasUpdate = false;
+
+    if (existingNamedRange && overwriteExisting) {
+      const deletion = deleteImportRange_(sourceId, targetCtx, true);
+      insertIndex = deletion.insertionIndex;
+      wasUpdate = true;
     }
 
-    function walkInline(node, inherited, segments, ignoreNestedLists) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.nodeValue || '';
+    if (insertIndex === null || insertIndex === undefined) {
+      insertIndex = getInsertionIndexBeforeTrailingBlank_(targetCtx.body);
+    }
 
-        if (text) {
-          segments.push(Object.assign({}, inherited, { text: text }));
-        }
+    const inserted = insertSourceDocumentAt_({
+      targetCtx: targetCtx,
+      sourceCtx: sourceCtx,
+      sourceId: sourceId,
+      sourceTitle: sourceDoc.getName(),
+      insertIndex: insertIndex
+    });
 
-        return;
-      }
+    const meta = {
+      sourceId: sourceId,
+      title: sourceDoc.getName(),
+      url: buildGoogleDocUrl_(sourceId),
+      namedRangeName: inserted.namedRangeName,
+      namedRangeId: inserted.namedRangeId,
+      importedAt: wasUpdate && existingMeta && existingMeta.importedAt ? existingMeta.importedAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mode: wasUpdate ? 'overwritten' : 'created'
+    };
 
-      if (node.nodeType !== Node.ELEMENT_NODE) {
-        return;
-      }
+    setImportMeta_(sourceId, meta);
 
-      const tag = node.tagName.toUpperCase();
+    return {
+      success: true,
+      duplicate: false,
+      message: wasUpdate ? 'Dokument wurde überschrieben und neu importiert.' : 'Dokument wurde importiert.',
+      document: meta,
+      warnings: inserted.warnings
+    };
 
-      if (tag === 'BR') {
-        segments.push(Object.assign({}, inherited, { text: '\n' }));
-        return;
-      }
+  } catch (err) {
+    throw new Error(cleanErrorMessage_(err));
+  } finally {
+    lock.releaseLock();
+  }
+}
 
-      if (ignoreNestedLists && (tag === 'UL' || tag === 'OL' || tag === 'TABLE')) {
-        return;
-      }
+function insertSourceDocumentAt_(options) {
+  const targetCtx = options.targetCtx;
+  const sourceCtx = options.sourceCtx;
+  const sourceId = options.sourceId;
+  const sourceTitle = options.sourceTitle;
+  let insertIndex = options.insertIndex;
 
-      const next = Object.assign({}, inherited);
+  const insertedElements = [];
+  const warnings = [];
 
-      if (tag === 'B' || tag === 'STRONG') next.bold = true;
-      if (tag === 'I' || tag === 'EM') next.italic = true;
-      if (tag === 'U') next.underline = true;
-      if (tag === 'S' || tag === 'STRIKE' || tag === 'DEL') next.strikethrough = true;
+  const titleParagraph = targetCtx.body.insertParagraph(insertIndex, sourceTitle);
+  titleParagraph.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+  insertedElements.push(titleParagraph);
+  insertIndex++;
 
-      if (tag === 'A') {
-        const href = node.getAttribute('href');
+  for (let i = 0; i < sourceCtx.body.getNumChildren(); i++) {
+    const sourceElement = sourceCtx.body.getChild(i);
+    const result = insertCopiedTopLevelElement_(targetCtx.body, insertIndex, sourceElement);
 
-        if (href) {
-          next.href = href;
-        }
-      }
+    if (result.element) {
+      insertedElements.push(result.element);
+      insertIndex++;
+    }
 
-      const style = node.style || {};
+    if (result.warning) {
+      warnings.push(result.warning);
+    }
+  }
 
-      if (style.fontWeight && (style.fontWeight === 'bold' || Number(style.fontWeight) >= 600)) {
-        next.bold = true;
-      }
+  const separator = targetCtx.body.insertParagraph(insertIndex, '');
+  separator.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+  insertedElements.push(separator);
+  insertIndex++;
 
-      if (style.fontStyle === 'italic') {
-        next.italic = true;
-      }
+  const namedRange = createNamedRangeForElements_(targetCtx, sourceId, insertedElements);
 
-      if (style.textDecoration && style.textDecoration.indexOf('underline') !== -1) {
-        next.underline = true;
-      }
+  ensureTrailingBlankParagraph_(targetCtx.body);
 
-      if (style.textDecoration && style.textDecoration.indexOf('line-through') !== -1) {
-        next.strikethrough = true;
-      }
+  return {
+    namedRangeName: namedRange.getName(),
+    namedRangeId: namedRange.getId(),
+    warnings: unique_(warnings)
+  };
+}
 
-      if (style.color) {
-        next.color = style.color;
-      }
+function getImportedDocuments() {
+  const targetDoc = DocumentApp.getActiveDocument();
+  const targetCtx = getDocumentContext_(targetDoc, true);
+  const namedRanges = getNamedRanges_(targetCtx);
+  const result = [];
+  const seen = {};
 
-      if (style.backgroundColor) {
-        next.backgroundColor = style.backgroundColor;
-      }
+  namedRanges.forEach(function (namedRange) {
+    const name = namedRange.getName();
 
-      if (style.fontFamily) {
-        next.fontFamily = style.fontFamily;
-      }
+    if (!name || name.indexOf(MK_CONFIG.RANGE_PREFIX) !== 0) {
+      return;
+    }
 
-      if (style.fontSize) {
-        const size = parseFloat(style.fontSize);
+    const sourceId = name.substring(MK_CONFIG.RANGE_PREFIX.length);
 
-        if (!isNaN(size)) {
-          next.fontSize = size;
-        }
-      }
+    if (!sourceId || seen[sourceId]) {
+      return;
+    }
 
-      Array.from(node.childNodes).forEach(function (child) {
-        walkInline(child, next, segments, ignoreNestedLists);
+    seen[sourceId] = true;
+
+    const meta = getImportMeta_(sourceId) || {};
+    const orderIndex = getNamedRangeOrderIndex_(namedRange, targetCtx.body);
+
+    result.push({
+      sourceId: sourceId,
+      title: meta.title || sourceId,
+      url: meta.url || buildGoogleDocUrl_(sourceId),
+      namedRangeName: name,
+      namedRangeId: namedRange.getId(),
+      importedAt: meta.importedAt || '',
+      updatedAt: meta.updatedAt || '',
+      editedAt: meta.editedAt || '',
+      orderIndex: orderIndex
+    });
+  });
+
+  result.sort(function (a, b) {
+    return a.orderIndex - b.orderIndex;
+  });
+
+  return result;
+}
+
+function removeImportedDocument(sourceLinkOrId) {
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+
+  try {
+    const sourceId = extractGoogleDocId_(sourceLinkOrId);
+    const targetCtx = getDocumentContext_(DocumentApp.getActiveDocument(), true);
+    const deletion = deleteImportRange_(sourceId, targetCtx, true);
+
+    if (!deletion.removed) {
+      throw new Error('Für dieses Dokument wurde kein importierter Bereich gefunden.');
+    }
+
+    ensureTrailingBlankParagraph_(targetCtx.body);
+
+    return getImportedDocuments();
+
+  } catch (err) {
+    throw new Error(cleanErrorMessage_(err));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getImportForEditing(sourceLinkOrId) {
+  try {
+    const sourceId = extractGoogleDocId_(sourceLinkOrId);
+    const targetCtx = getDocumentContext_(DocumentApp.getActiveDocument(), true);
+    const namedRange = findNamedRangeBySourceId_(sourceId, targetCtx);
+
+    if (!namedRange) {
+      throw new Error('Der importierte Bereich wurde nicht gefunden.');
+    }
+
+    const elements = collectTopLevelElementsFromNamedRange_(namedRange, targetCtx.body)
+      .sort(function (a, b) {
+        return a.index - b.index;
+      })
+      .map(function (item) {
+        return item.element;
       });
+
+    if (!elements.length) {
+      throw new Error('Der importierte Bereich ist leer oder wurde manuell beschädigt.');
     }
 
-    function mergeSegments(segments) {
-      const result = [];
+    let title = '';
+    let contentElements = elements;
 
-      segments.forEach(function (segment) {
-        if (!segment.text) {
-          return;
-        }
+    const first = elements[0];
 
-        const last = result[result.length - 1];
-
-        if (last && sameAttrs(last, segment)) {
-          last.text += segment.text;
-          return;
-        }
-
-        result.push(segment);
-      });
-
-      return result;
+    if (
+      first.getType() === DocumentApp.ElementType.PARAGRAPH &&
+      first.asParagraph().getHeading() === DocumentApp.ParagraphHeading.HEADING1
+    ) {
+      title = first.asParagraph().getText();
+      contentElements = elements.slice(1);
     }
 
-    function sameAttrs(a, b) {
-      return !!a.bold === !!b.bold &&
-        !!a.italic === !!b.italic &&
-        !!a.underline === !!b.underline &&
-        !!a.strikethrough === !!b.strikethrough &&
-        String(a.href || '') === String(b.href || '') &&
-        String(a.color || '') === String(b.color || '') &&
-        String(a.backgroundColor || '') === String(b.backgroundColor || '') &&
-        String(a.fontFamily || '') === String(b.fontFamily || '') &&
-        String(a.fontSize || '') === String(b.fontSize || '');
+    contentElements = stripTrailingSeparatorParagraphs_(contentElements);
+
+    if (!title) {
+      const meta = getImportMeta_(sourceId);
+      title = meta && meta.title ? meta.title : sourceId;
     }
 
-    function htmlTagToHeading(tag) {
-      if (tag === 'H1') return 'HEADING2';
-      if (tag === 'H2') return 'HEADING2';
-      if (tag === 'H3') return 'HEADING3';
-      if (tag === 'H4') return 'HEADING4';
-      if (tag === 'H5') return 'HEADING5';
-      if (tag === 'H6') return 'HEADING6';
+    const warnings = [];
+    const html = serializeElementsToHtml_(contentElements, warnings);
 
-      return 'NORMAL';
+    return {
+      success: true,
+      sourceId: sourceId,
+      title: title,
+      contentHtml: html || '<p><br></p>',
+      warnings: unique_(warnings)
+    };
+
+  } catch (err) {
+    throw new Error(cleanErrorMessage_(err));
+  }
+}
+
+function saveEditedImport(payload) {
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+
+  try {
+    if (!payload) {
+      throw new Error('Keine Speicherdaten erhalten.');
     }
 
-    function setBusy(value) {
-      isBusy = value;
+    const sourceId = extractGoogleDocId_(payload.sourceId);
+    const title = String(payload.title || '').trim();
 
-      Array.from(document.querySelectorAll('button, select, input')).forEach(function (element) {
-        element.disabled = value;
-      });
-
-      document.getElementById('editor').setAttribute('contenteditable', value ? 'false' : 'true');
+    if (!title) {
+      throw new Error('Der Titel darf nicht leer sein.');
     }
 
-    function showStatus(message, type) {
-      const status = document.getElementById('status');
-      status.className = 'status show ' + (type || 'info');
-      status.innerHTML = message;
+    const blocks = Array.isArray(payload.blocks) ? payload.blocks : [];
+    const targetCtx = getDocumentContext_(DocumentApp.getActiveDocument(), true);
+    const oldMeta = getImportMeta_(sourceId) || {};
+    const deletion = deleteImportRange_(sourceId, targetCtx, false);
+
+    if (!deletion.removed) {
+      throw new Error('Der alte Importbereich wurde nicht gefunden. Speichern wurde abgebrochen.');
     }
 
-    function hideStatus() {
-      const status = document.getElementById('status');
-      status.className = 'status';
-      status.innerHTML = '';
+    let insertIndex = deletion.insertionIndex;
+
+    if (insertIndex === null || insertIndex === undefined) {
+      insertIndex = getInsertionIndexBeforeTrailingBlank_(targetCtx.body);
     }
 
-    function getErrorMessage(err) {
-      if (!err) {
-        return 'Unbekannter Fehler.';
+    const insertedElements = [];
+
+    const titleParagraph = targetCtx.body.insertParagraph(insertIndex, title);
+    titleParagraph.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    insertedElements.push(titleParagraph);
+    insertIndex++;
+
+    blocks.forEach(function (block) {
+      const inserted = insertEditorBlockToBody_(targetCtx.body, insertIndex, block);
+
+      if (inserted) {
+        insertedElements.push(inserted);
+        insertIndex++;
+      }
+    });
+
+    const separator = targetCtx.body.insertParagraph(insertIndex, '');
+    separator.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+    insertedElements.push(separator);
+    insertIndex++;
+
+    const namedRange = createNamedRangeForElements_(targetCtx, sourceId, insertedElements);
+
+    const meta = {
+      sourceId: sourceId,
+      title: title,
+      url: oldMeta.url || buildGoogleDocUrl_(sourceId),
+      namedRangeName: namedRange.getName(),
+      namedRangeId: namedRange.getId(),
+      importedAt: oldMeta.importedAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      editedAt: new Date().toISOString(),
+      mode: 'edited'
+    };
+
+    setImportMeta_(sourceId, meta);
+    ensureTrailingBlankParagraph_(targetCtx.body);
+
+    return {
+      success: true,
+      message: 'Änderungen wurden gespeichert.',
+      document: meta
+    };
+
+  } catch (err) {
+    throw new Error(cleanErrorMessage_(err));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function insertCopiedTopLevelElement_(body, insertIndex, sourceElement) {
+  const type = sourceElement.getType();
+  const copiedElement = sourceElement.copy();
+
+  shiftHeadingsDownInElement_(copiedElement);
+
+  if (type === DocumentApp.ElementType.PARAGRAPH) {
+    return {
+      element: body.insertParagraph(insertIndex, copiedElement.asParagraph())
+    };
+  }
+
+  if (type === DocumentApp.ElementType.LIST_ITEM) {
+    return {
+      element: body.insertListItem(insertIndex, copiedElement.asListItem())
+    };
+  }
+
+  if (type === DocumentApp.ElementType.TABLE) {
+    return {
+      element: body.insertTable(insertIndex, copiedElement.asTable())
+    };
+  }
+
+  if (type === DocumentApp.ElementType.TABLE_OF_CONTENTS) {
+    return {
+      element: null,
+      warning: 'Ein Inhaltsverzeichnis wurde übersprungen, weil es in Google Apps Script nicht sauber als editierbarer Importblock kopiert werden kann.'
+    };
+  }
+
+  return {
+    element: null,
+    warning: 'Ein nicht unterstütztes Hauptelement wurde übersprungen: ' + String(type)
+  };
+}
+
+function insertEditorBlockToBody_(body, insertIndex, block) {
+  if (!block || !block.type) {
+    return null;
+  }
+
+  if (block.type === 'paragraph') {
+    const paragraph = body.insertParagraph(insertIndex, '');
+    paragraph.setHeading(headingNameToEnum_(block.heading, true));
+    applyInlineSegments_(paragraph, block.segments || []);
+    return paragraph;
+  }
+
+  if (block.type === 'listItem') {
+    const item = body.insertListItem(insertIndex, '');
+    item.setGlyphType(block.ordered ? DocumentApp.GlyphType.NUMBER : DocumentApp.GlyphType.BULLET);
+    item.setNestingLevel(clampNumber_(block.level, 0, 8));
+    item.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+    applyInlineSegments_(item, block.segments || []);
+    return item;
+  }
+
+  if (block.type === 'table') {
+    const table = body.insertTable(insertIndex);
+    buildTableFromBlock_(table, block);
+    return table;
+  }
+
+  return null;
+}
+
+function appendEditorBlockToCell_(cell, block) {
+  if (!block || !block.type) {
+    return null;
+  }
+
+  if (block.type === 'paragraph') {
+    const paragraph = cell.appendParagraph('');
+    paragraph.setHeading(headingNameToEnum_(block.heading, true));
+    applyInlineSegments_(paragraph, block.segments || []);
+    return paragraph;
+  }
+
+  if (block.type === 'listItem') {
+    const item = cell.appendListItem('');
+    item.setGlyphType(block.ordered ? DocumentApp.GlyphType.NUMBER : DocumentApp.GlyphType.BULLET);
+    item.setNestingLevel(clampNumber_(block.level, 0, 8));
+    item.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+    applyInlineSegments_(item, block.segments || []);
+    return item;
+  }
+
+  if (block.type === 'table') {
+    try {
+      const table = cell.appendTable();
+      buildTableFromBlock_(table, block);
+      return table;
+    } catch (err) {
+      const paragraph = cell.appendParagraph('[Verschachtelte Tabelle konnte nicht gespeichert werden]');
+      paragraph.setItalic(true);
+      return paragraph;
+    }
+  }
+
+  return null;
+}
+
+function buildTableFromBlock_(table, block) {
+  const rows = Array.isArray(block.rows) ? block.rows : [];
+
+  if (!rows.length) {
+    const row = table.appendTableRow();
+    row.appendTableCell('');
+    return;
+  }
+
+  rows.forEach(function (rowData) {
+    const row = table.appendTableRow();
+    const cells = Array.isArray(rowData.cells) ? rowData.cells : [];
+
+    if (!cells.length) {
+      row.appendTableCell('');
+      return;
+    }
+
+    cells.forEach(function (cellData) {
+      const cell = row.appendTableCell('');
+      resetTableCell_(cell);
+
+      const cellBlocks = Array.isArray(cellData.blocks) ? cellData.blocks : [];
+
+      if (!cellBlocks.length) {
+        cell.appendParagraph('');
+        return;
       }
 
-      return escapeHtml(err.message || String(err));
+      cellBlocks.forEach(function (cellBlock) {
+        appendEditorBlockToCell_(cell, cellBlock);
+      });
+    });
+  });
+}
+
+function resetTableCell_(cell) {
+  try {
+    cell.clear();
+    return;
+  } catch (err) {
+    try {
+      while (cell.getNumChildren() > 0) {
+        cell.removeChild(cell.getChild(0));
+      }
+    } catch (innerErr) {
+      try {
+        cell.setText('');
+      } catch (lastErr) {
+        // Fallback.
+      }
+    }
+  }
+}
+
+function applyInlineSegments_(paragraphLikeElement, segments) {
+  paragraphLikeElement.setText('');
+
+  if (!segments || !segments.length) {
+    return;
+  }
+
+  segments.forEach(function (segment) {
+    const text = String(segment.text || '').replace(/\r/g, '');
+
+    if (!text) {
+      return;
     }
 
-    function escapeHtml(value) {
-      return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    const textElement = paragraphLikeElement.appendText(text);
+    applyTextAttributes_(textElement, segment);
+  });
+}
+
+function applyTextAttributes_(textElement, segment) {
+  const attrs = {};
+  const A = DocumentApp.Attribute;
+
+  if (segment.bold) attrs[A.BOLD] = true;
+  if (segment.italic) attrs[A.ITALIC] = true;
+  if (segment.underline) attrs[A.UNDERLINE] = true;
+  if (segment.strikethrough) attrs[A.STRIKETHROUGH] = true;
+
+  const color = normalizeCssColor_(segment.color);
+  const backgroundColor = normalizeCssColor_(segment.backgroundColor);
+
+  if (color) attrs[A.FOREGROUND_COLOR] = color;
+  if (backgroundColor) attrs[A.BACKGROUND_COLOR] = backgroundColor;
+
+  if (segment.fontFamily) {
+    attrs[A.FONT_FAMILY] = String(segment.fontFamily).replace(/["']/g, '').trim();
+  }
+
+  const fontSize = Number(segment.fontSize);
+
+  if (fontSize && fontSize >= 6 && fontSize <= 96) {
+    attrs[A.FONT_SIZE] = fontSize;
+  }
+
+  if (Object.keys(attrs).length) {
+    textElement.setAttributes(attrs);
+  }
+
+  if (segment.href) {
+    const href = String(segment.href).trim();
+
+    if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) {
+      textElement.setLinkUrl(href);
     }
-  </script>
-</body>
-</html>
+  }
+}
+
+function deleteImportRange_(sourceId, targetCtx, deleteMeta) {
+  const rangeName = getNamedRangeName_(sourceId);
+  const namedRanges = getNamedRanges_(targetCtx, rangeName);
+  const indexedElements = {};
+  let removedRange = false;
+  let minIndex = null;
+
+  namedRanges.forEach(function (namedRange) {
+    const elements = collectTopLevelElementsFromNamedRange_(namedRange, targetCtx.body);
+
+    elements.forEach(function (item) {
+      indexedElements[item.index] = item.element;
+
+      if (minIndex === null || item.index < minIndex) {
+        minIndex = item.index;
+      }
+    });
+
+    try {
+      namedRange.remove();
+    } catch (err) {
+      // Beschädigte Named Ranges werden ignoriert.
+    }
+
+    removedRange = true;
+  });
+
+  Object.keys(indexedElements)
+    .map(Number)
+    .sort(function (a, b) {
+      return b - a;
+    })
+    .forEach(function (index) {
+      const element = indexedElements[index];
+
+      try {
+        targetCtx.body.removeChild(element);
+      } catch (err) {
+        try {
+          if (typeof element.removeFromParent === 'function') {
+            element.removeFromParent();
+          }
+        } catch (innerErr) {
+          // Bereits entfernte Elemente ignorieren.
+        }
+      }
+    });
+
+  if (deleteMeta) {
+    deleteImportMeta_(sourceId);
+  }
+
+  const safeInsertionIndex = minIndex === null
+    ? null
+    : Math.min(minIndex, targetCtx.body.getNumChildren());
+
+  return {
+    removed: removedRange || Object.keys(indexedElements).length > 0,
+    insertionIndex: safeInsertionIndex
+  };
+}
+
+function collectTopLevelElementsFromNamedRange_(namedRange, body) {
+  const rawItems = collectRawTopLevelElementsFromNamedRange_(namedRange, body);
+  return trimNamedRangeItemsToSingleImportBlock_(rawItems);
+}
+
+function collectRawTopLevelElementsFromNamedRange_(namedRange, body) {
+  const map = {};
+
+  try {
+    const rangeElements = namedRange.getRange().getRangeElements();
+
+    rangeElements.forEach(function (rangeElement) {
+      const topLevelElement = getBodyChildFromElement_(rangeElement.getElement(), body);
+
+      if (!topLevelElement) {
+        return;
+      }
+
+      const index = body.getChildIndex(topLevelElement);
+      map[index] = topLevelElement;
+    });
+
+  } catch (err) {
+    return [];
+  }
+
+  return Object.keys(map).map(function (index) {
+    return {
+      index: Number(index),
+      element: map[index]
+    };
+  });
+}
+
+function trimNamedRangeItemsToSingleImportBlock_(items) {
+  const sorted = items.slice().sort(function (a, b) {
+    return a.index - b.index;
+  });
+
+  if (!sorted.length) {
+    return [];
+  }
+
+  let firstTitlePosition = -1;
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (isImportTitleElement_(sorted[i].element)) {
+      firstTitlePosition = i;
+      break;
+    }
+  }
+
+  if (firstTitlePosition === -1) {
+    return sorted;
+  }
+
+  const result = [];
+
+  for (let i = firstTitlePosition; i < sorted.length; i++) {
+    if (i > firstTitlePosition && isImportTitleElement_(sorted[i].element)) {
+      break;
+    }
+
+    result.push(sorted[i]);
+  }
+
+  return result;
+}
+
+function isImportTitleElement_(element) {
+  try {
+    return (
+      element &&
+      element.getType() === DocumentApp.ElementType.PARAGRAPH &&
+      element.asParagraph().getHeading() === DocumentApp.ParagraphHeading.HEADING1
+    );
+  } catch (err) {
+    return false;
+  }
+}
+
+function stripTrailingSeparatorParagraphs_(elements) {
+  const result = elements.slice();
+
+  while (result.length && isBlankNormalParagraph_(result[result.length - 1])) {
+    result.pop();
+  }
+
+  return result;
+}
+
+function isBlankNormalParagraph_(element) {
+  try {
+    return (
+      element &&
+      element.getType() === DocumentApp.ElementType.PARAGRAPH &&
+      element.asParagraph().getHeading() === DocumentApp.ParagraphHeading.NORMAL &&
+      String(element.asParagraph().getText() || '').trim() === ''
+    );
+  } catch (err) {
+    return false;
+  }
+}
+
+function createNamedRangeForElements_(targetCtx, sourceId, elements) {
+  const rangeBuilder = newRangeBuilder_(targetCtx);
+
+  elements.forEach(function (element) {
+    rangeBuilder.addElement(element);
+  });
+
+  const rangeName = getNamedRangeName_(sourceId);
+
+  return addNamedRange_(targetCtx, rangeName, rangeBuilder.build());
+}
+
+function serializeElementsToHtml_(elements, warnings) {
+  let html = '';
+  let openListTag = null;
+
+  elements.forEach(function (element) {
+    const type = element.getType();
+
+    if (type === DocumentApp.ElementType.LIST_ITEM) {
+      const listItem = element.asListItem();
+      const listTag = isOrderedListItem_(listItem) ? 'ol' : 'ul';
+
+      if (openListTag && openListTag !== listTag) {
+        html += '</' + openListTag + '>';
+        openListTag = null;
+      }
+
+      if (!openListTag) {
+        html += '<' + listTag + '>';
+        openListTag = listTag;
+      }
+
+      html += listItemToHtml_(listItem, warnings);
+      return;
+    }
+
+    if (openListTag) {
+      html += '</' + openListTag + '>';
+      openListTag = null;
+    }
+
+    html += topLevelElementToHtml_(element, warnings);
+  });
+
+  if (openListTag) {
+    html += '</' + openListTag + '>';
+  }
+
+  return html;
+}
+
+function topLevelElementToHtml_(element, warnings) {
+  const type = element.getType();
+
+  if (type === DocumentApp.ElementType.PARAGRAPH) {
+    return paragraphToHtml_(element.asParagraph(), warnings);
+  }
+
+  if (type === DocumentApp.ElementType.TABLE) {
+    return tableToHtml_(element.asTable(), warnings);
+  }
+
+  if (type === DocumentApp.ElementType.LIST_ITEM) {
+    const listItem = element.asListItem();
+    const listTag = isOrderedListItem_(listItem) ? 'ol' : 'ul';
+
+    return '<' + listTag + '>' + listItemToHtml_(listItem, warnings) + '</' + listTag + '>';
+  }
+
+  warnings.push('Ein Element konnte im Editor nicht dargestellt werden: ' + String(type));
+
+  return '<p><em>[Nicht unterstütztes Element: ' + escapeHtml_(String(type)) + ']</em></p>';
+}
+
+function paragraphToHtml_(paragraph, warnings) {
+  const tag = headingToHtmlTag_(paragraph.getHeading());
+  const inner = inlineChildrenToHtml_(paragraph, warnings) || '<br>';
+
+  return '<' + tag + '>' + inner + '</' + tag + '>';
+}
+
+function listItemToHtml_(listItem, warnings) {
+  const level = clampNumber_(listItem.getNestingLevel ? listItem.getNestingLevel() : 0, 0, 8);
+  const inner = inlineChildrenToHtml_(listItem, warnings) || '<br>';
+
+  return '<li data-level="' + level + '">' + inner + '</li>';
+}
+
+function tableToHtml_(table, warnings) {
+  let html = '<table><tbody>';
+
+  for (let r = 0; r < table.getNumRows(); r++) {
+    const row = table.getRow(r);
+    html += '<tr>';
+
+    for (let c = 0; c < row.getNumCells(); c++) {
+      const cell = row.getCell(c);
+      html += '<td>';
+
+      let cellHtml = '';
+
+      for (let i = 0; i < cell.getNumChildren(); i++) {
+        cellHtml += topLevelElementToHtml_(cell.getChild(i), warnings);
+      }
+
+      html += cellHtml || '<p><br></p>';
+      html += '</td>';
+    }
+
+    html += '</tr>';
+  }
+
+  html += '</tbody></table>';
+
+  return html;
+}
+
+function inlineChildrenToHtml_(container, warnings) {
+  let html = '';
+
+  for (let i = 0; i < container.getNumChildren(); i++) {
+    const child = container.getChild(i);
+    const type = child.getType();
+
+    if (type === DocumentApp.ElementType.TEXT) {
+      html += textElementToHtml_(child.asText());
+      continue;
+    }
+
+    if (type === DocumentApp.ElementType.INLINE_IMAGE) {
+      warnings.push('Ein Bild wird im Overlay nur als Platzhalter angezeigt. Beim Speichern über den Editor geht das Bild verloren.');
+      html += '<span class="mk-unsupported" data-type="INLINE_IMAGE">[Bild]</span>';
+      continue;
+    }
+
+    if (type === DocumentApp.ElementType.HORIZONTAL_RULE) {
+      html += '<hr>';
+      continue;
+    }
+
+    if (type === DocumentApp.ElementType.PAGE_BREAK) {
+      warnings.push('Ein Seitenumbruch wird im Editor als Platzhalter angezeigt.');
+      html += '<span class="mk-unsupported" data-type="PAGE_BREAK">[Seitenumbruch]</span>';
+      continue;
+    }
+
+    warnings.push('Ein Inline-Element wird im Editor nur vereinfacht dargestellt: ' + String(type));
+    html += '<span class="mk-unsupported" data-type="' + escapeHtml_(String(type)) + '">[' + escapeHtml_(String(type)) + ']</span>';
+  }
+
+  return html;
+}
+
+function textElementToHtml_(textElement) {
+  const text = textElement.getText();
+
+  if (!text) {
+    return '';
+  }
+
+  const indices = textElement.getTextAttributeIndices();
+  let html = '';
+
+  for (let i = 0; i < indices.length; i++) {
+    const start = indices[i];
+    const end = i + 1 < indices.length ? indices[i + 1] - 1 : text.length - 1;
+    const part = text.substring(start, end + 1);
+    const attrs = textElement.getAttributes(start);
+
+    html += wrapTextRunHtml_(part, attrs);
+  }
+
+  return html;
+}
+
+function wrapTextRunHtml_(text, attrs) {
+  const A = DocumentApp.Attribute;
+  let html = escapeHtml_(text).replace(/\n/g, '<br>');
+
+  const style = [];
+
+  if (attrs[A.FOREGROUND_COLOR]) {
+    style.push('color:' + escapeHtml_(attrs[A.FOREGROUND_COLOR]));
+  }
+
+  if (attrs[A.BACKGROUND_COLOR]) {
+    style.push('background-color:' + escapeHtml_(attrs[A.BACKGROUND_COLOR]));
+  }
+
+  if (attrs[A.FONT_FAMILY]) {
+    style.push('font-family:' + escapeHtml_(attrs[A.FONT_FAMILY]));
+  }
+
+  if (attrs[A.FONT_SIZE]) {
+    style.push('font-size:' + Number(attrs[A.FONT_SIZE]) + 'pt');
+  }
+
+  if (style.length) {
+    html = '<span style="' + style.join(';') + '">' + html + '</span>';
+  }
+
+  if (attrs[A.UNDERLINE]) html = '<u>' + html + '</u>';
+  if (attrs[A.STRIKETHROUGH]) html = '<s>' + html + '</s>';
+  if (attrs[A.ITALIC]) html = '<i>' + html + '</i>';
+  if (attrs[A.BOLD]) html = '<b>' + html + '</b>';
+
+  if (attrs[A.LINK_URL]) {
+    html = '<a href="' + escapeAttr_(attrs[A.LINK_URL]) + '">' + html + '</a>';
+  }
+
+  return html;
+}
+
+function shiftHeadingsDownInElement_(element) {
+  const type = element.getType();
+
+  if (type === DocumentApp.ElementType.PARAGRAPH) {
+    shiftSingleHeading_(element.asParagraph());
+  }
+
+  if (type === DocumentApp.ElementType.LIST_ITEM) {
+    shiftSingleHeading_(element.asListItem());
+  }
+
+  if (typeof element.getNumChildren === 'function') {
+    for (let i = 0; i < element.getNumChildren(); i++) {
+      shiftHeadingsDownInElement_(element.getChild(i));
+    }
+  }
+}
+
+function shiftSingleHeading_(paragraphLikeElement) {
+  if (!paragraphLikeElement || typeof paragraphLikeElement.getHeading !== 'function') {
+    return;
+  }
+
+  const currentHeading = paragraphLikeElement.getHeading();
+  const shiftedHeading = getShiftedHeading_(currentHeading);
+
+  if (shiftedHeading && shiftedHeading !== currentHeading) {
+    paragraphLikeElement.setHeading(shiftedHeading);
+  }
+}
+
+function getShiftedHeading_(heading) {
+  const headings = [
+    DocumentApp.ParagraphHeading.HEADING1,
+    DocumentApp.ParagraphHeading.HEADING2,
+    DocumentApp.ParagraphHeading.HEADING3,
+    DocumentApp.ParagraphHeading.HEADING4,
+    DocumentApp.ParagraphHeading.HEADING5,
+    DocumentApp.ParagraphHeading.HEADING6
+  ];
+
+  for (let i = 0; i < headings.length - 1; i++) {
+    if (heading === headings[i]) {
+      return headings[i + 1];
+    }
+  }
+
+  if (heading === DocumentApp.ParagraphHeading.HEADING6) {
+    return DocumentApp.ParagraphHeading.HEADING6;
+  }
+
+  return heading;
+}
+
+function findNamedRangeBySourceId_(sourceId, targetCtx) {
+  const rangeName = getNamedRangeName_(sourceId);
+  const ranges = getNamedRanges_(targetCtx, rangeName);
+
+  return ranges.length ? ranges[0] : null;
+}
+
+function getNamedRangeOrderIndex_(namedRange, body) {
+  try {
+    const rangeElements = collectTopLevelElementsFromNamedRange_(namedRange, body);
+
+    if (rangeElements.length) {
+      return rangeElements[0].index;
+    }
+
+  } catch (err) {
+    return 999999;
+  }
+
+  return 999999;
+}
+
+function getBodyChildFromElement_(element, body) {
+  let current = element;
+
+  while (current) {
+    let parent = null;
+
+    try {
+      parent = current.getParent();
+    } catch (err) {
+      parent = null;
+    }
+
+    if (!parent) {
+      break;
+    }
+
+    if (
+      typeof parent.getType === 'function' &&
+      parent.getType() === DocumentApp.ElementType.BODY_SECTION
+    ) {
+      return current;
+    }
+
+    current = parent;
+  }
+
+  try {
+    body.getChildIndex(element);
+    return element;
+  } catch (err) {
+    return null;
+  }
+}
+
+function getInsertionIndexBeforeTrailingBlank_(body) {
+  ensureTrailingBlankParagraph_(body);
+  return body.getNumChildren() - 1;
+}
+
+function ensureTrailingBlankParagraph_(body) {
+  if (body.getNumChildren() === 0) {
+    body.appendParagraph('');
+    return;
+  }
+
+  const lastChild = body.getChild(body.getNumChildren() - 1);
+
+  if (!isBlankParagraph_(lastChild)) {
+    body.appendParagraph('');
+  }
+}
+
+function isBlankParagraph_(element) {
+  if (!element || element.getType() !== DocumentApp.ElementType.PARAGRAPH) {
+    return false;
+  }
+
+  const paragraph = element.asParagraph();
+
+  return (
+    paragraph.getText() === '' &&
+    paragraph.getHeading() === DocumentApp.ParagraphHeading.NORMAL
+  );
+}
+
+function getDocumentContext_(doc, preferActiveTab) {
+  let documentTab = null;
+
+  if (preferActiveTab) {
+    try {
+      if (typeof doc.getActiveTab === 'function') {
+        const activeTab = doc.getActiveTab();
+
+        if (activeTab && typeof activeTab.asDocumentTab === 'function') {
+          documentTab = activeTab.asDocumentTab();
+        }
+      }
+    } catch (err) {
+      documentTab = null;
+    }
+  }
+
+  if (!documentTab) {
+    try {
+      if (typeof doc.getTabs === 'function') {
+        const tabs = doc.getTabs();
+
+        if (tabs && tabs.length && typeof tabs[0].asDocumentTab === 'function') {
+          documentTab = tabs[0].asDocumentTab();
+        }
+      }
+    } catch (err) {
+      documentTab = null;
+    }
+  }
+
+  return {
+    doc: doc,
+    documentTab: documentTab,
+    body: documentTab ? documentTab.getBody() : doc.getBody()
+  };
+}
+
+function newRangeBuilder_(ctx) {
+  if (ctx.documentTab && typeof ctx.documentTab.newRange === 'function') {
+    return ctx.documentTab.newRange();
+  }
+
+  return ctx.doc.newRange();
+}
+
+function addNamedRange_(ctx, name, range) {
+  if (ctx.documentTab && typeof ctx.documentTab.addNamedRange === 'function') {
+    return ctx.documentTab.addNamedRange(name, range);
+  }
+
+  return ctx.doc.addNamedRange(name, range);
+}
+
+function getNamedRanges_(ctx, name) {
+  if (ctx.documentTab && typeof ctx.documentTab.getNamedRanges === 'function') {
+    return name ? ctx.documentTab.getNamedRanges(name) : ctx.documentTab.getNamedRanges();
+  }
+
+  return name ? ctx.doc.getNamedRanges(name) : ctx.doc.getNamedRanges();
+}
+
+function getNamedRangeName_(sourceId) {
+  return MK_CONFIG.RANGE_PREFIX + sourceId;
+}
+
+function getMetaKey_(sourceId) {
+  return MK_CONFIG.META_PREFIX + sourceId;
+}
+
+function setImportMeta_(sourceId, meta) {
+  PropertiesService
+    .getDocumentProperties()
+    .setProperty(getMetaKey_(sourceId), JSON.stringify(meta));
+}
+
+function getImportMeta_(sourceId) {
+  const raw = PropertiesService
+    .getDocumentProperties()
+    .getProperty(getMetaKey_(sourceId));
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    return null;
+  }
+}
+
+function deleteImportMeta_(sourceId) {
+  PropertiesService
+    .getDocumentProperties()
+    .deleteProperty(getMetaKey_(sourceId));
+}
+
+function extractGoogleDocId_(input) {
+  const value = String(input || '').trim();
+
+  if (!value) {
+    throw new Error('Bitte einen Google Docs Link oder eine Dokument-ID eingeben.');
+  }
+
+  const patterns = [
+    /\/document\/(?:u\/\d+\/)?d\/([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]{25,})/,
+    /[?&]id=([a-zA-Z0-9_-]{25,})/,
+    /^([a-zA-Z0-9_-]{25,})$/
+  ];
+
+  for (let i = 0; i < patterns.length; i++) {
+    const match = value.match(patterns[i]);
+
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+
+  const fallback = value.match(/([a-zA-Z0-9_-]{25,})/);
+
+  if (fallback && fallback[1]) {
+    return fallback[1];
+  }
+
+  throw new Error('Aus dem eingegebenen Wert konnte keine Google Docs Dokument-ID gelesen werden.');
+}
+
+function buildGoogleDocUrl_(sourceId) {
+  return 'https://docs.google.com/document/d/' + sourceId + '/edit';
+}
+
+function headingNameToEnum_(name, contentOnly) {
+  const normalized = String(name || 'NORMAL').toUpperCase();
+
+  if (normalized === 'HEADING1') {
+    return contentOnly ? DocumentApp.ParagraphHeading.HEADING2 : DocumentApp.ParagraphHeading.HEADING1;
+  }
+
+  if (normalized === 'HEADING2') return DocumentApp.ParagraphHeading.HEADING2;
+  if (normalized === 'HEADING3') return DocumentApp.ParagraphHeading.HEADING3;
+  if (normalized === 'HEADING4') return DocumentApp.ParagraphHeading.HEADING4;
+  if (normalized === 'HEADING5') return DocumentApp.ParagraphHeading.HEADING5;
+  if (normalized === 'HEADING6') return DocumentApp.ParagraphHeading.HEADING6;
+
+  return DocumentApp.ParagraphHeading.NORMAL;
+}
+
+function headingToHtmlTag_(heading) {
+  if (heading === DocumentApp.ParagraphHeading.HEADING1) return 'h1';
+  if (heading === DocumentApp.ParagraphHeading.HEADING2) return 'h2';
+  if (heading === DocumentApp.ParagraphHeading.HEADING3) return 'h3';
+  if (heading === DocumentApp.ParagraphHeading.HEADING4) return 'h4';
+  if (heading === DocumentApp.ParagraphHeading.HEADING5) return 'h5';
+  if (heading === DocumentApp.ParagraphHeading.HEADING6) return 'h6';
+
+  return 'p';
+}
+
+function isOrderedListItem_(listItem) {
+  try {
+    const glyph = String(listItem.getGlyphType() || '').toUpperCase();
+
+    return (
+      glyph.indexOf('NUMBER') !== -1 ||
+      glyph.indexOf('LATIN') !== -1 ||
+      glyph.indexOf('ROMAN') !== -1
+    );
+  } catch (err) {
+    return false;
+  }
+}
+
+function normalizeCssColor_(value) {
+  if (!value) {
+    return null;
+  }
+
+  const raw = String(value).trim();
+
+  if (!raw || raw === 'transparent' || raw === 'rgba(0, 0, 0, 0)') {
+    return null;
+  }
+
+  if (/^#[0-9a-f]{6}$/i.test(raw)) {
+    return raw;
+  }
+
+  const rgb = raw.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
+
+  if (rgb) {
+    return '#' + [rgb[1], rgb[2], rgb[3]].map(function (part) {
+      const n = clampNumber_(Number(part), 0, 255);
+      return ('0' + n.toString(16)).slice(-2);
+    }).join('');
+  }
+
+  return null;
+}
+
+function clampNumber_(value, min, max) {
+  const number = Number(value);
+
+  if (isNaN(number)) {
+    return min;
+  }
+
+  return Math.min(Math.max(Math.round(number), min), max);
+}
+
+function escapeHtml_(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function escapeAttr_(value) {
+  return escapeHtml_(value).replace(/`/g, '&#096;');
+}
+
+function cleanErrorMessage_(err) {
+  if (!err) {
+    return 'Unbekannter Fehler.';
+  }
+
+  const message = err.message ? err.message : String(err);
+
+  return message.replace(/^Exception:\s*/i, '').trim();
+}
+
+function unique_(arr) {
+  const seen = {};
+  const result = [];
+
+  arr.forEach(function (item) {
+    if (!item || seen[item]) {
+      return;
+    }
+
+    seen[item] = true;
+    result.push(item);
+  });
+
+  return result;
+}
