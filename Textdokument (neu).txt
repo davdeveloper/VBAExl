@@ -1,654 +1,472 @@
-const MK_CONFIG = {
-  MENU_NAME: 'Master Knowledge',
-  SIDEBAR_TITLE: 'Master Knowledge Import',
-  RANGE_PREFIX: 'MK_IMPORT_',
-  META_PREFIX: 'MK_META_'
-};
-
-function onOpen() {
-  DocumentApp.getUi()
-    .createMenu(MK_CONFIG.MENU_NAME)
-    .addItem('Sidebar öffnen', 'showSidebar')
-    .addToUi();
-}
-
-function showSidebar() {
-  const html = HtmlService
-    .createHtmlOutputFromFile('Sidebar')
-    .setTitle(MK_CONFIG.SIDEBAR_TITLE);
-
-  DocumentApp.getUi().showSidebar(html);
-}
-
-function importDocumentFromLink(docLink) {
-  const lock = LockService.getDocumentLock();
-  lock.waitLock(30000);
-
-  try {
-    const sourceId = extractGoogleDocId_(docLink);
-    const targetDoc = DocumentApp.getActiveDocument();
-    const targetCtx = getDocumentContext_(targetDoc, true);
-
-    if (sourceId === targetDoc.getId()) {
-      throw new Error('Das Master-Dokument kann nicht in sich selbst importiert werden.');
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --text: #202124;
+      --muted: #6b7280;
+      --border: #dfe3e8;
+      --primary: #1a73e8;
+      --primary-hover: #1558b0;
+      --danger: #d93025;
+      --danger-bg: #fdecea;
+      --success-bg: #e6f4ea;
+      --success-text: #137333;
+      --warning-bg: #fff7e0;
+      --warning-text: #8a5a00;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
 
-    const sourceDoc = DocumentApp.openById(sourceId);
-    const sourceCtx = getDocumentContext_(sourceDoc, false);
-    const sourceBody = sourceCtx.body;
-    const sourceTitle = sourceDoc.getName();
-
-    const wasUpdate = removeImportBySourceId_(sourceId, targetCtx);
-
-    const insertedElements = [];
-    const warnings = [];
-
-    let insertIndex = getInsertionIndexBeforeTrailingBlank_(targetCtx.body);
-
-    const titleParagraph = targetCtx.body.insertParagraph(insertIndex, sourceTitle);
-    titleParagraph.setHeading(DocumentApp.ParagraphHeading.HEADING1);
-    insertedElements.push(titleParagraph);
-    insertIndex++;
-
-    for (let i = 0; i < sourceBody.getNumChildren(); i++) {
-      const sourceElement = sourceBody.getChild(i);
-      const result = insertCopiedTopLevelElement_(targetCtx.body, insertIndex, sourceElement);
-
-      if (result.element) {
-        insertedElements.push(result.element);
-        insertIndex++;
-      }
-
-      if (result.warning) {
-        warnings.push(result.warning);
-      }
+    * {
+      box-sizing: border-box;
     }
 
-    if (insertedElements.length === 0) {
-      throw new Error('Es wurden keine importierbaren Inhalte gefunden.');
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, sans-serif;
+      font-size: 14px;
     }
 
-    const rangeBuilder = newRangeBuilder_(targetCtx);
-    insertedElements.forEach(function (element) {
-      rangeBuilder.addElement(element);
+    .wrap {
+      padding: 16px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 18px;
+      line-height: 1.3;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: var(--shadow);
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    textarea,
+    input[type="search"] {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 13px;
+      outline: none;
+      background: #fff;
+      color: var(--text);
+    }
+
+    textarea {
+      min-height: 78px;
+      resize: vertical;
+    }
+
+    textarea:focus,
+    input[type="search"]:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease, opacity 0.15s ease;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .btn-primary {
+      width: 100%;
+      margin-top: 10px;
+      color: #fff;
+      background: var(--primary);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    .btn-light {
+      background: #eef3fb;
+      color: #174ea6;
+    }
+
+    .btn-light:hover:not(:disabled) {
+      background: #dbe8fb;
+    }
+
+    .btn-danger {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: #f8d7d3;
+    }
+
+    .status {
+      display: none;
+      margin-top: 10px;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .status.show {
+      display: block;
+    }
+
+    .status.info {
+      background: #eef3fb;
+      color: #174ea6;
+    }
+
+    .status.success {
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .status.error {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .status.warning {
+      background: var(--warning-bg);
+      color: var(--warning-text);
+    }
+
+    .list-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .list-title {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .count {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .doc-list {
+      margin-top: 10px;
+    }
+
+    .doc-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .doc-title {
+      font-weight: 700;
+      line-height: 1.35;
+      margin-bottom: 4px;
+      overflow-wrap: anywhere;
+    }
+
+    .doc-meta {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      margin-bottom: 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .doc-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 16px 4px;
+      text-align: center;
+    }
+
+    .small-link {
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 12px;
+      margin-top: 8px;
+      display: inline-block;
+      text-decoration: none;
+    }
+
+    .small-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Master Knowledge</h1>
+    <p class="subtitle">Google Docs zentral importieren, anspringen und wieder entfernen.</p>
+
+    <div class="card">
+      <label for="docUrl">Google Docs Link</label>
+      <textarea id="docUrl" placeholder="https://docs.google.com/document/d/..."></textarea>
+      <button id="importBtn" class="btn-primary" onclick="importDocument()">Importieren</button>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="card">
+      <div class="list-head">
+        <div class="list-title">Importierte Dokumente</div>
+        <div id="count" class="count">0</div>
+      </div>
+
+      <input id="search" type="search" placeholder="Liste durchsuchen..." oninput="renderList()">
+    </div>
+
+    <div id="docList" class="doc-list"></div>
+  </div>
+
+  <script>
+    let importedDocuments = [];
+    let busy = false;
+
+    document.addEventListener('DOMContentLoaded', function () {
+      loadImportedDocuments();
     });
 
-    const rangeName = getNamedRangeName_(sourceId);
-    const namedRange = addNamedRange_(targetCtx, rangeName, rangeBuilder.build());
+    function loadImportedDocuments() {
+      setBusy(true);
+      showStatus('Importierte Dokumente werden geladen...', 'info');
 
-    const meta = {
-      sourceId: sourceId,
-      title: sourceTitle,
-      url: buildGoogleDocUrl_(sourceId),
-      namedRangeName: rangeName,
-      namedRangeId: namedRange.getId(),
-      importedAt: new Date().toISOString(),
-      mode: wasUpdate ? 'updated' : 'created'
-    };
-
-    setImportMeta_(sourceId, meta);
-
-    return {
-      success: true,
-      message: wasUpdate ? 'Dokument wurde aktualisiert.' : 'Dokument wurde importiert.',
-      document: meta,
-      warnings: unique_(warnings)
-    };
-
-  } catch (err) {
-    throw new Error(cleanErrorMessage_(err));
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function getImportedDocuments() {
-  const targetDoc = DocumentApp.getActiveDocument();
-  const targetCtx = getDocumentContext_(targetDoc, true);
-  const namedRanges = getNamedRanges_(targetCtx);
-  const result = [];
-  const seen = {};
-
-  namedRanges.forEach(function (namedRange) {
-    const name = namedRange.getName();
-
-    if (!name || name.indexOf(MK_CONFIG.RANGE_PREFIX) !== 0) {
-      return;
+      google.script.run
+        .withSuccessHandler(function (docs) {
+          importedDocuments = docs || [];
+          renderList();
+          hideStatus();
+          setBusy(false);
+        })
+        .withFailureHandler(function (err) {
+          showStatus(getErrorMessage(err), 'error');
+          setBusy(false);
+        })
+        .getImportedDocuments();
     }
 
-    const sourceId = name.substring(MK_CONFIG.RANGE_PREFIX.length);
+    function importDocument() {
+      const input = document.getElementById('docUrl');
+      const value = input.value.trim();
 
-    if (!sourceId || seen[sourceId]) {
-      return;
-    }
-
-    seen[sourceId] = true;
-
-    const meta = getImportMeta_(sourceId) || {};
-    const orderIndex = getNamedRangeOrderIndex_(namedRange, targetCtx.body);
-
-    result.push({
-      sourceId: sourceId,
-      title: meta.title || sourceId,
-      url: meta.url || buildGoogleDocUrl_(sourceId),
-      namedRangeName: name,
-      namedRangeId: namedRange.getId(),
-      importedAt: meta.importedAt || '',
-      orderIndex: orderIndex
-    });
-  });
-
-  result.sort(function (a, b) {
-    return a.orderIndex - b.orderIndex;
-  });
-
-  return result;
-}
-
-function removeImportedDocument(sourceLinkOrId) {
-  const lock = LockService.getDocumentLock();
-  lock.waitLock(30000);
-
-  try {
-    const sourceId = extractGoogleDocId_(sourceLinkOrId);
-    const targetCtx = getDocumentContext_(DocumentApp.getActiveDocument(), true);
-    const removed = removeImportBySourceId_(sourceId, targetCtx);
-
-    if (!removed) {
-      throw new Error('Für dieses Dokument wurde kein importierter Bereich gefunden.');
-    }
-
-    return getImportedDocuments();
-
-  } catch (err) {
-    throw new Error(cleanErrorMessage_(err));
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function jumpToImportedDocument(sourceLinkOrId) {
-  try {
-    const sourceId = extractGoogleDocId_(sourceLinkOrId);
-    const targetDoc = DocumentApp.getActiveDocument();
-    const targetCtx = getDocumentContext_(targetDoc, true);
-    const namedRange = findNamedRangeBySourceId_(sourceId, targetCtx);
-
-    if (!namedRange) {
-      throw new Error('Der importierte Bereich wurde nicht gefunden.');
-    }
-
-    const rangeElements = namedRange.getRange().getRangeElements();
-
-    if (!rangeElements || rangeElements.length === 0) {
-      throw new Error('Der importierte Bereich ist leer oder wurde manuell verändert.');
-    }
-
-    const firstElement = rangeElements[0].getElement();
-    const topLevelElement = getBodyChildFromElement_(firstElement, targetCtx.body) || firstElement;
-    const position = createCursorPosition_(targetCtx, topLevelElement);
-
-    if (position) {
-      targetDoc.setCursor(position);
-    } else {
-      targetDoc.setSelection(namedRange.getRange());
-    }
-
-    return {
-      success: true
-    };
-
-  } catch (err) {
-    throw new Error(cleanErrorMessage_(err));
-  }
-}
-
-function removeImportBySourceId_(sourceId, targetCtx) {
-  const rangeName = getNamedRangeName_(sourceId);
-  const namedRanges = getNamedRanges_(targetCtx, rangeName);
-
-  let removedAny = false;
-
-  namedRanges.forEach(function (namedRange) {
-    const elementsToRemove = collectTopLevelElementsFromNamedRange_(namedRange, targetCtx.body);
-
-    try {
-      namedRange.remove();
-    } catch (err) {
-      // Der Bereich kann bereits beschädigt sein. Inhalt wird trotzdem soweit möglich gelöscht.
-    }
-
-    elementsToRemove
-      .sort(function (a, b) {
-        return b.index - a.index;
-      })
-      .forEach(function (item) {
-        try {
-          targetCtx.body.removeChild(item.element);
-        } catch (err) {
-          try {
-            if (typeof item.element.removeFromParent === 'function') {
-              item.element.removeFromParent();
-            }
-          } catch (innerErr) {
-            // Manuell veränderte oder bereits entfernte Elemente ignorieren.
-          }
-        }
-      });
-
-    removedAny = true;
-  });
-
-  deleteImportMeta_(sourceId);
-  ensureTrailingBlankParagraph_(targetCtx.body);
-
-  return removedAny;
-}
-
-function collectTopLevelElementsFromNamedRange_(namedRange, body) {
-  const map = {};
-
-  try {
-    const rangeElements = namedRange.getRange().getRangeElements();
-
-    rangeElements.forEach(function (rangeElement) {
-      const topLevelElement = getBodyChildFromElement_(rangeElement.getElement(), body);
-
-      if (!topLevelElement) {
+      if (!value) {
+        showStatus('Bitte zuerst einen Google Docs Link einfügen.', 'error');
         return;
       }
 
-      const index = body.getChildIndex(topLevelElement);
-      map[index] = topLevelElement;
-    });
+      setBusy(true);
+      showStatus('Import läuft. Bei großen Dokumenten kann das kurz dauern...', 'info');
 
-  } catch (err) {
-    return [];
-  }
+      google.script.run
+        .withSuccessHandler(function (result) {
+          input.value = '';
 
-  return Object.keys(map).map(function (index) {
-    return {
-      index: Number(index),
-      element: map[index]
-    };
-  });
-}
+          let message = result && result.message ? result.message : 'Dokument wurde importiert.';
 
-function insertCopiedTopLevelElement_(body, insertIndex, sourceElement) {
-  const type = sourceElement.getType();
-  const copiedElement = sourceElement.copy();
+          if (result && result.warnings && result.warnings.length) {
+            message += '<br><br><strong>Hinweis:</strong><br>' + result.warnings.map(escapeHtml).join('<br>');
+            showStatus(message, 'warning');
+          } else {
+            showStatus(message, 'success');
+          }
 
-  shiftHeadingsDownInElement_(copiedElement);
-
-  if (type === DocumentApp.ElementType.PARAGRAPH) {
-    return {
-      element: body.insertParagraph(insertIndex, copiedElement.asParagraph())
-    };
-  }
-
-  if (type === DocumentApp.ElementType.LIST_ITEM) {
-    return {
-      element: body.insertListItem(insertIndex, copiedElement.asListItem())
-    };
-  }
-
-  if (type === DocumentApp.ElementType.TABLE) {
-    return {
-      element: body.insertTable(insertIndex, copiedElement.asTable())
-    };
-  }
-
-  if (type === DocumentApp.ElementType.TABLE_OF_CONTENTS) {
-    return {
-      element: null,
-      warning: 'Ein Inhaltsverzeichnis wurde übersprungen, weil Google Apps Script dieses Element nicht sauber als Kopie in ein anderes Dokument einfügen kann.'
-    };
-  }
-
-  return {
-    element: null,
-    warning: 'Ein nicht unterstütztes Element wurde übersprungen: ' + String(type)
-  };
-}
-
-function shiftHeadingsDownInElement_(element) {
-  const type = element.getType();
-
-  if (type === DocumentApp.ElementType.PARAGRAPH) {
-    shiftSingleHeading_(element.asParagraph());
-  }
-
-  if (type === DocumentApp.ElementType.LIST_ITEM) {
-    shiftSingleHeading_(element.asListItem());
-  }
-
-  if (typeof element.getNumChildren === 'function') {
-    for (let i = 0; i < element.getNumChildren(); i++) {
-      shiftHeadingsDownInElement_(element.getChild(i));
-    }
-  }
-}
-
-function shiftSingleHeading_(paragraphLikeElement) {
-  if (!paragraphLikeElement || typeof paragraphLikeElement.getHeading !== 'function') {
-    return;
-  }
-
-  const currentHeading = paragraphLikeElement.getHeading();
-  const shiftedHeading = getShiftedHeading_(currentHeading);
-
-  if (shiftedHeading && shiftedHeading !== currentHeading) {
-    paragraphLikeElement.setHeading(shiftedHeading);
-  }
-}
-
-function getShiftedHeading_(heading) {
-  const headings = [
-    DocumentApp.ParagraphHeading.HEADING1,
-    DocumentApp.ParagraphHeading.HEADING2,
-    DocumentApp.ParagraphHeading.HEADING3,
-    DocumentApp.ParagraphHeading.HEADING4,
-    DocumentApp.ParagraphHeading.HEADING5,
-    DocumentApp.ParagraphHeading.HEADING6
-  ];
-
-  for (let i = 0; i < headings.length - 1; i++) {
-    if (heading === headings[i]) {
-      return headings[i + 1];
-    }
-  }
-
-  if (heading === DocumentApp.ParagraphHeading.HEADING6) {
-    return DocumentApp.ParagraphHeading.HEADING6;
-  }
-
-  return heading;
-}
-
-function findNamedRangeBySourceId_(sourceId, targetCtx) {
-  const rangeName = getNamedRangeName_(sourceId);
-  const ranges = getNamedRanges_(targetCtx, rangeName);
-
-  return ranges.length ? ranges[0] : null;
-}
-
-function getNamedRangeOrderIndex_(namedRange, body) {
-  try {
-    const rangeElements = namedRange.getRange().getRangeElements();
-
-    for (let i = 0; i < rangeElements.length; i++) {
-      const topLevelElement = getBodyChildFromElement_(rangeElements[i].getElement(), body);
-
-      if (topLevelElement) {
-        return body.getChildIndex(topLevelElement);
-      }
+          loadImportedDocuments();
+        })
+        .withFailureHandler(function (err) {
+          showStatus(getErrorMessage(err), 'error');
+          setBusy(false);
+        })
+        .importDocumentFromLink(value);
     }
 
-  } catch (err) {
-    return 999999;
-  }
+    function jumpToDocument(sourceId) {
+      setBusy(true);
+      showStatus('Bereich wird im Master-Dokument angesprungen...', 'info');
 
-  return 999999;
-}
+      google.script.run
+        .withSuccessHandler(function () {
+          hideStatus();
+          setBusy(false);
+        })
+        .withFailureHandler(function (err) {
+          showStatus(getErrorMessage(err), 'error');
+          setBusy(false);
+        })
+        .jumpToImportedDocument(sourceId);
+    }
 
-function createCursorPosition_(targetCtx, element) {
-  try {
-    const type = element.getType();
+    function removeDocument(sourceId, title) {
+      const confirmed = confirm('Soll dieser importierte Bereich wirklich vollständig aus dem Master-Dokument entfernt werden?\n\n' + title);
 
-    if (
-      type === DocumentApp.ElementType.PARAGRAPH ||
-      type === DocumentApp.ElementType.LIST_ITEM
-    ) {
-      if (typeof element.getNumChildren === 'function' && element.getNumChildren() > 0) {
-        const firstChild = element.getChild(0);
-
-        if (firstChild.getType() === DocumentApp.ElementType.TEXT) {
-          return newPosition_(targetCtx, firstChild.asText(), 0);
-        }
+      if (!confirmed) {
+        return;
       }
 
-      return newPosition_(targetCtx, element, 0);
+      setBusy(true);
+      showStatus('Bereich wird entfernt...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function (docs) {
+          importedDocuments = docs || [];
+          renderList();
+          showStatus('Bereich wurde entfernt.', 'success');
+          setBusy(false);
+        })
+        .withFailureHandler(function (err) {
+          showStatus(getErrorMessage(err), 'error');
+          setBusy(false);
+        })
+        .removeImportedDocument(sourceId);
     }
 
-    if (type === DocumentApp.ElementType.TABLE) {
-      return newPosition_(targetCtx, element, 0);
-    }
+    function renderList() {
+      const list = document.getElementById('docList');
+      const count = document.getElementById('count');
+      const search = document.getElementById('search').value.trim().toLowerCase();
 
-  } catch (err) {
-    return null;
-  }
+      const filtered = importedDocuments.filter(function (doc) {
+        const haystack = [
+          doc.title || '',
+          doc.sourceId || '',
+          doc.url || ''
+        ].join(' ').toLowerCase();
 
-  return null;
-}
+        return !search || haystack.indexOf(search) !== -1;
+      });
 
-function getBodyChildFromElement_(element, body) {
-  let current = element;
+      count.textContent = filtered.length + ' von ' + importedDocuments.length;
 
-  while (current) {
-    let parent = null;
-
-    try {
-      parent = current.getParent();
-    } catch (err) {
-      parent = null;
-    }
-
-    if (!parent) {
-      break;
-    }
-
-    if (
-      typeof parent.getType === 'function' &&
-      parent.getType() === DocumentApp.ElementType.BODY_SECTION
-    ) {
-      return current;
-    }
-
-    current = parent;
-  }
-
-  try {
-    body.getChildIndex(element);
-    return element;
-  } catch (err) {
-    return null;
-  }
-}
-
-function getInsertionIndexBeforeTrailingBlank_(body) {
-  ensureTrailingBlankParagraph_(body);
-  return body.getNumChildren() - 1;
-}
-
-function ensureTrailingBlankParagraph_(body) {
-  if (body.getNumChildren() === 0) {
-    body.appendParagraph('');
-    return;
-  }
-
-  const lastChild = body.getChild(body.getNumChildren() - 1);
-
-  if (!isBlankParagraph_(lastChild)) {
-    body.appendParagraph('');
-  }
-}
-
-function isBlankParagraph_(element) {
-  if (!element || element.getType() !== DocumentApp.ElementType.PARAGRAPH) {
-    return false;
-  }
-
-  const paragraph = element.asParagraph();
-
-  return (
-    paragraph.getText() === '' &&
-    paragraph.getHeading() === DocumentApp.ParagraphHeading.NORMAL
-  );
-}
-
-function getDocumentContext_(doc, preferActiveTab) {
-  let documentTab = null;
-
-  if (preferActiveTab) {
-    try {
-      if (typeof doc.getActiveTab === 'function') {
-        const activeTab = doc.getActiveTab();
-
-        if (activeTab && typeof activeTab.asDocumentTab === 'function') {
-          documentTab = activeTab.asDocumentTab();
-        }
+      if (!filtered.length) {
+        list.innerHTML = '<div class="empty">Keine passenden importierten Dokumente gefunden.</div>';
+        return;
       }
-    } catch (err) {
-      documentTab = null;
+
+      list.innerHTML = filtered.map(function (doc) {
+        const title = doc.title || doc.sourceId;
+        const importedAt = formatDate(doc.importedAt);
+        const safeId = escapeAttr(doc.sourceId);
+        const safeTitle = escapeHtml(title);
+        const safeTitleAttr = escapeAttr(title);
+
+        return `
+          <div class="doc-item">
+            <div class="doc-title">${safeTitle}</div>
+            <div class="doc-meta">
+              ID: ${escapeHtml(doc.sourceId || '')}
+              ${importedAt ? '<br>Importiert: ' + escapeHtml(importedAt) : ''}
+            </div>
+            <div class="doc-actions">
+              <button class="btn-light" onclick="jumpToDocument('${safeId}')">Anspringen</button>
+              <button class="btn-danger" onclick="removeDocument('${safeId}', '${safeTitleAttr}')">Entfernen</button>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
-  }
 
-  if (!documentTab) {
-    try {
-      if (typeof doc.getTabs === 'function') {
-        const tabs = doc.getTabs();
+    function setBusy(value) {
+      busy = value;
+      document.getElementById('importBtn').disabled = value;
 
-        if (tabs && tabs.length && typeof tabs[0].asDocumentTab === 'function') {
-          documentTab = tabs[0].asDocumentTab();
-        }
+      const buttons = document.querySelectorAll('button');
+      buttons.forEach(function (button) {
+        button.disabled = value;
+      });
+    }
+
+    function showStatus(message, type) {
+      const status = document.getElementById('status');
+      status.className = 'status show ' + (type || 'info');
+      status.innerHTML = message;
+    }
+
+    function hideStatus() {
+      const status = document.getElementById('status');
+      status.className = 'status';
+      status.innerHTML = '';
+    }
+
+    function getErrorMessage(err) {
+      if (!err) {
+        return 'Unbekannter Fehler.';
       }
-    } catch (err) {
-      documentTab = null;
-    }
-  }
 
-  return {
-    doc: doc,
-    documentTab: documentTab,
-    body: documentTab ? documentTab.getBody() : doc.getBody()
-  };
-}
-
-function newRangeBuilder_(ctx) {
-  if (ctx.documentTab && typeof ctx.documentTab.newRange === 'function') {
-    return ctx.documentTab.newRange();
-  }
-
-  return ctx.doc.newRange();
-}
-
-function addNamedRange_(ctx, name, range) {
-  if (ctx.documentTab && typeof ctx.documentTab.addNamedRange === 'function') {
-    return ctx.documentTab.addNamedRange(name, range);
-  }
-
-  return ctx.doc.addNamedRange(name, range);
-}
-
-function getNamedRanges_(ctx, name) {
-  if (ctx.documentTab && typeof ctx.documentTab.getNamedRanges === 'function') {
-    return name ? ctx.documentTab.getNamedRanges(name) : ctx.documentTab.getNamedRanges();
-  }
-
-  return name ? ctx.doc.getNamedRanges(name) : ctx.doc.getNamedRanges();
-}
-
-function newPosition_(ctx, element, offset) {
-  if (ctx.documentTab && typeof ctx.documentTab.newPosition === 'function') {
-    return ctx.documentTab.newPosition(element, offset);
-  }
-
-  return ctx.doc.newPosition(element, offset);
-}
-
-function getNamedRangeName_(sourceId) {
-  return MK_CONFIG.RANGE_PREFIX + sourceId;
-}
-
-function getMetaKey_(sourceId) {
-  return MK_CONFIG.META_PREFIX + sourceId;
-}
-
-function setImportMeta_(sourceId, meta) {
-  PropertiesService
-    .getDocumentProperties()
-    .setProperty(getMetaKey_(sourceId), JSON.stringify(meta));
-}
-
-function getImportMeta_(sourceId) {
-  const raw = PropertiesService
-    .getDocumentProperties()
-    .getProperty(getMetaKey_(sourceId));
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw);
-  } catch (err) {
-    return null;
-  }
-}
-
-function deleteImportMeta_(sourceId) {
-  PropertiesService
-    .getDocumentProperties()
-    .deleteProperty(getMetaKey_(sourceId));
-}
-
-function extractGoogleDocId_(input) {
-  const value = String(input || '').trim();
-
-  if (!value) {
-    throw new Error('Bitte einen Google Docs Link oder eine Dokument-ID eingeben.');
-  }
-
-  const patterns = [
-    /\/document\/(?:u\/\d+\/)?d\/([a-zA-Z0-9_-]+)/,
-    /\/d\/([a-zA-Z0-9_-]{25,})/,
-    /[?&]id=([a-zA-Z0-9_-]{25,})/,
-    /^([a-zA-Z0-9_-]{25,})$/
-  ];
-
-  for (let i = 0; i < patterns.length; i++) {
-    const match = value.match(patterns[i]);
-
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-
-  const fallback = value.match(/([a-zA-Z0-9_-]{25,})/);
-
-  if (fallback && fallback[1]) {
-    return fallback[1];
-  }
-
-  throw new Error('Aus dem eingegebenen Wert konnte keine Google Docs Dokument-ID gelesen werden.');
-}
-
-function buildGoogleDocUrl_(sourceId) {
-  return 'https://docs.google.com/document/d/' + sourceId + '/edit';
-}
-
-function cleanErrorMessage_(err) {
-  if (!err) {
-    return 'Unbekannter Fehler.';
-  }
-
-  const message = err.message ? err.message : String(err);
-
-  return message.replace(/^Exception:\s*/i, '').trim();
-}
-
-function unique_(arr) {
-  const seen = {};
-  const result = [];
-
-  arr.forEach(function (item) {
-    if (!item || seen[item]) {
-      return;
+      return escapeHtml(err.message || String(err));
     }
 
-    seen[item] = true;
-    result.push(item);
-  });
+    function formatDate(value) {
+      if (!value) {
+        return '';
+      }
 
-  return result;
-}
+      const date = new Date(value);
+
+      if (isNaN(date.getTime())) {
+        return value;
+      }
+
+      return date.toLocaleString('de-DE');
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/`/g, '&#096;');
+    }
+  </script>
+</body>
+</html>
