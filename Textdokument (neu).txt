@@ -1,23 +1,654 @@
-Schreibe mir ein Google Apps Script für Google Docs, das als zentrales Master-Knowledge-Dokument (Datenbasis für NotebookLM / Gemini) dient. Das Script soll es ermöglichen, Inhalte aus über 55 einzelnen Google Docs strukturiert in dieses eine Master-Dokument zu importieren und dort zentral zu verwalten.
+const MK_CONFIG = {
+  MENU_NAME: 'Master Knowledge',
+  SIDEBAR_TITLE: 'Master Knowledge Import',
+  RANGE_PREFIX: 'MK_IMPORT_',
+  META_PREFIX: 'MK_META_'
+};
 
-Hier sind die genauen Anforderungen:
+function onOpen() {
+  DocumentApp.getUi()
+    .createMenu(MK_CONFIG.MENU_NAME)
+    .addItem('Sidebar öffnen', 'showSidebar')
+    .addToUi();
+}
 
-1. HTML-BENUTZEROBERFLÄCHE (Sidebar/Overlay):
-- Über ein benutzerdefiniertes Menü in Google Docs soll sich eine Sidebar öffnen.
-- Die UI benötigt ein einfaches Eingabefeld für einen Google Docs Link und einen "Importieren"-Button.
-- Darunter soll eine Liste aller bereits importierten Dokumente angezeigt werden.
-- Diese Liste muss durchsuchbar sein. Jedes Element in der Liste braucht zwei Buttons: "Anspringen" (Scrollt im Master-Doc zum Inhalt) und "Entfernen" (Löscht den Inhalt komplett aus dem Master-Doc).
+function showSidebar() {
+  const html = HtmlService
+    .createHtmlOutputFromFile('Sidebar')
+    .setTitle(MK_CONFIG.SIDEBAR_TITLE);
 
-2. IMPORT-LOGIK & FORMATIERUNG:
-- Beim Import wird der Inhalt des verlinkten Dokuments geöffnet und kopiert.
-- Wichtig: Formatierungen, Tabellen, Listen und Fettungen müssen exakt 1:1 beibehalten werden (Element- und Attribut-Kopie).
-- Der Name des Quell-Dokuments definiert die Kategorie. Dieser Name wird als "Überschrift 1" im Master-Dokument über dem importierten Text eingefügt.
-- Damit die Hierarchie für NotebookLM logisch bleibt, müssen alle vorhandenen Überschriften aus dem Quell-Dokument beim Import um eine Ebene nach unten verschoben werden (Quell-H1 wird im Master zu H2, Quell-H2 zu H3 usw.).
+  DocumentApp.getUi().showSidebar(html);
+}
 
-3. ARCHITEKTUR & VERWALTUNG (CRUD):
-- Da ein Google Doc ein linearer Textfluss ist, muss das Script importierte Bereiche eindeutig identifizieren können. Nutze dafür "Named Ranges" (Benannte Bereiche), die auf der eindeutigen Dokument-ID des Quell-Docs basieren.
-- Wenn ein Nutzer in der Sidebar auf "Entfernen" klickt, sucht das Script die entsprechende Named Range im Master-Dokument und löscht alle darin enthaltenen Elemente restlos.
+function importDocumentFromLink(docLink) {
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
 
-Bitte liefere mir den vollständigen Code aufgeteilt in:
-- Code.gs (Backend-Logik für Google Docs)
-- Sidebar.html (Frontend für die Benutzeroberfläche mit sauberem, einfachen CSS)
+  try {
+    const sourceId = extractGoogleDocId_(docLink);
+    const targetDoc = DocumentApp.getActiveDocument();
+    const targetCtx = getDocumentContext_(targetDoc, true);
+
+    if (sourceId === targetDoc.getId()) {
+      throw new Error('Das Master-Dokument kann nicht in sich selbst importiert werden.');
+    }
+
+    const sourceDoc = DocumentApp.openById(sourceId);
+    const sourceCtx = getDocumentContext_(sourceDoc, false);
+    const sourceBody = sourceCtx.body;
+    const sourceTitle = sourceDoc.getName();
+
+    const wasUpdate = removeImportBySourceId_(sourceId, targetCtx);
+
+    const insertedElements = [];
+    const warnings = [];
+
+    let insertIndex = getInsertionIndexBeforeTrailingBlank_(targetCtx.body);
+
+    const titleParagraph = targetCtx.body.insertParagraph(insertIndex, sourceTitle);
+    titleParagraph.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    insertedElements.push(titleParagraph);
+    insertIndex++;
+
+    for (let i = 0; i < sourceBody.getNumChildren(); i++) {
+      const sourceElement = sourceBody.getChild(i);
+      const result = insertCopiedTopLevelElement_(targetCtx.body, insertIndex, sourceElement);
+
+      if (result.element) {
+        insertedElements.push(result.element);
+        insertIndex++;
+      }
+
+      if (result.warning) {
+        warnings.push(result.warning);
+      }
+    }
+
+    if (insertedElements.length === 0) {
+      throw new Error('Es wurden keine importierbaren Inhalte gefunden.');
+    }
+
+    const rangeBuilder = newRangeBuilder_(targetCtx);
+    insertedElements.forEach(function (element) {
+      rangeBuilder.addElement(element);
+    });
+
+    const rangeName = getNamedRangeName_(sourceId);
+    const namedRange = addNamedRange_(targetCtx, rangeName, rangeBuilder.build());
+
+    const meta = {
+      sourceId: sourceId,
+      title: sourceTitle,
+      url: buildGoogleDocUrl_(sourceId),
+      namedRangeName: rangeName,
+      namedRangeId: namedRange.getId(),
+      importedAt: new Date().toISOString(),
+      mode: wasUpdate ? 'updated' : 'created'
+    };
+
+    setImportMeta_(sourceId, meta);
+
+    return {
+      success: true,
+      message: wasUpdate ? 'Dokument wurde aktualisiert.' : 'Dokument wurde importiert.',
+      document: meta,
+      warnings: unique_(warnings)
+    };
+
+  } catch (err) {
+    throw new Error(cleanErrorMessage_(err));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getImportedDocuments() {
+  const targetDoc = DocumentApp.getActiveDocument();
+  const targetCtx = getDocumentContext_(targetDoc, true);
+  const namedRanges = getNamedRanges_(targetCtx);
+  const result = [];
+  const seen = {};
+
+  namedRanges.forEach(function (namedRange) {
+    const name = namedRange.getName();
+
+    if (!name || name.indexOf(MK_CONFIG.RANGE_PREFIX) !== 0) {
+      return;
+    }
+
+    const sourceId = name.substring(MK_CONFIG.RANGE_PREFIX.length);
+
+    if (!sourceId || seen[sourceId]) {
+      return;
+    }
+
+    seen[sourceId] = true;
+
+    const meta = getImportMeta_(sourceId) || {};
+    const orderIndex = getNamedRangeOrderIndex_(namedRange, targetCtx.body);
+
+    result.push({
+      sourceId: sourceId,
+      title: meta.title || sourceId,
+      url: meta.url || buildGoogleDocUrl_(sourceId),
+      namedRangeName: name,
+      namedRangeId: namedRange.getId(),
+      importedAt: meta.importedAt || '',
+      orderIndex: orderIndex
+    });
+  });
+
+  result.sort(function (a, b) {
+    return a.orderIndex - b.orderIndex;
+  });
+
+  return result;
+}
+
+function removeImportedDocument(sourceLinkOrId) {
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+
+  try {
+    const sourceId = extractGoogleDocId_(sourceLinkOrId);
+    const targetCtx = getDocumentContext_(DocumentApp.getActiveDocument(), true);
+    const removed = removeImportBySourceId_(sourceId, targetCtx);
+
+    if (!removed) {
+      throw new Error('Für dieses Dokument wurde kein importierter Bereich gefunden.');
+    }
+
+    return getImportedDocuments();
+
+  } catch (err) {
+    throw new Error(cleanErrorMessage_(err));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function jumpToImportedDocument(sourceLinkOrId) {
+  try {
+    const sourceId = extractGoogleDocId_(sourceLinkOrId);
+    const targetDoc = DocumentApp.getActiveDocument();
+    const targetCtx = getDocumentContext_(targetDoc, true);
+    const namedRange = findNamedRangeBySourceId_(sourceId, targetCtx);
+
+    if (!namedRange) {
+      throw new Error('Der importierte Bereich wurde nicht gefunden.');
+    }
+
+    const rangeElements = namedRange.getRange().getRangeElements();
+
+    if (!rangeElements || rangeElements.length === 0) {
+      throw new Error('Der importierte Bereich ist leer oder wurde manuell verändert.');
+    }
+
+    const firstElement = rangeElements[0].getElement();
+    const topLevelElement = getBodyChildFromElement_(firstElement, targetCtx.body) || firstElement;
+    const position = createCursorPosition_(targetCtx, topLevelElement);
+
+    if (position) {
+      targetDoc.setCursor(position);
+    } else {
+      targetDoc.setSelection(namedRange.getRange());
+    }
+
+    return {
+      success: true
+    };
+
+  } catch (err) {
+    throw new Error(cleanErrorMessage_(err));
+  }
+}
+
+function removeImportBySourceId_(sourceId, targetCtx) {
+  const rangeName = getNamedRangeName_(sourceId);
+  const namedRanges = getNamedRanges_(targetCtx, rangeName);
+
+  let removedAny = false;
+
+  namedRanges.forEach(function (namedRange) {
+    const elementsToRemove = collectTopLevelElementsFromNamedRange_(namedRange, targetCtx.body);
+
+    try {
+      namedRange.remove();
+    } catch (err) {
+      // Der Bereich kann bereits beschädigt sein. Inhalt wird trotzdem soweit möglich gelöscht.
+    }
+
+    elementsToRemove
+      .sort(function (a, b) {
+        return b.index - a.index;
+      })
+      .forEach(function (item) {
+        try {
+          targetCtx.body.removeChild(item.element);
+        } catch (err) {
+          try {
+            if (typeof item.element.removeFromParent === 'function') {
+              item.element.removeFromParent();
+            }
+          } catch (innerErr) {
+            // Manuell veränderte oder bereits entfernte Elemente ignorieren.
+          }
+        }
+      });
+
+    removedAny = true;
+  });
+
+  deleteImportMeta_(sourceId);
+  ensureTrailingBlankParagraph_(targetCtx.body);
+
+  return removedAny;
+}
+
+function collectTopLevelElementsFromNamedRange_(namedRange, body) {
+  const map = {};
+
+  try {
+    const rangeElements = namedRange.getRange().getRangeElements();
+
+    rangeElements.forEach(function (rangeElement) {
+      const topLevelElement = getBodyChildFromElement_(rangeElement.getElement(), body);
+
+      if (!topLevelElement) {
+        return;
+      }
+
+      const index = body.getChildIndex(topLevelElement);
+      map[index] = topLevelElement;
+    });
+
+  } catch (err) {
+    return [];
+  }
+
+  return Object.keys(map).map(function (index) {
+    return {
+      index: Number(index),
+      element: map[index]
+    };
+  });
+}
+
+function insertCopiedTopLevelElement_(body, insertIndex, sourceElement) {
+  const type = sourceElement.getType();
+  const copiedElement = sourceElement.copy();
+
+  shiftHeadingsDownInElement_(copiedElement);
+
+  if (type === DocumentApp.ElementType.PARAGRAPH) {
+    return {
+      element: body.insertParagraph(insertIndex, copiedElement.asParagraph())
+    };
+  }
+
+  if (type === DocumentApp.ElementType.LIST_ITEM) {
+    return {
+      element: body.insertListItem(insertIndex, copiedElement.asListItem())
+    };
+  }
+
+  if (type === DocumentApp.ElementType.TABLE) {
+    return {
+      element: body.insertTable(insertIndex, copiedElement.asTable())
+    };
+  }
+
+  if (type === DocumentApp.ElementType.TABLE_OF_CONTENTS) {
+    return {
+      element: null,
+      warning: 'Ein Inhaltsverzeichnis wurde übersprungen, weil Google Apps Script dieses Element nicht sauber als Kopie in ein anderes Dokument einfügen kann.'
+    };
+  }
+
+  return {
+    element: null,
+    warning: 'Ein nicht unterstütztes Element wurde übersprungen: ' + String(type)
+  };
+}
+
+function shiftHeadingsDownInElement_(element) {
+  const type = element.getType();
+
+  if (type === DocumentApp.ElementType.PARAGRAPH) {
+    shiftSingleHeading_(element.asParagraph());
+  }
+
+  if (type === DocumentApp.ElementType.LIST_ITEM) {
+    shiftSingleHeading_(element.asListItem());
+  }
+
+  if (typeof element.getNumChildren === 'function') {
+    for (let i = 0; i < element.getNumChildren(); i++) {
+      shiftHeadingsDownInElement_(element.getChild(i));
+    }
+  }
+}
+
+function shiftSingleHeading_(paragraphLikeElement) {
+  if (!paragraphLikeElement || typeof paragraphLikeElement.getHeading !== 'function') {
+    return;
+  }
+
+  const currentHeading = paragraphLikeElement.getHeading();
+  const shiftedHeading = getShiftedHeading_(currentHeading);
+
+  if (shiftedHeading && shiftedHeading !== currentHeading) {
+    paragraphLikeElement.setHeading(shiftedHeading);
+  }
+}
+
+function getShiftedHeading_(heading) {
+  const headings = [
+    DocumentApp.ParagraphHeading.HEADING1,
+    DocumentApp.ParagraphHeading.HEADING2,
+    DocumentApp.ParagraphHeading.HEADING3,
+    DocumentApp.ParagraphHeading.HEADING4,
+    DocumentApp.ParagraphHeading.HEADING5,
+    DocumentApp.ParagraphHeading.HEADING6
+  ];
+
+  for (let i = 0; i < headings.length - 1; i++) {
+    if (heading === headings[i]) {
+      return headings[i + 1];
+    }
+  }
+
+  if (heading === DocumentApp.ParagraphHeading.HEADING6) {
+    return DocumentApp.ParagraphHeading.HEADING6;
+  }
+
+  return heading;
+}
+
+function findNamedRangeBySourceId_(sourceId, targetCtx) {
+  const rangeName = getNamedRangeName_(sourceId);
+  const ranges = getNamedRanges_(targetCtx, rangeName);
+
+  return ranges.length ? ranges[0] : null;
+}
+
+function getNamedRangeOrderIndex_(namedRange, body) {
+  try {
+    const rangeElements = namedRange.getRange().getRangeElements();
+
+    for (let i = 0; i < rangeElements.length; i++) {
+      const topLevelElement = getBodyChildFromElement_(rangeElements[i].getElement(), body);
+
+      if (topLevelElement) {
+        return body.getChildIndex(topLevelElement);
+      }
+    }
+
+  } catch (err) {
+    return 999999;
+  }
+
+  return 999999;
+}
+
+function createCursorPosition_(targetCtx, element) {
+  try {
+    const type = element.getType();
+
+    if (
+      type === DocumentApp.ElementType.PARAGRAPH ||
+      type === DocumentApp.ElementType.LIST_ITEM
+    ) {
+      if (typeof element.getNumChildren === 'function' && element.getNumChildren() > 0) {
+        const firstChild = element.getChild(0);
+
+        if (firstChild.getType() === DocumentApp.ElementType.TEXT) {
+          return newPosition_(targetCtx, firstChild.asText(), 0);
+        }
+      }
+
+      return newPosition_(targetCtx, element, 0);
+    }
+
+    if (type === DocumentApp.ElementType.TABLE) {
+      return newPosition_(targetCtx, element, 0);
+    }
+
+  } catch (err) {
+    return null;
+  }
+
+  return null;
+}
+
+function getBodyChildFromElement_(element, body) {
+  let current = element;
+
+  while (current) {
+    let parent = null;
+
+    try {
+      parent = current.getParent();
+    } catch (err) {
+      parent = null;
+    }
+
+    if (!parent) {
+      break;
+    }
+
+    if (
+      typeof parent.getType === 'function' &&
+      parent.getType() === DocumentApp.ElementType.BODY_SECTION
+    ) {
+      return current;
+    }
+
+    current = parent;
+  }
+
+  try {
+    body.getChildIndex(element);
+    return element;
+  } catch (err) {
+    return null;
+  }
+}
+
+function getInsertionIndexBeforeTrailingBlank_(body) {
+  ensureTrailingBlankParagraph_(body);
+  return body.getNumChildren() - 1;
+}
+
+function ensureTrailingBlankParagraph_(body) {
+  if (body.getNumChildren() === 0) {
+    body.appendParagraph('');
+    return;
+  }
+
+  const lastChild = body.getChild(body.getNumChildren() - 1);
+
+  if (!isBlankParagraph_(lastChild)) {
+    body.appendParagraph('');
+  }
+}
+
+function isBlankParagraph_(element) {
+  if (!element || element.getType() !== DocumentApp.ElementType.PARAGRAPH) {
+    return false;
+  }
+
+  const paragraph = element.asParagraph();
+
+  return (
+    paragraph.getText() === '' &&
+    paragraph.getHeading() === DocumentApp.ParagraphHeading.NORMAL
+  );
+}
+
+function getDocumentContext_(doc, preferActiveTab) {
+  let documentTab = null;
+
+  if (preferActiveTab) {
+    try {
+      if (typeof doc.getActiveTab === 'function') {
+        const activeTab = doc.getActiveTab();
+
+        if (activeTab && typeof activeTab.asDocumentTab === 'function') {
+          documentTab = activeTab.asDocumentTab();
+        }
+      }
+    } catch (err) {
+      documentTab = null;
+    }
+  }
+
+  if (!documentTab) {
+    try {
+      if (typeof doc.getTabs === 'function') {
+        const tabs = doc.getTabs();
+
+        if (tabs && tabs.length && typeof tabs[0].asDocumentTab === 'function') {
+          documentTab = tabs[0].asDocumentTab();
+        }
+      }
+    } catch (err) {
+      documentTab = null;
+    }
+  }
+
+  return {
+    doc: doc,
+    documentTab: documentTab,
+    body: documentTab ? documentTab.getBody() : doc.getBody()
+  };
+}
+
+function newRangeBuilder_(ctx) {
+  if (ctx.documentTab && typeof ctx.documentTab.newRange === 'function') {
+    return ctx.documentTab.newRange();
+  }
+
+  return ctx.doc.newRange();
+}
+
+function addNamedRange_(ctx, name, range) {
+  if (ctx.documentTab && typeof ctx.documentTab.addNamedRange === 'function') {
+    return ctx.documentTab.addNamedRange(name, range);
+  }
+
+  return ctx.doc.addNamedRange(name, range);
+}
+
+function getNamedRanges_(ctx, name) {
+  if (ctx.documentTab && typeof ctx.documentTab.getNamedRanges === 'function') {
+    return name ? ctx.documentTab.getNamedRanges(name) : ctx.documentTab.getNamedRanges();
+  }
+
+  return name ? ctx.doc.getNamedRanges(name) : ctx.doc.getNamedRanges();
+}
+
+function newPosition_(ctx, element, offset) {
+  if (ctx.documentTab && typeof ctx.documentTab.newPosition === 'function') {
+    return ctx.documentTab.newPosition(element, offset);
+  }
+
+  return ctx.doc.newPosition(element, offset);
+}
+
+function getNamedRangeName_(sourceId) {
+  return MK_CONFIG.RANGE_PREFIX + sourceId;
+}
+
+function getMetaKey_(sourceId) {
+  return MK_CONFIG.META_PREFIX + sourceId;
+}
+
+function setImportMeta_(sourceId, meta) {
+  PropertiesService
+    .getDocumentProperties()
+    .setProperty(getMetaKey_(sourceId), JSON.stringify(meta));
+}
+
+function getImportMeta_(sourceId) {
+  const raw = PropertiesService
+    .getDocumentProperties()
+    .getProperty(getMetaKey_(sourceId));
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    return null;
+  }
+}
+
+function deleteImportMeta_(sourceId) {
+  PropertiesService
+    .getDocumentProperties()
+    .deleteProperty(getMetaKey_(sourceId));
+}
+
+function extractGoogleDocId_(input) {
+  const value = String(input || '').trim();
+
+  if (!value) {
+    throw new Error('Bitte einen Google Docs Link oder eine Dokument-ID eingeben.');
+  }
+
+  const patterns = [
+    /\/document\/(?:u\/\d+\/)?d\/([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]{25,})/,
+    /[?&]id=([a-zA-Z0-9_-]{25,})/,
+    /^([a-zA-Z0-9_-]{25,})$/
+  ];
+
+  for (let i = 0; i < patterns.length; i++) {
+    const match = value.match(patterns[i]);
+
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+
+  const fallback = value.match(/([a-zA-Z0-9_-]{25,})/);
+
+  if (fallback && fallback[1]) {
+    return fallback[1];
+  }
+
+  throw new Error('Aus dem eingegebenen Wert konnte keine Google Docs Dokument-ID gelesen werden.');
+}
+
+function buildGoogleDocUrl_(sourceId) {
+  return 'https://docs.google.com/document/d/' + sourceId + '/edit';
+}
+
+function cleanErrorMessage_(err) {
+  if (!err) {
+    return 'Unbekannter Fehler.';
+  }
+
+  const message = err.message ? err.message : String(err);
+
+  return message.replace(/^Exception:\s*/i, '').trim();
+}
+
+function unique_(arr) {
+  const seen = {};
+  const result = [];
+
+  arr.forEach(function (item) {
+    if (!item || seen[item]) {
+      return;
+    }
+
+    seen[item] = true;
+    result.push(item);
+  });
+
+  return result;
+}
