@@ -1,881 +1,1973 @@
-const FOLDER_ID = "1_QprTCTCssYNpB58WcM6An0yO8FmRxF8";
+IMPORT_DATA_Rohdaten Food Qualitätsfälle.gs
+
+// /**
+//  * 🔎 Imports raw data for 'Rohdaten Food Qualitätsfälle'.
+//  * V4: "Universal WG Fix" - Dynamic Header Scan (Rows 1-3), WG Sanitization.
+//  */
+// function importRawFoodQualityCases() {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const ui = SpreadsheetApp.getUi();
+//   const settingsSheet = ss.getSheetByName("Einstellungen");
+//   const targetSheet = ss.getSheetByName("Rohdaten Food Qualitätsfälle");
+
+//   Logger.log("--- Starting importRawFoodQualityCases (V4 - WG Fix) ---");
+
+//   if (!settingsSheet || !targetSheet) {
+//     ui.alert('Error', 'Required sheets missing.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+//   const searchFileName = "8WS_Food_DE_Qualitätsfälle";
+//   let sourceFileId = null;
+
+//   for (let i = 0; i < settingsValues.length; i++) {
+//     const cellA = settingsValues[i][0].toString().trim();
+//     const cellB = settingsValues[i][1].toString().trim();
+//     const excelFileName = searchFileName + ".xlsx";
+//     const options = { sensitivity: 'base' }; 
+//     if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+//         (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+//       sourceFileId = settingsValues[i][4]; 
+//       break;
+//     }
+//   }
+
+//   if (!sourceFileId) {
+//     ui.alert('Configuration Error', `File ID for "${searchFileName}" not found.`, ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const lastRowK = targetSheet.getRange("K" + targetSheet.getMaxRows()).getNextDataCell(SpreadsheetApp.Direction.UP).getRow();
+//   const lastRow = lastRowK < 8 ? 8 : lastRowK;
+//   if (lastRow >= 8) {
+//     targetSheet.getRange(8, 1, lastRow - 7, 25).clearContent();
+//   }
+
+//   let sourceSs;
+//   try {
+//     sourceSs = SpreadsheetApp.openById(sourceFileId);
+//   } catch (e) {
+//     ui.alert('File Access Error', `Could not open source file.`, ui.ButtonSet.OK);
+//     return;
+//   }
+  
+//   const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+//   if (!sourceDataSheet) {
+//     ui.alert('Sheet Error', 'Tab "In_Development_8_weeks_Report_F" not found.', ui.ButtonSet.OK);
+//     return;
+//   }
+//   const sourceLastRow = sourceDataSheet.getLastRow();
+//   if (sourceLastRow < 3) return;
+
+//   // --- DYNAMIC HEADER SCAN ---
+//   const potentialHeaders = sourceDataSheet.getRange(1, 1, 3, 10).getValues();
+//   let wgColIndex = -1;
+
+//   outerLoop:
+//   for (let r = 0; r < potentialHeaders.length; r++) {
+//     for (let c = 0; c < potentialHeaders[r].length; c++) {
+//       if (String(potentialHeaders[r][c]).trim().toUpperCase() === "WG") {
+//         wgColIndex = c;
+//         Logger.log(`Found 'WG' header at Row ${r + 1}, Column ${c + 1}`);
+//         break outerLoop;
+//       }
+//     }
+//   }
+
+//   // --- Read Data ---
+//   const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 8); 
+//   const sourceValues = sourceRange.getDisplayValues();
+
+//   // --- CLEANING LOOP ---
+//   for (let r = 0; r < sourceValues.length; r++) {
+//     for (let c = 0; c < sourceValues[r].length; c++) {
+//       let val = sourceValues[r][c];
+
+//       // WG Handling
+//       if (c === wgColIndex || (wgColIndex === -1 && c === 0)) {
+//         if (!val) {
+//           sourceValues[r][c] = "";
+//         } else {
+//           let strVal = String(val).trim();
+//           while (strVal.length > 5 && strVal.endsWith('0')) {
+//              strVal = strVal.slice(0, -1);
+//           }
+//           sourceValues[r][c] = strVal; 
+//         }
+//       } else {
+//         sourceValues[r][c] = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+//       }
+//     }
+//   }
+
+//   sourceRange.setNumberFormat("@"); 
+//   sourceRange.setValues(sourceValues);
+
+//   const destinationRange = targetSheet.getRange(8, 7, sourceValues.length, sourceValues[0].length);
+//   destinationRange.setNumberFormat("@");
+//   destinationRange.setValues(sourceValues);
+  
+//   targetSheet.getRange("E2").activate();
+//   ss.toast('Import successful! WG column sanitized.', 'Success', 5);
+// }
 
 /**
- * Erstellt beim Öffnen der Tabelle das benutzerdefinierte Menü.
+ * 🔎 Imports raw data for 'Rohdaten Food Qualitätsfälle'.
+ * FIX: Plain Text method + Paste Values Only (Preserves existing borders/colors).
+ * Removes destructive .toFixed(3) logic that was altering WG codes.
  */
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('Lidl Auswertung')
-    .addItem('1). Plano Backup importieren', 'showImportDialog')
-    .addItem('2). Stundenerfassung übermitteln', 'showUebermittelnDialog')
-    .addToUi();
-}
-
-/**
- * Öffnet den Dialog zur Dateiauswahl aus der separaten HTML-Datei (Plano Import).
- */
-function showImportDialog() {
-  const htmlOutput = HtmlService.createHtmlOutputFromFile('dialog')
-    .setWidth(450)
-    .setHeight(380);
-
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Lidl Kundenservice - Plano');
-}
-
-/**
- * Steuert den Plano Import.
- * Ohne Haken läuft der bisherige Tagesimport.
- * Mit Haken läuft der neue Monatsimport in die Testdatenbank.
- */
-function processPlanoImport(fileId, importFullMonth) {
-  if (importFullMonth === true) {
-    return processSelectedMonthFile(fileId);
-  }
-
-  return processSelectedFile(fileId);
-}
-
-/**
- * Öffnet den Dialog für die Stundenerfassung-Übermittlung.
- */
-function showUebermittelnDialog() {
-  const htmlOutput = HtmlService.createHtmlOutputFromFile('dialog_uebermitteln')
-    .setWidth(500)
-    .setHeight(350);
-
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Stundenerfassung übermitteln');
-}
-
-/**
- * Backend-Funktion: Liest alle Dateien aus der Ablage aus.
- */
-function getFilesInFolder() {
-  const fileList = [];
-
-  try {
-    const folder = DriveApp.getFolderById(FOLDER_ID);
-    const files = folder.getFiles();
-
-    while (files.hasNext()) {
-      const file = files.next();
-      fileList.push({
-        id: file.getId(),
-        name: file.getName()
-      });
-    }
-  } catch (e) {
-    throw new Error("Konnte nicht auf den Ordner zugreifen. Hast du Berechtigungen für die geteilte Ablage? " + e.message);
-  }
-
-  fileList.sort((a, b) => a.name.localeCompare(b.name));
-  return fileList;
-}
-
-/**
- * Holt das Mapping für die Skills/Tätigkeiten aus dem "Mapping"-Reiter.
- */
-function getMapping(ss) {
-  const mappingSheetName = "Mapping";
-  let mappingSheet = ss.getSheetByName(mappingSheetName);
-
-  if (!mappingSheet) {
-    throw new Error("Das Arbeitsblatt 'Mapping' wurde nicht gefunden! Bitte lege es an und trage Spalte A (Plano) und Spalte B (Datenbank) ein.");
-  }
-
-  const mappingData = mappingSheet.getDataRange().getValues();
-  const skillMap = {};
-
-  for (let i = 0; i < mappingData.length; i++) {
-    const planoSkill = normalizeStr(mappingData[i][0]);
-    const dbSkill = String(mappingData[i][1]).trim();
-
-    if (planoSkill && dbSkill && !planoSkill.toLowerCase().includes("plano tätigkeit")) {
-      skillMap[planoSkill] = dbSkill;
-    }
-  }
-
-  return skillMap;
-}
-
-/**
- * Holt das Mapping für die Namen aus dem "Name_Mapping"-Reiter.
- */
-function getNameMapping(ss) {
-  const nameMappingSheetName = "Name_Mapping";
-  let nameSheet = ss.getSheetByName(nameMappingSheetName);
-
-  if (!nameSheet) {
-    nameSheet = ss.insertSheet(nameMappingSheetName);
-    nameSheet.appendRow(["Name in Plano", "Name in Datenbank (für Team-Abgleich)"]);
-    nameSheet.getRange("A1:B1").setFontWeight("bold");
-    nameSheet.autoResizeColumns(1, 2);
-    return {};
-  }
-
-  const data = nameSheet.getDataRange().getValues();
-  const nameMap = {};
-
-  for (let i = 0; i < data.length; i++) {
-    const planoName = normalizeStr(data[i][0]);
-    const dbName = normalizeStr(data[i][1]);
-
-    if (planoName && dbName && !planoName.toLowerCase().includes("name in plano")) {
-      nameMap[planoName] = dbName;
-    }
-  }
-
-  return nameMap;
-}
-
-/**
- * Holt das lokale Team-Mapping aus dem "Team_Mapping"-Reiter.
- */
-function getTeamMapping(ss) {
-  const teamMappingSheetName = "Team_Mapping";
-  let teamSheet = ss.getSheetByName(teamMappingSheetName);
-
-  if (!teamSheet) {
-    teamSheet = ss.insertSheet(teamMappingSheetName);
-    teamSheet.appendRow(["Mitarbeiter Name", "Team"]);
-    teamSheet.getRange("A1:B1").setFontWeight("bold");
-    teamSheet.autoResizeColumns(1, 2);
-    return {};
-  }
-
-  const data = teamSheet.getDataRange().getValues();
-  const localTeamMap = {};
-
-  for (let i = 0; i < data.length; i++) {
-    const empName = normalizeStr(data[i][0]);
-    const teamName = String(data[i][1]).trim();
-
-    if (empName && teamName && !empName.toLowerCase().includes("mitarbeiter name")) {
-      localTeamMap[empName] = teamName;
-    }
-  }
-
-  return localTeamMap;
-}
-
-/**
- * Holt die Liste der zu ignorierenden Mitarbeiter aus dem "Ignore_Mapping"-Reiter.
- */
-function getIgnoreMapping(ss) {
-  const ignoreSheetName = "Ignore_Mapping";
-  let ignoreSheet = ss.getSheetByName(ignoreSheetName);
-
-  if (!ignoreSheet) {
-    ignoreSheet = ss.insertSheet(ignoreSheetName);
-    ignoreSheet.appendRow(["Zu ignorierende Namen (wie in Plano)"]);
-    ignoreSheet.getRange("A1").setFontWeight("bold");
-    ignoreSheet.autoResizeColumns(1, 1);
-    return new Set();
-  }
-
-  const data = ignoreSheet.getDataRange().getValues();
-  const ignoreSet = new Set();
-
-  for (let i = 0; i < data.length; i++) {
-    const name = normalizeStr(data[i][0]);
-
-    if (name && !name.toLowerCase().includes("zu ignorierende")) {
-      ignoreSet.add(name);
-    }
-  }
-
-  return ignoreSet;
-}
-
-/**
- * Holt die Teams aus der externen Datenbank (Data_DB).
- */
-function getEmployeeTeams() {
-  const externalDbId = "1efHpCLtIw1F5WZ0eAK-I0XBYDE9-M3FthoBQcRwSybI";
-  const teamMap = {};
-
-  try {
-    const extSs = SpreadsheetApp.openById(externalDbId);
-    const dataDbSheet = extSs.getSheetByName("Data_DB");
-
-    if (dataDbSheet) {
-      const data = dataDbSheet.getDataRange().getValues();
-
-      for (let i = 1; i < data.length; i++) {
-        const nachname = String(data[i][0]).trim();
-        const vorname = String(data[i][1]).trim();
-        const team = String(data[i][4]).trim();
-
-        if (nachname && vorname) {
-          const fullName = normalizeStr(`${nachname}, ${vorname}`);
-          teamMap[fullName] = team;
-        }
-      }
-    }
-  } catch (e) {
-    console.error("Konnte externe Team-Datenbank nicht laden: " + e.message);
-  }
-
-  return teamMap;
-}
-
-/**
- * Backend-Funktion: Zieht die Datei, wertet sie aus und schreibt sie ins Sheet.
- */
-function processSelectedFile(fileId) {
-  const targetSheetName = "Datenbank_KO_SKILL";
+function importRawFoodQualityCases() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const targetSheet = ss.getSheetByName("Rohdaten Food Qualitätsfälle");
 
-  const skillMap = getMapping(ss);
-  const planoSkillsSorted = Object.keys(skillMap).sort((a, b) => b.length - a.length);
-  const nameMap = getNameMapping(ss);
-  const localTeamMap = getTeamMapping(ss);
-  const ignoreSet = getIgnoreMapping(ss);
-  const teamMap = getEmployeeTeams();
-
-  const unmappedSkills = new Set();
-  const unmappedEmployees = new Set();
-
-  const abwDbName = (skillMap["ABW"] || "ABW").toUpperCase();
-
-  let targetSheet = ss.getSheetByName(targetSheetName);
-
-  if (!targetSheet) {
-    targetSheet = ss.insertSheet(targetSheetName);
-    targetSheet.appendRow(["Datum", "KW", "Mitarbeitername"]);
-    targetSheet.getRange("A1:C1").setFontWeight("bold");
+  Logger.log("--- Starting importRawFoodQualityCases (Strict Plain Text) ---");
+  if (!settingsSheet || !targetSheet) {
+    ui.alert('Error', 'Required sheets missing.', ui.ButtonSet.OK);
+    return;
   }
 
-  const lastTargetCol = Math.max(targetSheet.getLastColumn(), 3);
-  let targetHeaders = targetSheet.getRange(1, 1, 1, lastTargetCol).getValues()[0];
+  const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchFileName = "8WS_Food_DE_Qualitätsfälle";
+  let sourceFileId = null;
 
-  const uniqueDbSkills = [...new Set(Object.values(skillMap))];
+  for (let i = 0; i < settingsValues.length; i++) {
+    const cellA = settingsValues[i][0].toString().trim();
+    const cellB = settingsValues[i][1].toString().trim();
+    const excelFileName = searchFileName + ".xlsx";
+    const options = { sensitivity: 'base' };
 
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "DIFFERENZ")) uniqueDbSkills.push("Differenz");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "TEAM")) uniqueDbSkills.push("Team");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "SCHICHT")) uniqueDbSkills.push("Schicht");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "SOLL")) uniqueDbSkills.push("Soll");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "IST")) uniqueDbSkills.push("Ist");
-  if (!uniqueDbSkills.some(skill => skill.toUpperCase() === "AUSGLEICHSTAG")) uniqueDbSkills.push("Ausgleichstag");
-
-  uniqueDbSkills.forEach(dbSkill => {
-    const exists = targetHeaders.some(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
-
-    if (!exists) {
-      targetHeaders.push(dbSkill);
-      targetSheet.getRange(1, targetHeaders.length).setValue(dbSkill);
-      targetSheet.getRange(1, targetHeaders.length).setFontWeight("bold");
-    }
-  });
-
-  const file = DriveApp.getFileById(fileId);
-  const mimeType = file.getMimeType();
-
-  let data = [];
-
-  try {
-    if (mimeType === MimeType.GOOGLE_SHEETS) {
-      data = SpreadsheetApp.openById(fileId).getSheets()[0].getDataRange().getValues();
-    } else {
-      const blob = file.getBlob();
-      const textData = blob.getDataAsString("UTF-8");
-
-      if (textData.includes("PK\x03\x04")) {
-        try {
-          const resource = {
-            name: "Temp_" + file.getName(),
-            mimeType: MimeType.GOOGLE_SHEETS
-          };
-
-          let tempFile;
-
-          if (typeof Drive !== 'undefined') {
-            tempFile = Drive.Files.create(resource, blob, { supportsAllDrives: true });
-            const tempDoc = SpreadsheetApp.openById(tempFile.id);
-            data = tempDoc.getSheets()[0].getDataRange().getValues();
-            Drive.Files.remove(tempFile.id);
-          } else {
-            throw new Error("Drive API nicht aktiviert.");
-          }
-        } catch (convertErr) {
-          throw new Error("Fehler bei der Excel-Konvertierung! Detail: " + convertErr.message);
-        }
-      } else {
-        if (textData.includes(";") && textData.split(";").length > textData.split(",").length) {
-          data = Utilities.parseCsv(textData, ';');
-        } else {
-          data = Utilities.parseCsv(textData);
-        }
-      }
-    }
-  } catch (e) {
-    throw new Error("Fehler beim Lesen der Datei: " + e.message);
-  }
-
-  if (!data || data.length < 4) {
-    throw new Error("Die Datei enthält nicht genug Daten.");
-  }
-
-  let titleStr = "";
-  let headerRowIndex = -1;
-
-  for (let i = 0; i < Math.min(data.length, 30); i++) {
-    const rowStr = data[i].join(" ");
-
-    if (rowStr.includes("Wochenplan KW")) {
-      titleStr = rowStr;
-    }
-
-    if (String(data[i][0]).trim() === "Name" || rowStr.includes("Dienstag,") || rowStr.includes("Montag,")) {
-      headerRowIndex = i;
+    if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+        (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+      sourceFileId = settingsValues[i][4];
       break;
     }
   }
 
-  if (headerRowIndex === -1) {
-    throw new Error("Konnte die Datum-Kopfzeile in der Datei nicht finden.");
+  if (!sourceFileId) {
+    ui.alert('Configuration Error', `File ID for "${searchFileName}" not found.`, ui.ButtonSet.OK);
+    return;
   }
 
-  const kwMatch = titleStr.match(/KW\s+(\d+)/);
-  const yearMatch = titleStr.match(/\/\s+(\d{4})/);
+// --- Prepare Target Sheet (Clear CONTENT only to preserve borders/colors) ---
+  const lastRow = targetSheet.getLastRow(); 
+  
+  if (lastRow >= 8) {
+    targetSheet.getRange(8, 1, lastRow - 7, 25).clearContent();
+  }
 
-  const kw = kwMatch ? kwMatch[1] : "";
-  const year = yearMatch ? yearMatch[1] : new Date().getFullYear();
+  let sourceSs;
+  try {
+    sourceSs = SpreadsheetApp.openById(sourceFileId);
+  } catch (e) {
+    ui.alert('File Access Error', `Could not open source file.`, ui.ButtonSet.OK);
+    return;
+  }
+  
+  const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+  if (!sourceDataSheet) {
+    ui.alert('Sheet Error', 'Tab not found.', ui.ButtonSet.OK);
+    return;
+  }
+  const sourceLastRow = sourceDataSheet.getLastRow();
+  if (sourceLastRow < 3) return;
 
-  const headerRow = data[headerRowIndex];
-  const dateColumns = [];
+  // --- Read Data (using getDisplayValues to capture exact text) ---
+  const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 8);
+  const sourceValues = sourceRange.getDisplayValues();
 
-  let differenzColIndex = headerRow.findIndex(h => String(h).trim() === 'Differenz');
-  if (differenzColIndex === -1) differenzColIndex = 10;
+  // --- CLEANING LOOP (No Zero Manipulation) ---
+  for (let r = 0; r < sourceValues.length; r++) {
+    for (let c = 0; c < sourceValues[r].length; c++) {
+      let val = sourceValues[r][c];
+      
+      // Force string, remove quotes and non-breaking spaces
+      if (!val || String(val).trim() === "") {
+        sourceValues[r][c] = "";
+      } else {
+        sourceValues[r][c] = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+      }
+    }
+  }
 
-  let isthColIndex = headerRow.findIndex(h => String(h).trim() === 'Isth');
-  if (isthColIndex === -1) isthColIndex = 12;
+  // --- 1. Write clean data BACK to the source file as Plain Text ---
+  sourceRange.setNumberFormat("@");
+  sourceRange.setValues(sourceValues);
 
-  let vertragColIndex = headerRow.findIndex(h => String(h).trim() === 'Vertrag h');
-  if (vertragColIndex === -1) vertragColIndex = 14;
+  // --- 2. Write to Target Sheet (Column G / 7) as Plain Text (Values Only) ---
+  const destinationRange = targetSheet.getRange(8, 7, sourceValues.length, sourceValues[0].length); 
+  destinationRange.setNumberFormat("@");
+  destinationRange.setValues(sourceValues); // setValues inherently acts like "Paste Values Only"
+  
+  targetSheet.getRange("E2").activate();
+  ss.toast('Import successful! Data formatted perfectly as Plain Text.', 'Success', 5);
+}
+IMPORT_DATA_Rohdaten_Anderungswunsche_Sort.gs
 
-  for (let c = 0; c < headerRow.length; c++) {
-    const val = headerRow[c];
-    const valStr = (val instanceof Date)
-      ? Utilities.formatDate(val, Session.getScriptTimeZone(), "dd.MM.yyyy")
-      : String(val);
+// /**
+//  * 🔎 Imports raw data for Sorting Arrangement Wishes ('Änderungswünsche Sortierung').
+//  * V7: HYBRID - Uses V4 structure (Target Col F) + V6 WG Validation (>6 logic).
+//  */
+// function importChangeWishesSorting() {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const ui = SpreadsheetApp.getUi();
+//   const settingsSheet = ss.getSheetByName("Einstellungen");
+//   const targetSheet = ss.getSheetByName("Rohdaten Änderungswünsche Sort.");
 
-    if (valStr.match(/\d{2}\.\d{2}\./)) {
-      const dateMatch = valStr.match(/(\d{2}\.\d{2}\.)/);
+//   Logger.log("--- Starting importChangeWishesSorting (V7 - Hybrid) ---");
 
-      if (dateMatch) {
-        const dStr = dateMatch[1] + year;
-        const parts = dStr.split('.');
-        const dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-        const isSaturday = dateObj.getDay() === 6;
+//   if (!settingsSheet || !targetSheet) {
+//     ui.alert('Error', 'Required sheets missing.', ui.ButtonSet.OK);
+//     return;
+//   }
 
-        dateColumns.push({
-          colIndex: c,
-          date: dStr,
-          isSaturday: isSaturday
+//   // --- Find Source File ID ---
+//   const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+//   const searchFileName = "8WS_Food_DE_Änderungswünsche Sortierung";
+//   let sourceFileId = null;
+//   let foundRowNumber = -1;
+
+//   for (let i = 0; i < settingsValues.length; i++) {
+//     const cellA = settingsValues[i][0].toString().trim();
+//     const cellB = settingsValues[i][1].toString().trim();
+//     const excelFileName = searchFileName + ".xlsx";
+//     const options = { sensitivity: 'base' };
+//     if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+//       (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+//       sourceFileId = settingsValues[i][4]; // File ID in Column E
+//       foundRowNumber = i + 1;
+//       break;
+//     }
+//   }
+
+//   if (!sourceFileId) {
+//     ui.alert('Configuration Error', `File ID for "${searchFileName}" not found.`, ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   // --- Prepare Target Sheet ---
+//   const lastRow = targetSheet.getLastRow();
+//   // Clears content starting from Row 8, Columns F:I (Target is Col 6, width 4) based on V4 logic
+//   // Actually V4 cleared A8:R, let's stick to the V4 clearing logic to be safe:
+//   if (lastRow >= 8) {
+//     targetSheet.getRange(8, 1, lastRow - 7, 18).clearContent();
+//   }
+
+//   // --- Get Source Data ---
+//   let sourceSs;
+//   try {
+//     sourceSs = SpreadsheetApp.openById(sourceFileId);
+//   } catch (e) {
+//     ui.alert('File Access Error', `Could not open source file.`, ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+//   if (!sourceDataSheet) {
+//     ui.alert('Sheet Error', 'Tab "In_Development_8_weeks_Report_F" not found.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const sourceLastRow = sourceDataSheet.getLastRow();
+//   if (sourceLastRow < 3) {
+//     ui.alert('No Data', 'Source file has no data.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   // --- Read Data ---
+//   // Using getDisplayValues() is safer for the WG string logic than getValues()
+//   const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 4);
+//   const sourceValues = sourceRange.getDisplayValues(); 
+
+//   // --- HYBRID CLEANING LOOP ---
+//   for (let r = 0; r < sourceValues.length; r++) {
+//     for (let c = 0; c < sourceValues[r].length; c++) {
+      
+//       let val = sourceValues[r][c];
+
+//       // --- WG Column Logic (Column 0 / A) ---
+//       if (c === 0) {
+//         if (!val) {
+//           sourceValues[r][c] = "";
+//         } else {
+//           // 1. Force String & Clean Garbage (Quotes / Non-breaking spaces)
+//           let strVal = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+
+//           // 2. Apply V6 Logic: Trim zeros if length > 6
+//           while (strVal.length > 6 && strVal.endsWith('0')) {
+//              strVal = strVal.slice(0, -1);
+//           }
+//           sourceValues[r][c] = strVal; 
+//         }
+//       } 
+//       // --- Other Columns Logic ---
+//       else {
+//         sourceValues[r][c] = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+//       }
+//     }
+//   }
+
+//   // --- Write clean data BACK to the source file ---
+//   // (As requested from V4 logic)
+//   sourceRange.setNumberFormat("@"); 
+//   sourceRange.setValues(sourceValues); 
+
+//   // --- Write to Target Sheet (Column F / 6) ---
+//   // V4 pasted into Column 6 (F), V6 pasted into Column 1. We keep V4 (F).
+//   const destinationRange = targetSheet.getRange(8, 6, sourceValues.length, sourceValues[0].length);
+//   destinationRange.setNumberFormat("@");
+//   destinationRange.setValues(sourceValues);
+
+//   updateRohdatenChangeWishesFormulas(foundRowNumber);
+
+//   targetSheet.getRange("E2").activate();
+//   ss.toast('Import successful!', 'Success', 5);
+// }
+
+// /**
+//  * 🔄 Dynamically updates the template formula in 'Rohdaten Änderungswünsche Sort.' row 6.
+//  * @param {number} foundRowNumber The row from 'Einstellungen' with the source file config.
+//  */
+// function updateRohdatenChangeWishesFormulas(foundRowNumber) {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const targetSheet = ss.getSheetByName("Rohdaten Änderungswünsche Sort.");
+//   if (!targetSheet) return;
+
+//   const urlCellReference = `Einstellungen!$F$${foundRowNumber}`;
+//   const sheetName = 'In_Development_8_weeks_Report_F';
+
+//   const newFormulaForJ6 = `=LET(` +
+//     `url;${urlCellReference};` +
+//     `sheet_name;"${sheetName}";` +
+//     `data_range;IMPORTRANGE(url;"'"&sheet_name&"'!E3:Q1000");` +
+//     `criteria1_range;IMPORTRANGE(url;"'"&sheet_name&"'!B3:B1000");` +
+//     `criteria2_range;IMPORTRANGE(url;"'"&sheet_name&"'!C3:C1000");` +
+//     `header_range;IMPORTRANGE(url;"'"&sheet_name&"'!E1:Q1");` +
+//     `filtered_row;IFERROR(FILTER(data_range;TO_TEXT(criteria1_range)=TO_TEXT($G6);criteria2_range=$H6));` +
+//     `IF(ISBLANK(filtered_row);"";IFERROR(IF(J$5=J$4;INDEX(filtered_row;1;MATCH(J$5;header_range;0));N(INDEX(filtered_row;1;MATCH(J$5;header_range;0)))+N(INDEX(filtered_row;1;MATCH(J$4;header_range;0))))))` +
+//     `)`;
+
+//   const templateFormulaCell = targetSheet.getRange("J6");
+//   templateFormulaCell.setFormula(newFormulaForJ6);
+
+//   const fullTemplateRange = targetSheet.getRange("J6:Q6");
+//   templateFormulaCell.autoFill(fullTemplateRange, SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+// }
+
+
+/**
+ * 🔎 Imports raw data for Sorting Arrangement Wishes ('Änderungswünsche Sortierung').
+ * FIX: Plain Text method + Dynamic Border Formatting.
+ * UPDATE: Aggressively clears ALL borders and content from Row 8 to the very bottom of the sheet.
+ */
+function importChangeWishesSorting() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const targetSheet = ss.getSheetByName("Rohdaten Änderungswünsche Sort.");
+
+  Logger.log("--- Starting importChangeWishesSorting (Strict Plain Text + MaxRow Clear) ---");
+
+  if (!settingsSheet || !targetSheet) {
+    ui.alert('Error', 'Required sheets missing.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // --- Find Source File ID ---
+  const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchFileName = "8WS_Food_DE_Änderungswünsche Sortierung";
+  let sourceFileId = null;
+  let foundRowNumber = -1;
+
+  for (let i = 0; i < settingsValues.length; i++) {
+    const cellA = settingsValues[i][0].toString().trim();
+    const cellB = settingsValues[i][1].toString().trim();
+    const excelFileName = searchFileName + ".xlsx";
+    const options = { sensitivity: 'base' };
+
+    if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+      (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+      sourceFileId = settingsValues[i][4]; // File ID in Column E
+      foundRowNumber = i + 1;
+      break;
+    }
+  }
+
+  if (!sourceFileId) {
+    ui.alert('Configuration Error', `File ID for "${searchFileName}" not found.`, ui.ButtonSet.OK);
+    return;
+  }
+
+  // --- Prepare Target Sheet (THE BORDER FIX) ---
+  const maxRows = targetSheet.getMaxRows(); // Gets the absolute bottom of the sheet
+  if (maxRows >= 8) {
+    // Clear everything (content & borders) from Row 8 down to the absolute bottom, spanning 18 columns
+    const clearRange = targetSheet.getRange(8, 1, maxRows - 7, 18);
+    clearRange.clearContent();
+  }
+
+  // --- Get Source Data ---
+  let sourceSs;
+  try {
+    sourceSs = SpreadsheetApp.openById(sourceFileId);
+  } catch (e) {
+    ui.alert('File Access Error', `Could not open source file.`, ui.ButtonSet.OK);
+    return;
+  }
+
+  const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+  if (!sourceDataSheet) {
+    ui.alert('Sheet Error', 'Tab "In_Development_8_weeks_Report_F" not found.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const sourceLastRow = sourceDataSheet.getLastRow();
+  if (sourceLastRow < 3) {
+    ui.alert('No Data', 'Source file has no data.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // --- Read Data (using getDisplayValues to capture exact text) ---
+  const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 4);
+  const sourceValues = sourceRange.getDisplayValues(); 
+
+  // --- CLEANING LOOP (No Zero Manipulation) ---
+  for (let r = 0; r < sourceValues.length; r++) {
+    for (let c = 0; c < sourceValues[r].length; c++) {
+      let val = sourceValues[r][c];
+      
+      // Force string, remove quotes and non-breaking spaces
+      if (!val || String(val).trim() === "") {
+        sourceValues[r][c] = "";
+      } else {
+        sourceValues[r][c] = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+      }
+    }
+  }
+
+  // --- 1. Write clean data BACK to the source file as Plain Text ---
+  sourceRange.setNumberFormat("@");
+  sourceRange.setValues(sourceValues); 
+
+  // --- 2. Write to Target Sheet (Column F / 6) as Plain Text ---
+  const destinationRange = targetSheet.getRange(8, 6, sourceValues.length, sourceValues[0].length);
+  destinationRange.setNumberFormat("@");
+  destinationRange.setValues(sourceValues);
+
+  // --- 3. Apply Formatting (Borders/Fonts/Colors) from Row 6 ---
+  const formatTemplate = targetSheet.getRange(8, 1, 1, 18); // A6:R6
+  const targetFormatRange = targetSheet.getRange(8, 1, sourceValues.length, 18);
+  formatTemplate.copyTo(targetFormatRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+
+  updateRohdatenChangeWishesFormulas(foundRowNumber);
+
+  targetSheet.getRange("E2").activate();
+  ss.toast('Import successful!', 'Success', 5);
+}
+
+/**
+ * 🔄 Dynamically updates the template formula in 'Rohdaten Änderungswünsche Sort.'
+ */
+function updateRohdatenChangeWishesFormulas(foundRowNumber) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const targetSheet = ss.getSheetByName("Rohdaten Änderungswünsche Sort.");
+  if (!targetSheet) return;
+
+  const urlCellReference = `Einstellungen!$F$${foundRowNumber}`;
+  const sheetName = 'In_Development_8_weeks_Report_F';
+
+  const newFormulaForJ6 = `=LET(` +
+    `url;${urlCellReference};` +
+    `sheet_name;"${sheetName}";` +
+    `data_range;IMPORTRANGE(url;"'"&sheet_name&"'!E3:Q1000");` +
+    `criteria1_range;IMPORTRANGE(url;"'"&sheet_name&"'!B3:B1000");` +
+    `criteria2_range;IMPORTRANGE(url;"'"&sheet_name&"'!C3:C1000");` +
+    `header_range;IMPORTRANGE(url;"'"&sheet_name&"'!E1:Q1");` +
+    `filtered_row;IFERROR(FILTER(data_range;TO_TEXT(criteria1_range)=TO_TEXT($G6);criteria2_range=$H6));` +
+    `IF(ISBLANK(filtered_row);"";IFERROR(IF(J$5=J$4;INDEX(filtered_row;1;MATCH(J$5;header_range;0));N(INDEX(filtered_row;1;MATCH(J$5;header_range;0)))+N(INDEX(filtered_row;1;MATCH(J$4;header_range;0))))))` +
+    `)`;
+
+  const templateFormulaCell = targetSheet.getRange("J6");
+  templateFormulaCell.setFormula(newFormulaForJ6);
+
+  const fullTemplateRange = targetSheet.getRange("J6:Q6");
+  templateFormulaCell.autoFill(fullTemplateRange, SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+}
+IMPORT_DATA_Rohdaten_Food_Sortimentswünsche.gs
+// /**
+//  * 🔎 Imports raw data for Food Assortment Wishes and updates template formulas.
+//  * V3: Implements perfected pre-import cleaning logic and source write-back.
+//  */
+// function importFoodAssortmentWishes() {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const ui = SpreadsheetApp.getUi();
+//   const settingsSheet = ss.getSheetByName("Einstellungen");
+//   const targetSheet = ss.getSheetByName("Rohdaten Food Sortimentswünsche");
+
+//   Logger.log("--- Starting importFoodAssortmentWishes (V3 - Perfected Clean) ---");
+
+//   if (!settingsSheet || !targetSheet) {
+//     ui.alert('Error', 'Could not find "Einstellungen" or "Rohdaten Food Sortimentswünsche" sheet.', ui.ButtonSet.OK);
+//     Logger.log('Error: A required sheet is missing.');
+//     return;
+//   }
+
+//   // --- Find Source File ID ---
+//   const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+//   const searchFileName = "8WS_Food_DE_Sortimentswünsche";
+//   let sourceFileId = null;
+//   let foundRowNumber = -1;
+
+//   for (let i = 0; i < settingsValues.length; i++) {
+//     const cellA = settingsValues[i][0].toString().trim();
+//     const cellB = settingsValues[i][1].toString().trim();
+//     const excelFileName = searchFileName + ".xlsx";
+//     const options = { sensitivity: 'base' };
+//     if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+//       (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+//       sourceFileId = settingsValues[i][4]; // File ID in Column E
+//       foundRowNumber = i + 1;
+//       Logger.log(`Source file config found on row ${foundRowNumber} with ID: ${sourceFileId}`);
+//       break;
+//     }
+//   }
+
+//   if (!sourceFileId) {
+//     ui.alert('Configuration Error', `Could not find the file ID for "${searchFileName}".`, ui.ButtonSet.OK);
+//     Logger.log(`Error: File ID for "${searchFileName}" not found.`);
+//     return;
+//   }
+
+//   // --- Prepare Target Sheet ---
+//   const lastRow = targetSheet.getLastRow();
+//   if (lastRow >= 8) {
+//     targetSheet.getRange(8, 1, lastRow - 7, 18).clearContent();
+//     Logger.log(`Cleared old data from A8:R${lastRow}`);
+//   }
+
+//   // --- Get Source Data ---
+//   let sourceSs;
+//   try {
+//     sourceSs = SpreadsheetApp.openById(sourceFileId);
+//   } catch (e) {
+//     ui.alert('File Access Error', `Could not open source file: ${e.message}`, ui.ButtonSet.OK);
+//     return;
+//   }
+//   const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+//   if (!sourceDataSheet) {
+//     ui.alert('Sheet Error', 'Could not find "In_Development_8_weeks_Report_F" in source.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const sourceLastRow = sourceDataSheet.getLastRow();
+//   if (sourceLastRow < 3) {
+//     ui.alert('No Data', 'Source file has no data to import.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   // --- Copy data from source and paste to target ---
+//   try {
+//     const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 4); // Reads columns A, B, C, D
+//     const sourceValues = sourceRange.getValues();
+//     Logger.log(`Source values read. Starting cleaning...`);
+
+
+//     // --- START: Perfected Cleaning Loop ---
+//     for (let r = 0; r < sourceValues.length; r++) {
+//       for (let c = 0; c < sourceValues[r].length; c++) {
+
+//         let cellValue = sourceValues[r][c];
+
+//         // 1. Specific fix for Col G (WG), which is c === 0 (the first column)
+//         // This is source column A, which maps to target column F.
+//         if (c === 0) {
+//           // First, clean it up if it's a string to remove spaces, quotes, etc.
+//           if (typeof cellValue === 'string') {
+//             cellValue = cellValue.replace(/"/g, "")
+//               .replace(/\u00A0/g, " ")
+//               .trim();
+//           }
+
+//           // Now, check if the (potentially cleaned) value is numeric
+//           let numericValue;
+//           if (typeof cellValue === 'number') {
+//             numericValue = cellValue;
+//           } else if (typeof cellValue === 'string' && cellValue !== "") {
+//             // Replace comma with dot for robust parsing, then parse
+//             const parsableString = cellValue.replace(',', '.');
+//             numericValue = parseFloat(parsableString);
+//           } else {
+//             // It's an empty string or some other type, not a number
+//             numericValue = NaN;
+//           }
+
+//           // If it's a valid finite number, format it to 2 decimal places.
+//           // isFinite() handles NaN and Infinity
+//           if (isFinite(numericValue)) {
+//             sourceValues[r][c] = numericValue.toFixed(2); // e.g., 30.1 -> "30.10"
+//           } else {
+//             // It's not a number (e.g., "N/A" or was empty), just assign the cleaned string
+//             // If it was a number originally (like Infinity), convert to string
+//             sourceValues[r][c] = (typeof cellValue === 'string') ? cellValue : String(cellValue);
+//           }
+//         }
+//         // 2. Clean all other string values (c > 0)
+//         else if (typeof cellValue === 'string') {
+//           sourceValues[r][c] = cellValue.replace(/"/g, "")         // 1. Remove all quotes
+//             .replace(/\u00A0/g, " ") // 2. Replace non-breaking spaces
+//             .trim();                 // 3. Remove all leading/trailing spaces
+//         }
+//       }
+//     }
+//     Logger.log("Data cleaning loop finished.");
+//     // --- END: Perfected Cleaning Loop ---
+
+//     // --- Write clean data BACK to the source file ---
+//     Logger.log("Writing clean data back to source file...");
+//     sourceRange.setNumberFormat("@"); // Set source columns A:D to Plain Text
+//     sourceRange.setValues(sourceValues); // Paste clean values back
+//     Logger.log("Source file successfully cleaned.");
+//     // --- End of "write-back" code ---
+
+//     const destinationRange = targetSheet.getRange(8, 6, sourceValues.length, sourceValues[0].length); // F8:I...
+
+//     // --- Force target columns F:I to Plain Text ---
+//     Logger.log("Setting destination columns F:I to Plain Text format.");
+//     destinationRange.setNumberFormat("@");
+
+//     destinationRange.setValues(sourceValues);
+//     Logger.log(`Successfully imported ${sourceValues.length} rows of clean data.`);
+
+//     updateRohdatenFoodFormulas(foundRowNumber); // Update template formula in row 6
+
+//     targetSheet.getRange("E2").activate();
+//     ss.toast('Die Daten wurden erfolgreich importiert! Klicke jetzt auf "DATEN GENERIEREN".', 'Erfolg!', 10);
+//   } catch (e) {
+//     ui.alert('Import Error', `An error occurred: ${e.message}`, ui.ButtonSet.OK);
+//   }
+//   Logger.log("--- Finished importFoodAssortmentWishes ---");
+// }
+
+
+// /**
+//  * 🔄 Dynamically updates the template formula in 'Rohdaten Food Sortimentswünsche' row 6.
+//  * @param {number} foundRowNumber The row from 'Einstellungen' with the source file config.
+//  */
+// function updateRohdatenFoodFormulas(foundRowNumber) {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const targetSheet = ss.getSheetByName("Rohdaten Food Sortimentswünsche");
+//   if (!targetSheet) return;
+
+//   const urlCellReference = `Einstellungen!$F$${foundRowNumber}`;
+//   const sheetName = 'In_Development_8_weeks_Report_F';
+
+//   // Same robust formula, but referencing $G6 for the template row
+//   const newFormulaForJ6 = `=ARRAY_CONSTRAIN(ARRAYFORMULA(IFERROR(IF(J$5=J$4;INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$5;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0));IFERROR(NUMBERVALUE(INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$5;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0)));0)+IFERROR(NUMBERVALUE(INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$4;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0)));0));"")); 1; 1)`;
+
+//   const templateFormulaCell = targetSheet.getRange("J6");
+//   templateFormulaCell.setFormula(newFormulaForJ6);
+
+//   const fullTemplateRange = targetSheet.getRange("J6:Q6");
+//   templateFormulaCell.autoFill(fullTemplateRange, SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+
+//   Logger.log(`Successfully updated template formula in J6:Q6 to reference ${urlCellReference}.`);
+// }
+
+/**
+ * 🔎 Imports raw data for Food Assortment Wishes.
+ * FIX: Uses getDisplayValues() and Plain Text format ("@") on both SOURCE and TARGET 
+ * to ensure WG and CW columns remain exactly as they are without zero or date manipulation.
+ */
+function importFoodAssortmentWishes() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const targetSheet = ss.getSheetByName("Rohdaten Food Sortimentswünsche");
+  
+  Logger.log("--- Starting importFoodAssortmentWishes (Strict Plain Text) ---");
+
+  if (!settingsSheet || !targetSheet) {
+    ui.alert('Error', 'Required sheets missing.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // --- Find Source File ID ---
+  const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchFileName = "8WS_Food_DE_Sortimentswünsche";
+  let sourceFileId = null;
+  let foundRowNumber = -1;
+
+  for (let i = 0; i < settingsValues.length; i++) {
+    const cellA = settingsValues[i][0].toString().trim();
+    const cellB = settingsValues[i][1].toString().trim();
+    const excelFileName = searchFileName + ".xlsx";
+    const options = { sensitivity: 'base' };
+
+    if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+      (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+      sourceFileId = settingsValues[i][4];
+      foundRowNumber = i + 1;
+      break;
+    }
+  }
+
+  if (!sourceFileId) {
+    ui.alert('Configuration Error', `File ID for "${searchFileName}" not found in Settings.`, ui.ButtonSet.OK);
+    return;
+  }
+
+  // --- Prepare Target ---
+  const lastRow = targetSheet.getLastRow();
+  if (lastRow >= 8) {
+    targetSheet.getRange(8, 1, lastRow - 7, 18).clearContent();
+  }
+
+  // --- Get Source Data ---
+  let sourceSs;
+  try {
+    sourceSs = SpreadsheetApp.openById(sourceFileId);
+  } catch (e) {
+    ui.alert('File Access Error', `Could not open source file: ${e.message}`, ui.ButtonSet.OK);
+    return;
+  }
+  
+  const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+  if (!sourceDataSheet) {
+    ui.alert('Sheet Error', 'Tab "In_Development_8_weeks_Report_F" not found.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const sourceLastRow = sourceDataSheet.getLastRow();
+  if (sourceLastRow < 3) return;
+
+  // Read Data using DisplayValues to capture exact text representation (preserves "30.10" and "2026-01")
+  const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 4);
+  const sourceValues = sourceRange.getDisplayValues(); 
+
+  // --- CLEANING LOOP (No Zero Manipulation) ---
+  for (let r = 0; r < sourceValues.length; r++) {
+    for (let c = 0; c < sourceValues[r].length; c++) {
+      let val = sourceValues[r][c];
+      
+      // Force it to be a strict string, remove double quotes, remove non-breaking spaces, and trim
+      if (!val || String(val).trim() === "") {
+        sourceValues[r][c] = "";
+      } else {
+        sourceValues[r][c] = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+      }
+    }
+  }
+
+  // --- 1. Write back to Source as Plain Text ---
+  sourceRange.setNumberFormat("@"); 
+  sourceRange.setValues(sourceValues);
+
+  // --- 2. Write to Target as Plain Text ---
+  const destinationRange = targetSheet.getRange(8, 6, sourceValues.length, sourceValues[0].length); 
+  destinationRange.setNumberFormat("@"); 
+  destinationRange.setValues(sourceValues);
+  
+  updateRohdatenFoodFormulas(foundRowNumber);
+
+  targetSheet.getRange("E2").activate();
+  ss.toast('Import successful! WG and CW columns sanitized as Plain Text.', 'Success', 5);
+}
+
+function updateRohdatenFoodFormulas(foundRowNumber) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const targetSheet = ss.getSheetByName("Rohdaten Food Sortimentswünsche");
+  if (!targetSheet) return;
+
+  const newFormulaForJ6 = `=ARRAY_CONSTRAIN(ARRAYFORMULA(IFERROR(IF(J$5=J$4;INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$5;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0));IFERROR(NUMBERVALUE(INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$5;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0)));0)+IFERROR(NUMBERVALUE(INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$4;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0)));0));"")); 1; 1)`;
+
+  const templateFormulaCell = targetSheet.getRange("J6");
+  templateFormulaCell.setFormula(newFormulaForJ6);
+  const fullTemplateRange = targetSheet.getRange("J6:Q6");
+  templateFormulaCell.autoFill(fullTemplateRange, SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+}
+
+IMPORT_DATA_Rohdaten_OG_Qualif_o_LFN.gs
+/**
+ * 🔎 Imports raw data for 'Rohdaten O+G Qualitätsf. o. LFN'.
+ * Replicates VBA macro 'ImportRohdatenOGQualitätsfälleohneLFN' (Modul42).
+ * V1: Fixes bug where sourceFileId was never assigned.
+ */
+function importRawOGQualityCasesNoLFN() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const targetSheet = ss.getSheetByName("Rohdaten O+G Qualitätsf. o. LFN");
+
+  Logger.log("--- Starting importRawOGQualityCasesNoLFN (V1 - ID Fix) ---");
+
+  if (!settingsSheet || !targetSheet) {
+    ui.alert('Error', 'Could not find "Einstellungen" or "Rohdaten O+G Qualitätsf. o. LFN" sheet.', ui.ButtonSet.OK);
+    Logger.log('Error: A required sheet is missing.');
+    return;
+  }
+
+  // --- 1. Find the Source File ID Row ---
+  const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchFileName = "8WS_O+G_DE_Qualitätsfälle (ohne LFN)"; // Source file name for this sheet
+  let sourceFileUrl = null;
+  let sourceFileId = null; // This variable must be assigned
+  let foundRowNumber = -1;
+
+  for (let i = 0; i < settingsValues.length; i++) {
+    const cellA = settingsValues[i][0].toString().trim();
+    const cellB = settingsValues[i][1].toString().trim();
+    const excelFileName = searchFileName + ".xlsx";
+    const options = { sensitivity: 'base' }; 
+    if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+        (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+      
+      foundRowNumber = i + 1;
+      sourceFileUrl = settingsValues[i][5]; // Get the URL from Column F
+      Logger.log(`Found source file URL on row: ${foundRowNumber}: ${sourceFileUrl}`);
+      
+      // --- START OF FIX ---
+      // Extract the ID from the URL and assign it to sourceFileId
+      try {
+        const match = sourceFileUrl.match(/\/d\/(.+?)\//);
+        if (match && match[1]) {
+          sourceFileId = match[1];
+          Logger.log(`Successfully extracted File ID: ${sourceFileId}`);
+        } else {
+          throw new Error("Could not parse File ID from URL.");
+        }
+      } catch (e) {
+        ui.alert('Configuration Error', `Invalid Google Sheet URL found for "${searchFileName}".`, ui.ButtonSet.OK);
+        Logger.log(`Error: Could not extract File ID from URL: ${sourceFileUrl}`);
+        return;
+      }
+      // --- END OF FIX ---
+      break; // Exit loop once found
+    }
+  }
+
+  // This check will now pass
+  if (!sourceFileId) {
+    ui.alert('Configuration Error', `Could not find the file ID for "${searchFileName}". Check the 'Einstellungen' sheet.`, ui.ButtonSet.OK);
+    Logger.log(`Error: File ID for "${searchFileName}" not found.`);
+    return;
+  }
+
+  // // --- 2. Prepare Target Sheet (Clear A8:Q<lastRow>) ---
+  // // VBA checks last row of column E ("Artikel")
+  // const lastRow = targetSheet.getRange("E" + targetSheet.getMaxRows()).getNextDataCell(SpreadsheetApp.Direction.UP).getRow();
+  // if (lastRow >= 8) { // Data starts at row 8
+  //   targetSheet.getRange(8, 1, lastRow - 7, 17).clearContent(); // A8:Q<lastRow>
+  //   Logger.log(`Cleared old data from A8:Q${lastRow}`);
+  // }
+
+    // 1. Get the actual last row with content in the entire sheet
+  const lastRow = targetSheet.getLastRow(); 
+
+  // 2. Check if that last row is at or beyond your starting point (Row 8)
+  if (lastRow >= 8) {
+    // We calculate the number of rows to clear: (Total - Start + 1)
+    // For example: if lastRow is 10, we clear 10 - 8 + 1 = 3 rows (8, 9, 10).
+    const rowsToClear = lastRow - 8 + 1;
+    
+    targetSheet.getRange(8, 1, rowsToClear, 17).clearContent(); 
+    Logger.log(`Cleared old data from A8:Q${lastRow}`);
+  } else {
+    Logger.log("No data found to clear (last row is less than 8).");
+  }
+
+  // --- 3. Get Source Data ---
+  try {
+    const sourceSs = SpreadsheetApp.openById(sourceFileId);
+    // The VBA macro (Modul42) uses worksheet 1
+    const sourceDataSheet = sourceSs.getSheets()[0]; // Use the first sheet
+    if (!sourceDataSheet) {
+      ui.alert('Sheet Error', 'Could not find the first sheet in the source file.', ui.ButtonSet.OK);
+      return;
+    }
+    Logger.log(`Using source sheet: ${sourceDataSheet.getName()}`);
+
+    const sourceLastRow = sourceDataSheet.getLastRow();
+    if (sourceLastRow < 3) {
+      ui.alert('No Data', 'Source file has no data to import (less than 3 rows).', ui.ButtonSet.OK);
+      return;
+    }
+
+    // --- 4. Copy data from source and paste to target ---
+    // VBA: wb.Worksheets(1).Range("A3:F" & lr).Copy
+    // VBA: ...Worksheets("Rohdaten O+G Qualitätsf. o. LFN").Range("B8").PasteSpecial xlPasteValues
+    const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 6); // A3:F<sourceLastRow>
+    const sourceValues = sourceRange.getValues();
+    
+    // Paste into B8 (row 8, column 2)
+    const destinationRange = targetSheet.getRange(8, 2, sourceValues.length, sourceValues[0].length); // B8:G<lastRow>
+
+    // --- !! ADDED LINE TO OVERWRITE DESTINATION FORMATS !! ---
+    // Set destination to Plain Text to ignore any pre-existing formats
+    destinationRange.setNumberFormat("@"); 
+    // --- !! END OF ADDED LINE !! ---
+
+    destinationRange.setValues(sourceValues);
+    Logger.log(`Successfully imported ${sourceValues.length} rows of data into B8:G${7 + sourceValues.length - 1}.`);
+    
+    targetSheet.getRange("E2").activate(); // Activate E2 as per VBA
+    ss.toast('Die Daten wurden erfolgreich importiert! Klicke jetzt auf "DATEN GENERIEREN".', 'Erfolg!', 10);
+  
+  } catch (e) {
+    const errorMessage = `An error occurred: ${e.message}\n\nStack:\n${e.stack}`;
+    ui.alert('Import Error', errorMessage, ui.ButtonSet.OK);
+    Logger.log(`ERROR: ${e.stack}`);
+  }
+  Logger.log("--- Finished importRawOGQualityCasesNoLFN ---");
+}
+
+IMPORT_DATA_Sonstiges_Food_Themen.gs
+
+// /**
+//  * 🔎 Imports raw data for 'Sonstiges Food u Akt. Themen'.
+//  * V4: "Universal WG Fix" - Scans Rows 1-3 for 'WG', cleans trailing zeros.
+//  */
+// function importRawOtherFoodTopics() {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const ui = SpreadsheetApp.getUi();
+//   const settingsSheet = ss.getSheetByName("Einstellungen");
+//   const targetSheet = ss.getSheetByName("Sonstiges Food u Akt. Themen");
+
+//   Logger.log("--- Starting importRawOtherFoodTopics (V4 - WG Fix) ---");
+
+//   if (!settingsSheet || !targetSheet) {
+//     ui.alert('Error', 'Required sheets missing.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+//   const searchFileName = "8WS_Food_DE_Sonstiges und aktuelle Themen";
+//   let sourceFileId = null;
+//   let foundRowNumber = -1;
+
+//   for (let i = 0; i < settingsValues.length; i++) {
+//     const cellA = settingsValues[i][0].toString().trim();
+//     const cellB = settingsValues[i][1].toString().trim();
+//     const excelFileName = searchFileName + ".xlsx";
+//     const options = { sensitivity: 'base' }; 
+//     if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+//         (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+//       sourceFileId = settingsValues[i][4]; 
+//       foundRowNumber = i + 1;
+//       break;
+//     }
+//   }
+
+//   if (!sourceFileId) {
+//     ui.alert('Configuration Error', `File ID for "${searchFileName}" not found.`, ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const lastRow = targetSheet.getRange("E" + targetSheet.getMaxRows()).getNextDataCell(SpreadsheetApp.Direction.UP).getRow();
+//   if (lastRow >= 7) {
+//     targetSheet.getRange(7, 1, lastRow - 6, 18).clearContent(); 
+//   }
+
+//   let sourceSs;
+//   try {
+//     sourceSs = SpreadsheetApp.openById(sourceFileId);
+//   } catch (e) {
+//     ui.alert('File Access Error', `Could not open source file.`, ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+//   if (!sourceDataSheet) {
+//     ui.alert('Sheet Error', 'Tab "In_Development_8_weeks_Report_F" not found.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const sourceLastRow = sourceDataSheet.getLastRow();
+//   if (sourceLastRow < 3) {
+//     ui.alert('No Data', 'Source file has no data.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   // --- DYNAMIC HEADER SCAN ---
+//   const potentialHeaders = sourceDataSheet.getRange(1, 1, 3, 10).getValues();
+//   let wgColIndex = -1;
+
+//   outerLoop:
+//   for (let r = 0; r < potentialHeaders.length; r++) {
+//     for (let c = 0; c < potentialHeaders[r].length; c++) {
+//       if (String(potentialHeaders[r][c]).trim().toUpperCase() === "WG") {
+//         wgColIndex = c;
+//         break outerLoop;
+//       }
+//     }
+//   }
+
+//   // --- Read Data ---
+//   const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 1); 
+//   const sourceValues = sourceRange.getDisplayValues();
+
+//   // --- CLEANING LOOP ---
+//   for (let r = 0; r < sourceValues.length; r++) {
+//     let c = 0; 
+//     let val = sourceValues[r][c];
+
+//     // WG Handling
+//     if (c === wgColIndex || (wgColIndex === -1 && c === 0)) {
+//       if (!val) {
+//         sourceValues[r][c] = "";
+//       } else {
+//         let strVal = String(val).trim();
+//         while (strVal.length > 7 && strVal.endsWith('0')) {
+//             strVal = strVal.slice(0, -1);
+//         }
+//         sourceValues[r][c] = strVal; 
+//       }
+//     } else {
+//       sourceValues[r][c] = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+//     }
+//   }
+
+//   sourceRange.setNumberFormat("@"); 
+//   sourceRange.setValues(sourceValues);
+
+//   const destinationRange = targetSheet.getRange(7, 5, sourceValues.length, 1);
+//   destinationRange.setNumberFormat("@");
+//   destinationRange.setValues(sourceValues);
+
+//   targetSheet.getRange("E2").activate();
+//   ss.toast('Import successful! ', 'Success', 5);
+// }
+
+
+/**
+ * 🔎 Imports raw data for 'Sonstiges Food u Akt. Themen'.
+ * Replicates VBA macro 'ImportRohdatenSonstigesFoodundAktuelleThemen' (Modul30).
+ * This script only copies data; it does not update any template formulas.
+ */
+function importRawOtherFoodTopics() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const targetSheet = ss.getSheetByName("Sonstiges Food u Akt. Themen");
+
+  Logger.log("--- Starting importRawOtherFoodTopics ---");
+
+  if (!settingsSheet || !targetSheet) {
+    ui.alert('Error', 'Could not find "Einstellungen" or "Sonstiges Food u Akt. Themen" sheet.', ui.ButtonSet.OK);
+    Logger.log('Error: A required sheet is missing.');
+    return;
+  }
+
+  // --- 1. Find the Source File ID Row ---
+  const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchFileName = "8WS_Food_DE_Sonstiges und aktuelle Themen"; // Source file name for this sheet
+  let sourceFileUrl = null;
+  let sourceFileId = null;
+  let foundRowNumber = -1;
+
+  for (let i = 0; i < settingsValues.length; i++) {
+    const cellA = settingsValues[i][0].toString().trim();
+    const cellB = settingsValues[i][1].toString().trim();
+    const excelFileName = searchFileName + ".xlsx";
+    const options = { sensitivity: 'base' }; 
+    if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+        (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+      
+      foundRowNumber = i + 1;
+      sourceFileUrl = settingsValues[i][5]; // Get the URL from Column F
+      Logger.log(`Found source file URL on row: ${foundRowNumber}: ${sourceFileUrl}`);
+      
+      // --- START OF FIX ---
+      // Extract the ID from the URL and assign it to sourceFileId
+      try {
+        const match = sourceFileUrl.match(/\/d\/(.+?)\//);
+        if (match && match[1]) {
+          sourceFileId = match[1];
+          Logger.log(`Successfully extracted File ID: ${sourceFileId}`);
+        } else {
+          throw new Error("Could not parse File ID from URL.");
+        }
+      } catch (e) {
+        ui.alert('Configuration Error', `Invalid Google Sheet URL found for "${searchFileName}".`, ui.ButtonSet.OK);
+        Logger.log(`Error: Could not extract File ID from URL: ${sourceFileUrl}`);
+        return;
+      }
+      // --- END OF FIX ---
+      break; // Exit loop once found
+    }
+  }
+
+  if (!sourceFileId) {
+    ui.alert('Configuration Error', `Could not find the file ID for "${searchFileName}". Check the 'Einstellungen' sheet.`, ui.ButtonSet.OK);
+    Logger.log(`Error: File ID for "${searchFileName}" not found.`);
+    return;
+  }
+
+  // --- 2. Prepare Target Sheet (Clear A7:R<lastRow>) ---
+  // VBA checks last row of column E ("Thema")
+  const lastRow = targetSheet.getRange("E" + targetSheet.getMaxRows()).getNextDataCell(SpreadsheetApp.Direction.UP).getRow();
+  if (lastRow >= 7) {
+    targetSheet.getRange(7, 1, lastRow - 6, 18).clearContent(); // A7:R<lastRow>
+    Logger.log(`Cleared old data from A7:R${lastRow}`);
+  }
+
+  // --- 3. Get Source Data ---
+  try {
+    const sourceSs = SpreadsheetApp.openById(sourceFileId);
+    // The VBA macro (Modul30) uses worksheet 1, which we assume is 'In_Development_8_weeks_Report_F'
+    const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F"); 
+    if (!sourceDataSheet) {
+      ui.alert('Sheet Error', 'Could not find "In_Development_8_weeks_Report_F" in source.', ui.ButtonSet.OK);
+      return;
+    }
+
+    const sourceLastRow = sourceDataSheet.getLastRow();
+    if (sourceLastRow < 3) {
+      ui.alert('No Data', 'Source file has no data to import (less than 3 rows).', ui.ButtonSet.OK);
+      return;
+    }
+
+    // --- 4. Copy data from source and paste to target ---
+    // VBA: wb.Worksheets(1).Range("A3:A" & lr).Copy
+    // VBA: Workbooks("...").Worksheets("Sonstiges Food u Akt. Themen").Range("E7").PasteSpecial xlPasteValues
+    const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 1); // Column A, from row 3
+    const sourceValues = sourceRange.getValues();
+    
+    const destinationRange = targetSheet.getRange(7, 5, sourceValues.length, 1); // Column E, from row 7
+
+    destinationRange.setValues(sourceValues);
+    Logger.log(`Successfully imported ${sourceValues.length} rows of data into Column E.`);
+    
+    // No formula update function is called in this VBA macro.
+
+    targetSheet.getRange("E2").activate(); // Activate E2 as per VBA
+    ss.toast('Die Daten wurden erfolgreich importiert! Bitte fülle Spalten P & Q manuell aus und klicke dann auf "DATEN GENERIEREN".', 'Erfolg!', 15);
+  
+  } catch (e) {
+    const errorMessage = `An error occurred: ${e.message}\n\nStack:\n${e.stack}`;
+    ui.alert('Import Error', errorMessage, ui.ButtonSet.OK);
+    Logger.log(`ERROR: ${e.stack}`);
+  }
+  Logger.log("--- Finished importRawOtherFoodTopics ---");
+}
+
+Sortimentswunche food gesamt export btn.gs
+
+// /**
+//  * EXPORT SORTIMENTSWÜNSCHE FOOD (Clone Strategy)
+//  * - Replicates 'ExportSortimentswünscheFoodGesamt'
+//  * - Generates 3 separate PDFs (Food Sortimentswünsche, Änderungswünsche, Allgemeine)
+//  * - Footer Gap: 40 Rows.
+//  * - Headers: Auto-Expanded.
+//  * - Layout: Sidebar + Data + Footer.
+//  */
+
+// function export_sortimentswuensche_new() {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const ui = SpreadsheetApp.getUi();
+
+//   // --- 1. CONFIGURATION ---
+  
+//   // SHARED SETTINGS
+//   // The filename KW comes from 'Allgemeine Sortimentswünsche'!J7 in the VBA.
+//   const filenameSheet = ss.getSheetByName("Allgemeine Sortimentswünsche");
+//   const kwValue = filenameSheet ? filenameSheet.getRange("J7").getValue() : "XX";
+
+//   const folderUrl = ss.getSheetByName("EXPORT").getRange("D4").getValue();
+//   let folder = getFolder(folderUrl, ss);
+
+//   // SHEET 1: Food Sortimentswünsche
+//   // VBA sorts A:R. We keep cols 1-18.
+//   const configFood = {
+//     name: "Food Sortimentswünsche",
+//     keepStartCol: 1, keepEndCol: 18, 
+//     week53Row: null, // No specific week 53 hiding logic found in this sub, usually data driven.
+//     sidebarText: "", // Left blank as per PDF sample, but column exists for layout consistency.
+//     filename: `02_Statistik_Food_Sortimentswünsche_KW${kwValue}_DE_Part1`
+//   };
+
+//   // SHEET 2: Änderungswünsche Sortierung
+//   // VBA sorts A:R. Keep cols 1-18.
+//   const configAenderung = {
+//     name: "Änderungswünsche Sortierung",
+//     keepStartCol: 1, keepEndCol: 18,
+//     week53Row: null,
+//     sidebarText: "",
+//     filename: `02_Statistik_Food_Sortimentswünsche_KW${kwValue}_DE_Part2`
+//   };
+
+//   // SHEET 3: Allgemeine Sortimentswünsche
+//   // VBA range A:K. Keep cols 1-11.
+//   const configAllg = {
+//     name: "Allgemeine Sortimentswünsche",
+//     keepStartCol: 1, keepEndCol: 11,
+//     week53Row: null,
+//     sidebarText: "",
+//     filename: `02_Statistik_Food_Sortimentswünsche_KW${kwValue}_DE_Part3`
+//   };
+
+//   // --- EXECUTE ---
+  
+//   const sheets = [configFood, configAenderung, configAllg];
+  
+//   // Ask 53 week question only if we need to implement logic (kept for consistency)
+//   // The VBA for this specific sub didn't explicitly hide row 53/56, but we'll keep the object structure.
+  
+//   sheets.forEach(config => {
+//     const sheet = ss.getSheetByName(config.name);
+//     if (!sheet) {
+//       console.warn(`Sheet ${config.name} not found. Skipping.`);
+//       return;
+//     }
+    
+//     // Pass 'kwValue' directly to footer logic
+//     processSheetClone(ss, sheet, folder, config, kwValue);
+//   });
+
+//   ss.getSheetByName("EXPORT").activate();
+//   ui.alert("Erfolg!", "Die Dateien wurden erfolgreich erstellt!", ui.ButtonSet.OK);
+// }
+
+// /**
+//  * CORE LOGIC: CLONE & TRIM
+//  */
+// function processSheetClone(ss, sourceSheet, folder, config, kwValue) {
+  
+//   // 1. Clone the Sheet
+//   const tempSheet = sourceSheet.copyTo(ss);
+//   tempSheet.setName("Temp_" + new Date().getTime());
+  
+//   try {
+//     // 2. Remove Drawings
+//     const drawings = tempSheet.getDrawings();
+//     drawings.forEach(d => d.remove());
+
+//     // 3. Trim Columns (Right then Left)
+//     const maxCols = tempSheet.getMaxColumns();
+//     if (maxCols > config.keepEndCol) {
+//       tempSheet.deleteColumns(config.keepEndCol + 1, maxCols - config.keepEndCol);
+//     }
+//     if (config.keepStartCol > 1) {
+//       tempSheet.deleteColumns(1, config.keepStartCol - 1);
+//     }
+
+//     // 4. Insert Sidebar (New Col 1)
+//     tempSheet.insertColumnBefore(1);
+//     tempSheet.setColumnWidth(1, 100);
+
+//     // 5. Sidebar Text (If any)
+//     if (config.sidebarText) {
+//       const sidebarRange = tempSheet.getRange(5, 1, 30, 1);
+//       sidebarRange.merge();
+//       sidebarRange.setValue(config.sidebarText);
+//       sidebarRange.setVerticalAlignment("top").setHorizontalAlignment("left").setFontSize(8).setWrap(true);
+//     }
+
+//     // 6. Footer Logic
+//     // Find last actual data row. Since we cloned, we scan up from bottom or assume a safe buffer.
+//     // For these reports, data is dynamic. We'll use getLastRow() on the TEMP sheet.
+//     const lastDataRow = tempSheet.getLastRow(); 
+//     const footerRow = lastDataRow + 40; // 40 Rows gap
+
+//     const dataCols = config.keepEndCol - config.keepStartCol + 1; 
+
+//     // Calculate Footer Positions
+//     const midIndex = Math.ceil(dataCols / 2);
+    
+//     const colErsteller = 2; // Always first data column (Col B)
+//     const colKW = 1 + midIndex;
+
+//     // Set Text
+//     const cellErsteller = tempSheet.getRange(footerRow, colErsteller);
+//     cellErsteller.setValue("Ersteller: Kundenservice Einkauf");
+//     cellErsteller.setHorizontalAlignment("left");
+//     cellErsteller.setFontFamily("Arial").setFontSize(10).setFontWeight("normal");
+
+//     const cellKW = tempSheet.getRange(footerRow, colKW);
+//     cellKW.setValue("Statistik KW " + kwValue);
+//     cellKW.setHorizontalAlignment("center");
+//     cellKW.setFontFamily("Arial").setFontSize(10).setFontWeight("normal");
+
+//     // 7. Auto-Expand Headers (Simulate Double Click)
+//     // Runs on rows 1-10
+//     const sheetId = tempSheet.getSheetId();
+//     const requests = [
+//       {
+//         "autoResizeDimensions": {
+//           "dimensions": { 
+//             "sheetId": sheetId, 
+//             "dimension": "ROWS", 
+//             "startIndex": 0, 
+//             "endIndex": 10 
+//           }
+//         }
+//       }
+//     ];
+//     Sheets.Spreadsheets.batchUpdate({ requests: requests }, ss.getId());
+//     SpreadsheetApp.flush();
+
+//     // 8. Export
+//     const filename = `${config.filename}.pdf`;
+    
+//     // Explicit Print Range to include footer
+//     // Range: A1 : (LastCol)(FooterRow)
+//     const totalCols = dataCols + 1; // Data + Sidebar
+//     const printRange = "r1=0&c1=0&r2=" + footerRow + "&c2=" + totalCols;
+    
+//     exportSheetToPdf(ss, tempSheet, folder, filename, printRange);
+
+//   } catch (e) {
+//     console.error(e);
+//     SpreadsheetApp.getUi().alert("Error: " + e.message);
+//   } finally {
+//     ss.deleteSheet(tempSheet);
+//   }
+// }
+
+// function exportSheetToPdf(ss, sheet, folder, filename, rangeParam) {
+//   const ssId = ss.getId();
+//   const sheetId = sheet.getSheetId();
+  
+//   const url = "https://docs.google.com/spreadsheets/d/" + ssId + "/export" +
+//     "?format=pdf" +
+//     "&size=A4" +
+//     "&portrait=false" +      // Landscape often better for wide sorting sheets (A-R), change to true if Portrait required
+//     "&fitw=true" +
+//     "&gridlines=false" +
+//     "&printtitle=false" +
+//     "&sheetnames=false" +
+//     "&pagenumbers=false" +
+//     "&gid=" + sheetId + 
+//     "&" + rangeParam; 
+
+//   const token = ScriptApp.getOAuthToken();
+//   const blob = UrlFetchApp.fetch(url, { headers: { 'Authorization': 'Bearer ' + token } }).getBlob().setName(filename);
+//   folder.createFile(blob);
+// }
+
+// function getFolder(url, ss) {
+//   try {
+//     if (url && String(url).includes("drive.google.com")) {
+//       const match = url.match(/[-\w]{25,}/);
+//       if (match) return DriveApp.getFolderById(match[0]);
+//     }
+//   } catch (e) {}
+//   const parents = DriveApp.getFileById(ss.getId()).getParents();
+//   return parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+// }
+
+// /**
+//  * SERVER SIDE: Generate 3 Parts & Send to Client for Merging
+//  */
+
+// function openSortimentswunscheDialog() {
+//   const html = HtmlService.createHtmlOutputFromFile('sortimentswunche_pdf_gen')
+//       .setWidth(500)
+//       .setHeight(400);
+//   SpreadsheetApp.getUi().showModalDialog(html, 'Generating & Merging PDFs...');
+// }
+
+// /**
+//  * Generates all 3 PDFs as Base64 and returns them to the client
+//  */
+// function getPdfDataForMerging() {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const year = new Date().getFullYear();
+
+//   // --- CONFIGURATION ---
+//   const filenameSheet = ss.getSheetByName("Allgemeine Sortimentswünsche");
+//   const kwValue = filenameSheet ? filenameSheet.getRange("J7").getValue() : "XX";
+  
+//   const folderUrl = ss.getSheetByName("EXPORT").getRange("D4").getValue();
+//   let folder = getFolder(folderUrl, ss);
+//   const folderId = folder.getId();
+
+//   // 1. Food (Part 1)
+//   const configFood = {
+//     name: "Food Sortimentswünsche",
+//     keepStartCol: 1, keepEndCol: 18, 
+//     titleText: `Mehrfach angeforderte Sortimentswünsche Food ${year}`,
+//     filename: `temp_part1`
+//   };
+
+//   // 2. Änderungswünsche (Part 2)
+//   const configAenderung = {
+//     name: "Änderungswünsche Sortierung",
+//     keepStartCol: 1, keepEndCol: 18,
+//     titleText: `Änderungswünsche Sortierung Food ${year}`,
+//     filename: `temp_part2`
+//   };
+
+//   // 3. Allgemeine (Part 3)
+//   const configAllg = {
+//     name: "Allgemeine Sortimentswünsche",
+//     keepStartCol: 1, keepEndCol: 11,
+//     titleText: `Allgemeine Sortimentswünsche Food ${year}`,
+//     filename: `temp_part3`
+//   };
+
+//   // --- PROCESS ALL 3 PARTS ---
+//   const blob1 = processSheetClone(ss, configFood, kwValue);
+//   const blob2 = processSheetClone(ss, configAenderung, kwValue);
+//   const blob3 = processSheetClone(ss, configAllg, kwValue);
+
+//   if (!blob1 || !blob2 || !blob3) {
+//     throw new Error("Could not generate one or more sheets. Check sheet names.");
+//   }
+
+//   return {
+//     part1: Utilities.base64Encode(blob1.getBytes()),
+//     part2: Utilities.base64Encode(blob2.getBytes()),
+//     part3: Utilities.base64Encode(blob3.getBytes()),
+//     filename: `02_Statistik_Food_Sortimentswünsche_KW${kwValue}_DE.pdf`,
+//     folderId: folderId
+//   };
+// }
+
+// function saveMergedPdfToDrive(base64Data, filename, folderId) {
+//   const folder = DriveApp.getFolderById(folderId);
+//   const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), MimeType.PDF, filename);
+//   folder.createFile(blob);
+//   return "Done";
+// }
+
+// // --- SHARED HELPER: CLONE & FORMAT ---
+
+// function processSheetClone(ss, config, kwValue) {
+//   const sourceSheet = ss.getSheetByName(config.name);
+//   if (!sourceSheet) return null;
+
+//   const tempSheet = sourceSheet.copyTo(ss);
+//   tempSheet.setName("Temp_" + new Date().getTime());
+  
+//   try {
+//     // 1. Unfreeze
+//     tempSheet.setFrozenRows(0);
+//     tempSheet.setFrozenColumns(0);
+
+//     // 2. Remove Drawings
+//     const drawings = tempSheet.getDrawings();
+//     drawings.forEach(d => d.remove());
+
+//     // 3. Trim Columns
+//     const maxCols = tempSheet.getMaxColumns();
+//     if (maxCols > config.keepEndCol) {
+//       tempSheet.deleteColumns(config.keepEndCol + 1, maxCols - config.keepEndCol);
+//     }
+//     if (config.keepStartCol > 1) {
+//       tempSheet.deleteColumns(1, config.keepStartCol - 1);
+//     }
+
+//     // 4. Insert Sidebar
+//     tempSheet.insertColumnBefore(1);
+//     tempSheet.setColumnWidth(1, 20);
+
+//     // 5. Insert Title
+//     tempSheet.insertRowsBefore(1, 4);
+//     const dataCols = config.keepEndCol - config.keepStartCol + 1;
+    
+//     // Robust Title Merge (Full Width)
+//     const titleRange = tempSheet.getRange(2, 2, 1, dataCols);
+//     titleRange.merge();
+//     titleRange.setValue(config.titleText);
+//     titleRange.setFontWeight("bold");
+//     titleRange.setFontSize(14);
+//     titleRange.setFontFamily("Arial");
+//     titleRange.setHorizontalAlignment("center");
+//     titleRange.setVerticalAlignment("middle");
+//     titleRange.setBackground(null); 
+//     tempSheet.setRowHeight(2, 40); 
+
+//     // 6. SMART FOOTER LOGIC (Bottom of Page Calculation)
+//     const ROWS_PER_PAGE = 38; // Adjusted for Title insertion
+//     const lastDataRow = tempSheet.getLastRow();
+    
+//     // Calculate which page number the data ends on (1, 2, etc)
+//     const pageNum = Math.ceil(lastDataRow / ROWS_PER_PAGE);
+    
+//     // Target the bottom of that page
+//     let targetFooterRow = (pageNum * ROWS_PER_PAGE) - 2;
+
+//     // Safety: If data ends too close to the bottom (within 5 rows), push to next page
+//     if ((targetFooterRow - lastDataRow) < 5) {
+//       targetFooterRow += ROWS_PER_PAGE;
+//     }
+
+//     // Insert Footer
+//     const footerRow = targetFooterRow;
+//     const midIndex = Math.ceil(dataCols / 2);
+//     const colErsteller = 2; 
+//     const colKW = 1 + midIndex;
+
+//     const cellErsteller = tempSheet.getRange(footerRow, colErsteller);
+//     cellErsteller.setValue("Ersteller: Kundenservice Einkauf");
+//     cellErsteller.setHorizontalAlignment("left");
+//     cellErsteller.setFontFamily("Arial").setFontSize(10).setFontWeight("normal");
+
+//     const cellKW = tempSheet.getRange(footerRow, colKW);
+//     cellKW.setValue("Statistik KW " + kwValue);
+//     cellKW.setHorizontalAlignment("center");
+//     cellKW.setFontFamily("Arial").setFontSize(10).setFontWeight("normal");
+
+//     // Clean Footer
+//     const footerCleanRange = tempSheet.getRange(footerRow, 2, 1, dataCols);
+//     footerCleanRange.setBackground(null);
+//     footerCleanRange.setBorder(false, false, false, false, false, false);
+
+//     SpreadsheetApp.flush();
+
+//     // 7. Auto-Expand Headers
+//     const sheetId = tempSheet.getSheetId();
+//     const requests = [{
+//       "autoResizeDimensions": {
+//         "dimensions": { "sheetId": sheetId, "dimension": "ROWS", "startIndex": 0, "endIndex": 20 }
+//       }
+//     }];
+//     Sheets.Spreadsheets.batchUpdate({ requests: requests }, ss.getId());
+//     SpreadsheetApp.flush();
+
+//     // 8. Generate Blob
+//     const totalCols = dataCols + 1; 
+//     const printRange = "r1=0&c1=0&r2=" + footerRow + "&c2=" + totalCols;
+    
+//     return generatePdfBlob(ss, tempSheet, config.filename, printRange);
+
+//   } catch (e) {
+//     console.error(e);
+//     return null;
+//   } finally {
+//     ss.deleteSheet(tempSheet);
+//   }
+// }
+
+// function generatePdfBlob(ss, sheet, filename, rangeParam) {
+//   const ssId = ss.getId();
+//   const sheetId = sheet.getSheetId();
+//   const url = "https://docs.google.com/spreadsheets/d/" + ssId + "/export" +
+//     "?format=pdf&size=A4&portrait=false&fitw=true&gridlines=false&printtitle=false&sheetnames=false&pagenumbers=false&gid=" + sheetId + "&" + rangeParam; 
+//   const token = ScriptApp.getOAuthToken();
+//   return UrlFetchApp.fetch(url, { headers: { 'Authorization': 'Bearer ' + token } }).getBlob().setName(filename + ".pdf");
+// }
+
+// function getFolder(url, ss) {
+//   try {
+//     if (url && String(url).includes("drive.google.com")) {
+//       const match = url.match(/[-\w]{25,}/);
+//       if (match) return DriveApp.getFolderById(match[0]);
+//     }
+//   } catch (e) {}
+//   const parents = DriveApp.getFileById(ss.getId()).getParents();
+//   return parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+// }
+
+
+/**
+ * 🖨️ EXPORT SORTIMENTSWÜNSCHE GESAMT (Merged PDF)
+ * Creates a single, merged landscape PDF from up to 3 sheets.
+ * Dynamically skips sheets that contain no data.
+ */
+
+function export_sortimentswuensche_gesamt() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const sheetExport = ss.getSheetByName("EXPORT");
+
+  if (!sheetExport) {
+    ui.alert("Fehler", "Tabellenblatt 'EXPORT' nicht gefunden.", ui.ButtonSet.OK);
+    return;
+  }
+
+  // --- 1. RESOLVE FOLDER ---
+  const folderUrl = sheetExport.getRange("D4").getValue().toString().trim();
+  let folderId = null;
+  try {
+    const match = folderUrl.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    folderId = match ? match[1] : folderUrl;
+    DriveApp.getFolderById(folderId); 
+  } catch (e) {
+    ui.alert("Ordner Fehler", "Der Zielordner konnte nicht gefunden werden.", ui.ButtonSet.OK);
+    return;
+  }
+
+  // Get KW explicitly from Allgemeine Sortimentswünsche as per VBA logic
+  const allgSheet = ss.getSheetByName("Allgemeine Sortimentswünsche");
+  const kwValue = allgSheet ? allgSheet.getRange("J7").getValue() : "XX";
+
+  ss.toast("Prüfe Tabellenblätter... Bitte warten.", "Schritt 1/3", 10);
+
+  // --- 2. FETCH DASHBOARD DATA (B31:D144) ---
+  const dashboardData = sheetExport.getRange("B31:D144").getValues();
+  function getDashboardText(key) {
+    const row = dashboardData.find(r => r[0] === key);
+    return row && row[2] ? row[2].toString().trim() : "";
+  }
+
+  // --- 3. CONFIGURATIONS ---
+  const configs = [
+    {
+      name: "Food Sortimentswünsche",
+      dataRowStart: 6, // Rows below 5 are data
+      keepCols: 17,    // Keep A-R
+      keys: {
+        htl: "Food Sortimentswünsche header left", htc: "Food Sortimentswünsche header center", htr: "Food Sortimentswünsche header right",
+        fbl: "Food Sortimentswünsche footer left", fbc: "Food Sortimentswünsche footer center", fbr: "Food Sortimentswünsche footer right"
+      }
+    },
+    {
+      name: "Änderungswünsche Sortierung",
+      dataRowStart: 6, // Rows below 5 are data
+      keepCols: 17,    // Keep A-R
+      keys: {
+        htl: "Änderungswünsche Sortierung header left", htc: "Änderungswünsche Sortierung header center", htr: "Änderungswünsche Sortierung header right",
+        fbl: "Änderungswünsche Sortierung footer left", fbc: "Änderungswünsche Sortierung footer center", fbr: "Änderungswünsche Sortierung footer right"
+      }
+    },
+    {
+      name: "Allgemeine Sortimentswünsche",
+      dataRowStart: 8, // Rows below 7 are data
+      keepCols: 11,    // Keep A-K
+      keys: {
+        htl: "Allgemeine Sortimentswünsche header left", htc: "Allgemeine Sortimentswünsche header center", htr: "Allgemeine Sortimentswünsche header right",
+        fbl: "Allgemeine Sortimentswünsche footer left", fbc: "Allgemeine Sortimentswünsche footer center", fbr: "Allgemeine Sortimentswünsche footer right"
+      }
+    }
+  ];
+
+  const token = ScriptApp.getOAuthToken();
+  const pdfParts = [];
+  const tempSheetIds = [];
+
+  // --- 4. PREPARE BASE PDFs (Only for sheets with data) ---
+  for (const config of configs) {
+    const liveSheet = ss.getSheetByName(config.name);
+    if (!liveSheet) continue;
+
+    // Check if sheet actually has data (mimicking VBA's check)
+    const lastRow = liveSheet.getLastRow();
+    if (lastRow < config.dataRowStart) {
+      console.log(`Skipping ${config.name} - No Data`);
+      continue; 
+    }
+
+    // Clone & Trim
+    const uniqueSuffix = Math.floor(Math.random() * 1000000);
+    const tempSheet = liveSheet.copyTo(ss);
+    tempSheet.setName("Temp_Merge_" + uniqueSuffix);
+    const sheetId = tempSheet.getSheetId();
+    tempSheetIds.push({ id: sheetId, name: tempSheet.getName() });
+
+    try {
+      // Clear UI elements
+      const drawings = tempSheet.getDrawings();
+      if (drawings) drawings.forEach(d => d.remove());
+
+      // Trim extra columns
+      const maxCols = tempSheet.getMaxColumns();
+      if (maxCols > config.keepCols) tempSheet.deleteColumns(config.keepCols + 1, maxCols - config.keepCols);
+
+      SpreadsheetApp.flush(); 
+      Utilities.sleep(1500); 
+
+      // Fetch Base PDF (LANDSCAPE mode via portrait=false)
+      const url = `https://docs.google.com/spreadsheets/d/${ss.getId()}/export?` +
+        `format=pdf&gid=${sheetId}` +
+        `&size=A4&portrait=false&fitw=true&gridlines=false` +
+        `&printtitle=false&sheetnames=false&pagenum=UNDEFINED` +
+        `&horizontal_alignment=CENTER` + 
+        `&top_margin=0.787&bottom_margin=0.709&left_margin=0.4&right_margin=0.4`;
+
+      const responseAPI = UrlFetchApp.fetch(url, {
+        headers: { 'Authorization': 'Bearer ' + token },
+        muteHttpExceptions: true
+      });
+
+      if (responseAPI.getResponseCode() === 200) {
+        const base64Pdf = Utilities.base64Encode(responseAPI.getBlob().getBytes());
+        
+        pdfParts.push({
+          sheetName: config.name,
+          base64: base64Pdf,
+          layout: {
+            htl: getDashboardText(config.keys.htl),
+            htc: getDashboardText(config.keys.htc),
+            htr: getDashboardText(config.keys.htr),
+            fbl: getDashboardText(config.keys.fbl),
+            fbc: getDashboardText(config.keys.fbc),
+            fbr: getDashboardText(config.keys.fbr)
+          }
         });
       }
+    } catch (e) {
+      console.error(e);
     }
   }
 
-  const records = {};
-  const startRow = headerRowIndex + 2;
-
-  for (let r = startRow; r < data.length; r++) {
-    const nameCell = String(data[r][0]);
-
-    if (nameCell.includes("Lidl Kundenservice DE")) {
-      const planoCleanName = normalizeStr(nameCell.split('\n')[0]);
-
-      if (ignoreSet.has(planoCleanName)) {
-        continue;
-      }
-
-      const mappedName = nameMap[planoCleanName] || planoCleanName;
-      const assignedTeam = localTeamMap[mappedName] || localTeamMap[planoCleanName] || teamMap[mappedName];
-
-      if (!assignedTeam) {
-        unmappedEmployees.add(planoCleanName);
-      }
-
-      const differenzVal = parseGermanFloat(data[r][differenzColIndex]);
-      const isthVal = parseGermanFloat(data[r][isthColIndex]);
-      const vertragHVal = parseGermanFloat(data[r][vertragColIndex]);
-
-      for (let dc of dateColumns) {
-        const dayValueInNameRow = String(data[r][dc.colIndex]).trim();
-        const upperDayVal = dayValueInNameRow.toUpperCase();
-
-        const recKey = `${dc.date}|${kw}|${mappedName}`;
-        const currentSollVal = dc.isSaturday ? isthVal : vertragHVal;
-
-        if (!records[recKey]) {
-          records[recKey] = {
-            date: dc.date,
-            kw: kw,
-            name: mappedName,
-            skills: {},
-            differenz: differenzVal,
-            soll: currentSollVal,
-            ist: 0,
-            urlaub: 0,
-            abw: 0,
-            isAnw: false,
-            schicht: dayValueInNameRow,
-            team: assignedTeam || "Unbekannt"
-          };
-        }
-
-        let isFullDayAbsence = false;
-        const isAusgleichstag = upperDayVal === "-" && vertragHVal > 0 && isthVal === 0;
-
-        if (
-          upperDayVal.includes("URLAUB") ||
-          upperDayVal.includes("ABW") ||
-          upperDayVal.includes("ÜBERSTUNDEN") ||
-          upperDayVal.includes("WUNSCHFREI") ||
-          isAusgleichstag
-        ) {
-          const isUrlaub = upperDayVal.includes("URLAUB");
-          const isUeberstunden = upperDayVal.includes("ÜBERSTUNDEN");
-          const isWunschfrei = upperDayVal.includes("WUNSCHFREI");
-
-          let matchedPlanoSkill = "ABW";
-
-          if (isUrlaub) matchedPlanoSkill = "Urlaub";
-          if (isUeberstunden) matchedPlanoSkill = "Überstundenfrei";
-          if (isWunschfrei) matchedPlanoSkill = "Wunschfrei";
-          if (isAusgleichstag) matchedPlanoSkill = "Ausgleichstag";
-
-          const dbSkill = skillMap[matchedPlanoSkill] || matchedPlanoSkill;
-
-          if (!skillMap[matchedPlanoSkill] && !isAusgleichstag) {
-            unmappedSkills.add(matchedPlanoSkill);
-          }
-
-          let hoursToUse = ((isUrlaub || isUeberstunden || isWunschfrei) && !dc.isSaturday)
-            ? vertragHVal
-            : isthVal;
-
-          if (isAusgleichstag) {
-            hoursToUse = vertragHVal;
-            records[recKey].soll = 0;
-          }
-
-          records[recKey].skills[dbSkill] = (records[recKey].skills[dbSkill] || 0) + hoursToUse;
-
-          isFullDayAbsence = true;
-
-          if (isUeberstunden || isWunschfrei || isAusgleichstag) {
-            records[recKey].ist = 0;
-          } else {
-            records[recKey].ist = isthVal;
-          }
-        } else {
-          records[recKey].ist = isthVal;
-        }
-
-        if (upperDayVal.includes("ANW") || upperDayVal === "ANW") {
-          records[recKey].isAnw = true;
-        }
-
-        if (!isFullDayAbsence && r + 1 < data.length) {
-          const detailRow = data[r + 1];
-          const detailCell = String(detailRow[dc.colIndex]);
-
-          if (!detailCell || detailCell.trim() === "") {
-            continue;
-          }
-
-          const lines = detailCell.split('\n').map(l => l.trim());
-          let currentTimeRange = null;
-
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-
-            if (line.match(/^\d{2}:\d{2}-\d{2}:\d{2}/)) {
-              currentTimeRange = line.split(' ')[0];
-            } else if (currentTimeRange) {
-              let matchedDbSkill = null;
-
-              for (const planoSkill of planoSkillsSorted) {
-                if (normalizeStr(line).includes(planoSkill)) {
-                  matchedDbSkill = skillMap[planoSkill];
-                  break;
-                }
-              }
-
-              if (matchedDbSkill) {
-                const hrs = calculateHours(currentTimeRange);
-                records[recKey].skills[matchedDbSkill] = (records[recKey].skills[matchedDbSkill] || 0) + hrs;
-              } else {
-                if (
-                  line &&
-                  line.trim().toUpperCase() !== "PAUSE" &&
-                  !line.toUpperCase().includes("PAUSE") &&
-                  line.trim().toUpperCase() !== "ANW"
-                ) {
-                  unmappedSkills.add(line.trim());
-                }
-              }
-
-              currentTimeRange = null;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  const results = [];
-  let addedRowsCount = 0;
-
-  for (const key in records) {
-    const rec = records[key];
-    const rowData = new Array(targetHeaders.length).fill("");
-
-    rowData[0] = rec.date;
-    rowData[1] = rec.kw;
-    rowData[2] = rec.name;
-
-    let hasSkillData = false;
-
-    for (const dbSkill in rec.skills) {
-      const colIndex = targetHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
-
-      if (colIndex !== -1) {
-        if (dbSkill.toUpperCase() === abwDbName) {
-          const totalMins = Math.round(rec.skills[dbSkill] * 60);
-          rowData[colIndex] = minutesToHHMM(totalMins);
-        } else {
-          rowData[colIndex] = rec.skills[dbSkill];
-        }
-
-        hasSkillData = true;
-      }
-    }
-
-    if (hasSkillData || rec.isAnw) {
-      const setVal = (headerName, val) => {
-        const idx = targetHeaders.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
-
-        if (idx !== -1) {
-          rowData[idx] = val;
-        }
-      };
-
-      setVal("DIFFERENZ", rec.differenz);
-      setVal("SOLL", minutesToHHMM(Math.round(rec.soll * 60)));
-      setVal("IST", rec.ist);
-      setVal("TEAM", rec.team);
-      setVal("SCHICHT", rec.schicht);
-
-      results.push(rowData);
-      addedRowsCount++;
-    }
-  }
-
-  const lastRow = targetSheet.getLastRow();
-
-  if (lastRow > 1) {
-    targetSheet.getRange(2, 1, lastRow - 1, targetSheet.getLastColumn()).clearContent();
-  }
-
-  if (results.length > 0) {
-    targetSheet.getRange(2, 1, results.length, results[0].length).setValues(results);
-  }
-
-  const gesamtSheetName = "Datenbank_Gesamt";
-  let gesamtSheet = ss.getSheetByName(gesamtSheetName);
-  const gesamtHeaders = [...targetHeaders];
-  gesamtHeaders[2] = "Team";
-
-  if (!gesamtSheet) {
-    gesamtSheet = ss.insertSheet(gesamtSheetName);
-    gesamtSheet.appendRow(gesamtHeaders);
-    gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setFontWeight("bold");
+  // --- 5. OPEN HTML FRONTEND ---
+  if (pdfParts.length > 0) {
+    const finalFilename = `02_Statistik_Food_Sortimentswünsche_KW${kwValue}_DE.pdf`;
+    
+    const htmlTemplate = HtmlService.createTemplateFromFile('multi-page-support-pdf-lib');
+    htmlTemplate.payload = JSON.stringify({ 
+      parts: pdfParts, 
+      folderId: folderId, 
+      filename: finalFilename,
+      tempSheets: tempSheetIds 
+    });
+    
+    const htmlOutput = htmlTemplate.evaluate()
+      .setWidth(500)
+      .setHeight(300)
+      .setTitle('Merge & PDF Renderer');
+      
+    ui.showModalDialog(htmlOutput, 'Generiere zusammengeführtes PDF...');
   } else {
-    if (gesamtSheet.getLastColumn() < gesamtHeaders.length) {
-      gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setValues([gesamtHeaders]);
-      gesamtSheet.getRange(1, 1, 1, gesamtHeaders.length).setFontWeight("bold");
+    ui.alert("Hinweis", "Keine der ausgewählten Tabellen enthält Daten.", ui.ButtonSet.OK);
+    // Cleanup any empty temp sheets just in case
+    for (const ts of tempSheetIds) {
+      const sheet = ss.getSheetByName(ts.name);
+      if (sheet) ss.deleteSheet(sheet);
     }
-  }
-
-  const existingGesamtData = gesamtSheet.getDataRange().getValues();
-  const existingKeys = new Set();
-
-  for (let i = 1; i < existingGesamtData.length; i++) {
-    const d = existingGesamtData[i][0];
-    const dStr = (d instanceof Date)
-      ? Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy")
-      : String(d);
-
-    existingKeys.add(`${dStr}|${String(existingGesamtData[i][2]).trim()}`);
-  }
-
-  const overlapDates = new Set();
-
-  for (const key in records) {
-    const tName = records[key].team || "Ohne Team";
-
-    if (existingKeys.has(`${records[key].date}|${tName}`)) {
-      overlapDates.add(records[key].date);
-    }
-  }
-
-  if (overlapDates.size > 0) {
-    const ui = SpreadsheetApp.getUi();
-    const datesStr = Array.from(overlapDates).join(", ");
-
-    const res = ui.alert(
-      "Duplikate gefunden",
-      `Für das/die Datum(e) ${datesStr} existieren bereits Einträge in 'Datenbank_Gesamt'.\n\nSollen die vorhandenen Einträge für diese Tage überschrieben und neu importiert werden?`,
-      ui.ButtonSet.YES_NO
-    );
-
-    const overwrite = res === ui.Button.YES;
-
-    if (overwrite) {
-      for (let i = existingGesamtData.length - 1; i >= 1; i--) {
-        const d = existingGesamtData[i][0];
-        const dStr = (d instanceof Date)
-          ? Utilities.formatDate(d, Session.getScriptTimeZone(), "dd.MM.yyyy")
-          : String(d);
-
-        if (overlapDates.has(dStr)) {
-          gesamtSheet.deleteRow(i + 1);
-        }
-      }
-
-      for (const key of existingKeys) {
-        if (overlapDates.has(key.split('|')[0])) {
-          existingKeys.delete(key);
-        }
-      }
-    }
-  }
-
-  const teamRecords = {};
-
-  for (const key in records) {
-    const rec = records[key];
-    const teamName = rec.team || "Ohne Team";
-    const teamKey = `${rec.date}|${rec.kw}|${teamName}`;
-
-    if (Object.keys(rec.skills).length === 0 && !rec.isAnw) {
-      continue;
-    }
-
-    if (!teamRecords[teamKey]) {
-      teamRecords[teamKey] = {
-        date: rec.date,
-        kw: rec.kw,
-        team: teamName,
-        skills: {},
-        differenz: 0,
-        sollMins: 0,
-        ist: 0
-      };
-    }
-
-    for (const dbSkill in rec.skills) {
-      teamRecords[teamKey].skills[dbSkill] = (teamRecords[teamKey].skills[dbSkill] || 0) + rec.skills[dbSkill];
-    }
-
-    teamRecords[teamKey].differenz += rec.differenz || 0;
-    teamRecords[teamKey].sollMins += Math.round((rec.soll || 0) * 60);
-    teamRecords[teamKey].ist += rec.ist || 0;
-  }
-
-  const teamResults = [];
-  let addedTeamRowsCount = 0;
-
-  for (const teamKey in teamRecords) {
-    const tr = teamRecords[teamKey];
-
-    if (existingKeys.has(`${tr.date}|${tr.team}`)) {
-      continue;
-    }
-
-    const rowData = new Array(gesamtHeaders.length).fill("");
-
-    rowData[0] = tr.date;
-    rowData[1] = tr.kw;
-    rowData[2] = tr.team;
-
-    for (const dbSkill in tr.skills) {
-      const colIndex = gesamtHeaders.findIndex(h => String(h).trim().toUpperCase() === dbSkill.toUpperCase());
-
-      if (colIndex !== -1) {
-        if (dbSkill.toUpperCase() === abwDbName) {
-          const totalMins = Math.round(tr.skills[dbSkill] * 60);
-          rowData[colIndex] = minutesToHHMM(totalMins);
-        } else {
-          rowData[colIndex] = tr.skills[dbSkill];
-        }
-      }
-    }
-
-    const setTeamVal = (headerName, val) => {
-      const idx = gesamtHeaders.findIndex(h => String(h).trim().toUpperCase() === headerName.toUpperCase());
-
-      if (idx !== -1) {
-        rowData[idx] = val;
-      }
-    };
-
-    setTeamVal("DIFFERENZ", tr.differenz);
-    setTeamVal("SOLL", minutesToHHMM(tr.sollMins));
-    setTeamVal("IST", tr.ist);
-
-    teamResults.push(rowData);
-    addedTeamRowsCount++;
-  }
-
-  if (teamResults.length > 0) {
-    const lastGesamtRow = Math.max(gesamtSheet.getLastRow(), 1);
-    gesamtSheet.getRange(lastGesamtRow + 1, 1, teamResults.length, teamResults[0].length).setValues(teamResults);
-  }
-
-  let dashboardDate = "";
-  const fileName = file.getName();
-  const dateMatch = fileName.match(/\d{2}\.\d{2}\.\d{2,4}/);
-
-  if (dateMatch) {
-    dashboardDate = dateMatch[0];
-  } else if (dateColumns.length > 0) {
-    dashboardDate = dateColumns[0].date;
-  }
-
-  if (dashboardDate) {
-    const dashboardSheet = ss.getSheetByName("Dashboard");
-
-    if (dashboardSheet) {
-      dashboardSheet.getRange("B2").setValue(dashboardDate);
-      dashboardSheet.getRange("C13").setValue(dashboardDate);
-      dashboardSheet.getRange("C113").setValue(dashboardDate);
-
-      if (kw) {
-        dashboardSheet.getRange("C30").setValue(kw);
-        dashboardSheet.getRange("C130").setValue(kw);
-      }
-
-      const parts = dashboardDate.split(".");
-
-      if (parts.length === 3) {
-        const monthDate = "01." + parts[1] + "." + parts[2];
-
-        dashboardSheet.getRange("C48").setValue(monthDate);
-        dashboardSheet.getRange("C147").setValue(monthDate);
-      }
-    }
-  }
-
-  const errorSheetName = "Fehlende_Zuordnungen";
-  let errorSheet = ss.getSheetByName(errorSheetName);
-
-  if (!errorSheet) {
-    errorSheet = ss.insertSheet(errorSheetName);
-  }
-
-  errorSheet.clear();
-
-  const errorData = [["Typ", "Fehlender Eintrag (Name / Tätigkeit)"]];
-
-  unmappedEmployees.forEach(emp => errorData.push(["Mitarbeiter ohne Team", emp]));
-  unmappedSkills.forEach(skill => errorData.push(["Unbekannte Tätigkeit (Plano)", skill]));
-
-  if (errorData.length > 1) {
-    errorSheet.getRange(1, 1, errorData.length, 2).setValues(errorData);
-    errorSheet.getRange(1, 1, 1, 2).setFontWeight("bold");
-    errorSheet.autoResizeColumns(1, 2);
-
-    return `Erfolg! ${addedRowsCount} Mitarbeiter aktualisiert und ${addedTeamRowsCount} neue Teamsätze geschrieben.
-
-WICHTIG: Es fehlen ${unmappedEmployees.size} Team-Zuordnungen und ${unmappedSkills.size} Tätigkeiten. Bitte prüfe den Reiter '${errorSheetName}'.`;
-  }
-
-  errorSheet.appendRow(["Perfekt! Alle Mitarbeiter und Tätigkeiten konnten erfolgreich zugeordnet werden."]);
-
-  return `Erfolg! ${addedRowsCount} Mitarbeiter aktualisiert und ${addedTeamRowsCount} neue Teamsätze in Datenbank_Gesamt geschrieben. Alles wurde sauber gemappt!`;
-}
-
-/**
- * Hilfsfunktion zur Normalisierung von Strings.
- */
-function normalizeStr(str) {
-  if (!str) return "";
-
-  return String(str).trim().replace(/\s+/g, ' ');
-}
-
-/**
- * Hilfsfunktion zur Berechnung der Dezimalstunden aus einem String wie "07:00-09:15".
- */
-function calculateHours(timeRange) {
-  try {
-    const [start, end] = timeRange.split('-');
-    const [h1, m1] = start.split(':').map(Number);
-    const [h2, m2] = end.split(':').map(Number);
-
-    let diffMinutes = (h2 * 60 + m2) - (h1 * 60 + m1);
-
-    if (diffMinutes < 0) {
-      diffMinutes += 24 * 60;
-    }
-
-    return diffMinutes / 60;
-  } catch (e) {
-    return 0;
   }
 }
 
 /**
- * Hilfsfunktion zum Umwandeln von Zahlen-Strings in Float-Zahlen.
+ * BACKEND CALLBACK: Saves the single merged PDF and cleans up.
  */
-function parseGermanFloat(str) {
-  if (!str) return 0;
+function saveMergedPdfToDrive_new(base64Data, filename, folderId, tempSheets) {
+  const folder = DriveApp.getFolderById(folderId);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // Save single PDF
+  const decodedBytes = Utilities.base64Decode(base64Data);
+  const blob = Utilities.newBlob(decodedBytes, 'application/pdf', filename);
+  folder.createFile(blob);
 
-  const s = String(str).trim().replace(',', '.');
-  const f = parseFloat(s);
-
-  return isNaN(f) ? 0 : f;
-}
-
-/**
- * Hilfsfunktion zum Umwandeln von Dezimalstunden in das Format HH:MM.
- */
-function toHHMM(decimalHours) {
-  if (!decimalHours) return "0:00";
-
-  const sign = decimalHours < 0 ? "-" : "";
-  const absDec = Math.abs(decimalHours);
-
-  let h = Math.floor(absDec);
-  let m = Math.round((absDec - h) * 60);
-
-  if (m >= 60) {
-    h += 1;
-    m -= 60;
+  // Clean up Temp Sheets
+  for (const ts of tempSheets) {
+    const sheet = ss.getSheetByName(ts.name);
+    if (sheet) ss.deleteSheet(sheet);
   }
 
-  const mStr = m < 10 ? "0" + m : m;
+  cleanUpOrphanedTempSheets();
 
-  return sign + h + ":" + mStr;
+  return true;
 }
+
+UPDATE_DECKBLATT_FOOD_FORMULAS.gs
 
 /**
- * Hilfsfunktion, die addierte, exakte Minuten in das Format HH:MM umwandelt.
+ * 🔄 Dynamically Updates Formulas on the 'Deckblatt Food' Sheet.
+ * This version correctly creates formulas that REFERENCE the cell containing the URL
+ * in the 'Einstellungen' sheet, rather than embedding the URL string itself.
+ * This is run from the runMisImportSmarter() function on the IMPORT_MIS_DATEN code page.
  */
-function minutesToHHMM(totalMinutes) {
-  if (!totalMinutes) return "0:00";
+function updateDeckblattFoodFormulas() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const deckblattSheet = ss.getSheetByName("Deckblatt Food");
+  const ui = SpreadsheetApp.getUi();
 
-  const sign = totalMinutes < 0 ? "-" : "";
-  const absMins = Math.abs(totalMinutes);
+  // --- 1. Validate that the necessary sheets exist ---
+  if (!settingsSheet) {
+    ui.alert('Error', 'Sheet "Einstellungen" could not be found. The script cannot continue.', ui.ButtonSet.OK);
+    return;
+  }
+  if (!deckblattSheet) {
+    ui.alert('Error', 'Sheet "Deckblatt Food" could not be found. The script cannot continue.', ui.ButtonSet.OK);
+    return;
+  }
 
-  const h = Math.floor(absMins / 60);
-  const m = Math.round(absMins % 60);
+  // --- 2. Find the correct row number ---
+  const settingsValues = settingsSheet.getDataRange().getValues();
+  const searchText = "Deckblatt Food";
+  let foundRowNumber = -1; // Use -1 to indicate "not found"
 
-  const mStr = m < 10 ? "0" + m : m;
+  // Loop through all rows to find thesearchText
+  for (let i = 0; i < settingsValues.length; i++) {
+    // Check if any cell in the current row contains the search text
+    if (settingsValues[i].some(cell => cell.toString().includes(searchText))) {
+      foundRowNumber = i + 1; // Get the actual sheet row number (1-based)
+      break; // Stop searching once the first match is found
+    }
+  }
 
-  return sign + h + ":" + mStr;
+  // --- 3. Proceed only if the row was found ---
+  if (foundRowNumber > -1) {
+    try {
+      // --- 4. Construct the cell reference and new formulas ---
+      const sheetName = "X8_weeks_Report_Deckblatt_DE";
+      // This creates the dynamic, absolute reference string, e.g., "Einstellungen!$F$7"
+      const urlCellReference = `Einstellungen!$F$${foundRowNumber}`;
+      
+      const newFormulaM4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));R4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!B:B");"";0;1))`;
+      const newFormulaN4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));S4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!C:C");"";0;1))`;
+      const newFormulaO4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));T4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!D:D");"";0;1))`;
+
+      // --- 5. Apply formulas to the top row AND auto-fill down to row 57 ---
+      deckblattSheet.getRange("M4").setFormula(newFormulaM4);
+      deckblattSheet.getRange("N4").setFormula(newFormulaN4);
+      deckblattSheet.getRange("O4").setFormula(newFormulaO4);
+
+      const sourceRange = deckblattSheet.getRange("M4:O4");
+      const destinationRange = deckblattSheet.getRange("M4:O57");
+      
+      sourceRange.autoFill(destinationRange, SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+      
+      //ui.alert('Success!', `The formulas in M4:O57 on "Deckblatt Food" have been updated to reference cell ${urlCellReference}.`, ui.ButtonSet.OK);
+      SpreadsheetApp.getActive().toast(`The formulas in M4:O57 on "Deckblatt Food" have been updated to reference cell ${urlCellReference}.`);
+
+    } catch (e) {
+      ui.alert('Formula Error', `Could not update the formulas. Error: ${e.message}`, ui.ButtonSet.OK);
+    }
+  } else {
+    // Show an error if the specific row wasn't found
+    ui.alert('Configuration Error', `Could not find a row containing "${searchText}" in the "Einstellungen" sheet. Please check the sheet configuration.`, ui.ButtonSet.OK);
+  }
 }
+
+UPDATE_DECKBLATT_NONFOOD_FORMULAS.gs
+
+/**
+ * 🔄 Dynamically Updates Formulas on the 'Deckblatt Nonfood' Sheet.
+ * This version correctly creates formulas that REFERENCE the cell containing the URL
+ * in the 'Einstellungen' sheet, rather than embedding the URL string itself.
+ * This is run from the runMisImportSmarter() function on the IMPORT_MIS_DATEN code page.
+ */
+function updateDeckblattNonFoodFormulas() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const deckblattSheet = ss.getSheetByName("Deckblatt Nonfood");
+  const ui = SpreadsheetApp.getUi();
+
+  // --- 1. Validate that the necessary sheets exist ---
+  if (!settingsSheet) {
+    ui.alert('Error', 'Sheet "Einstellungen" could not be found. The script cannot continue.', ui.ButtonSet.OK);
+    return;
+  }
+  if (!deckblattSheet) {
+    ui.alert('Error', 'Sheet "Deckblatt Nonfood" could not be found. The script cannot continue.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // --- 2. Find the correct row number ---
+  const settingsValues = settingsSheet.getDataRange().getValues();
+  const searchText = "Deckblatt NF";
+  let foundRowNumber = -1; // Use -1 to indicate "not found"
+
+  // Loop through all rows to find thesearchText
+  for (let i = 0; i < settingsValues.length; i++) {
+    // Check if any cell in the current row contains the search text
+    if (settingsValues[i].some(cell => cell.toString().includes(searchText))) {
+      foundRowNumber = i + 1; // Get the actual sheet row number (1-based)
+      break; // Stop searching once the first match is found
+    }
+  }
+
+  // --- 3. Proceed only if the row was found ---
+  if (foundRowNumber > -1) {
+    try {
+      // --- 4. Construct the cell reference and new formulas ---
+      const sheetName = "X8_weeks_Report_Deckblatt_DE";
+      // This creates the dynamic, absolute reference string, e.g., "Einstellungen!$F$7"
+      const urlCellReference = `Einstellungen!$F$${foundRowNumber}`;
+      
+      const newFormulaM4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));R4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!B:B");"";0;1))`;
+      const newFormulaN4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));S4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!C:C");"";0;1))`;
+      const newFormulaO4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));T4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!D:D");"";0;1))`;
+
+      // --- 5. Apply formulas to the top row AND auto-fill down to row 57 ---
+      deckblattSheet.getRange("M4").setFormula(newFormulaM4);
+      deckblattSheet.getRange("N4").setFormula(newFormulaN4);
+      deckblattSheet.getRange("O4").setFormula(newFormulaO4);
+
+      const sourceRange = deckblattSheet.getRange("M4:O4");
+      const destinationRange = deckblattSheet.getRange("M4:O57");
+      
+      sourceRange.autoFill(destinationRange, SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+      
+      //ui.alert('Success!', `The formulas in M4:O57 on "Deckblatt Nonfood" have been updated to reference cell ${urlCellReference}.`, ui.ButtonSet.OK);
+      SpreadsheetApp.getActive().toast(`The formulas in M4:O57 on "Deckblatt Nonfood" have been updated to reference cell ${urlCellReference}.`);
+
+    } catch (e) {
+      ui.alert('Formula Error', `Could not update the formulas. Error: ${e.message}`, ui.ButtonSet.OK);
+    }
+  } else {
+    // Show an error if the specific row wasn't found
+    ui.alert('Configuration Error', `Could not find a row containing "${searchText}" in the "Einstellungen" sheet. Please check the sheet configuration.`, ui.ButtonSet.OK);
+  }
+}
+
+UPDATE_DECKBLATT_O+G_FORMULAS.gs
+
+/**
+ * 🔄 Dynamically Updates Formulas on the 'Deckblatt O+G' Sheet.
+ * This version correctly creates formulas that REFERENCE the cell containing the URL
+ * in the 'Einstellungen' sheet, rather than embedding the URL string itself.
+ * This is run from the runMisImportSmarter() function on the IMPORT_MIS_DATEN code page.
+ */
+function updateDeckblatt_O_G_Formulas() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const deckblattSheet = ss.getSheetByName("Deckblatt O+G");
+  const ui = SpreadsheetApp.getUi();
+
+  // --- 1. Validate that the necessary sheets exist ---
+  if (!settingsSheet) {
+    ui.alert('Error', 'Sheet "Einstellungen" could not be found. The script cannot continue.', ui.ButtonSet.OK);
+    return;
+  }
+  if (!deckblattSheet) {
+    ui.alert('Error', 'Sheet "Deckblatt Nonfood" could not be found. The script cannot continue.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // --- 2. Find the correct row number ---
+  const settingsValues = settingsSheet.getDataRange().getValues();
+  const searchText = "Deckblatt O+G";
+  let foundRowNumber = -1; // Use -1 to indicate "not found"
+
+  // Loop through all rows to find thesearchText
+  for (let i = 0; i < settingsValues.length; i++) {
+    // Check if any cell in the current row contains the search text
+    if (settingsValues[i].some(cell => cell.toString().includes(searchText))) {
+      foundRowNumber = i + 1; // Get the actual sheet row number (1-based)
+      break; // Stop searching once the first match is found
+    }
+  }
+
+  // --- 3. Proceed only if the row was found ---
+  if (foundRowNumber > -1) {
+    try {
+      // --- 4. Construct the cell reference and new formulas ---
+      const sheetName = "X8_weeks_Report_Deckblatt_DE";
+      // This creates the dynamic, absolute reference string, e.g., "Einstellungen!$F$7"
+      const urlCellReference = `Einstellungen!$F$${foundRowNumber}`;
+      
+      const newFormulaM4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));R4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!B:B");"";0;1))`;
+      const newFormulaN4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));S4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!C:C");"";0;1))`;
+      const newFormulaO4 = `=IF(AND(J4<ISOWEEKNUM(TODAY()-56);YEAR(TODAY()-56)=YEAR(TODAY()));T4;XLOOKUP(L4;IMPORTRANGE(${urlCellReference};"'${sheetName}'!A:A");IMPORTRANGE(${urlCellReference};"'${sheetName}'!D:D");"";0;1))`;
+
+      // --- 5. Apply formulas to the top row AND auto-fill down to row 57 ---
+      deckblattSheet.getRange("M4").setFormula(newFormulaM4);
+      deckblattSheet.getRange("N4").setFormula(newFormulaN4);
+      deckblattSheet.getRange("O4").setFormula(newFormulaO4);
+
+      const sourceRange = deckblattSheet.getRange("M4:O4");
+      const destinationRange = deckblattSheet.getRange("M4:O57");
+      
+      sourceRange.autoFill(destinationRange, SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+      
+      //ui.alert('Success!', `The formulas in M4:O57 on "Deckblatt O+G" have been updated to reference cell ${urlCellReference}.`, ui.ButtonSet.OK);
+      SpreadsheetApp.getActive().toast(`The formulas in M4:O57 on "Deckblatt O+G" have been updated to reference cell ${urlCellReference}.`);
+
+    } catch (e) {
+      ui.alert('Formula Error', `Could not update the formulas. Error: ${e.message}`, ui.ButtonSet.OK);
+    }
+  } else {
+    // Show an error if the specific row wasn't found
+    ui.alert('Configuration Error', `Could not find a row containing "${searchText}" in the "Einstellungen" sheet. Please check the sheet configuration.`, ui.ButtonSet.OK);
+  }
+}
+
+
