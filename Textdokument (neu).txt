@@ -1,8 +1,3 @@
-ich habe hier ein appscript code von der IT bereitgestellt bekommen, es war mal eine Excel und wurde jetzt in Google Sheet migriert.
-
-Mir wurde nun aber von der Fachabteilung berichtet, dass der Report - Es sind mehrere Buttons die getätigt werden - nicht funktioniert, oft mals bricht er ab oder ist nicht vollständig. Es sind sehr viele scripts und für mich ist es schwierig zu debuggen.
-
-Kannst du alles auf google sheet und appscript optimierung so wie nach möglichen Fehlern die wie beschrieben passen könnten analysieren und beheben? Was fällt dir auf, was kann man direkt optimieren, wo sind Fehler
 
 DECKBLATT_DYNAMIC.gs
 
@@ -331,7 +326,7 @@ function export_deckblatt_new() {
     {
       liveName: "Deckblatt Food",
       filePrefixes: ["01_Statistik_ASM_Deckblatt_Food_KW"],
-      week53Row: 56, kwCell: "L1", trimLeft: 0, keepCols: 4,
+      week53Row: 56, kwCell: "L1", trimLeft: 17, keepCols: 4,
       keys: {
         htl: "Deckblatt Food header left", htc: "Deckblatt Food header center", htr: "Deckblatt Food header right",
         fbl: "Deckblatt Food footer left", fbc: "Deckblatt Food footer center", fbr: "Deckblatt Food footer right"
@@ -340,7 +335,7 @@ function export_deckblatt_new() {
     {
       liveName: "Deckblatt O+G",
       filePrefixes: ["01_Statistik_ASM_Deckblatt_O+G_KW"],
-      week53Row: 56, kwCell: "L1", trimLeft: 1, keepCols: 4,
+      week53Row: 56, kwCell: "L1", trimLeft: 17, keepCols: 4,
       keys: {
         htl: "Deckblatt O+G header left", htc: "Deckblatt O+G header center", htr: "Deckblatt O+G header right",
         fbl: "Deckblatt O+G footer left", fbc: "Deckblatt O+G footer center", fbr: "Deckblatt O+G footer right"
@@ -450,23 +445,27 @@ function export_deckblatt_new() {
 function saveFinalPdfsToDrive(finalJobs, folderId, tempSheets) {
   const folder = DriveApp.getFolderById(folderId);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let savedCount = 0;
   
-  // Save PDFs
-  for (const job of finalJobs) {
-    const decodedBytes = Utilities.base64Decode(job.finalBase64);
-    const blob = Utilities.newBlob(decodedBytes, 'application/pdf', job.filename);
-    folder.createFile(blob);
+  try {
+    // Save PDFs
+    for (const job of finalJobs) {
+      const decodedBytes = Utilities.base64Decode(job.finalBase64);
+      const blob = Utilities.newBlob(decodedBytes, 'application/pdf', job.filename);
+      folder.createFile(blob);
+      savedCount++;
+    }
+
+    return savedCount; // Returns count to frontend
+  } finally {
+    // Clean up Temp Sheets even if saving one PDF fails.
+    for (const ts of tempSheets || []) {
+      const sheet = ss.getSheetByName(ts.name);
+      if (sheet && ss.getSheets().length > 1) ss.deleteSheet(sheet);
+    }
+
+    cleanUpOrphanedTempSheets();
   }
-
-  // Clean up Temp Sheets
-  for (const ts of tempSheets) {
-    const sheet = ss.getSheetByName(ts.name);
-    if (sheet) ss.deleteSheet(sheet);
-  }
-
-  cleanUpOrphanedTempSheets();
-
-  return finalJobs.length; // Returns count to frontend
 }
 
 Dialog.html
@@ -521,8 +520,10 @@ Dialog.html
       const width = orientation === 'landscape' ? '11.69in' : '8.27in';
       const height = orientation === 'landscape' ? '8.27in' : '11.69in';
 
-      const headerHTML = `<div class="pdf-header">${parseVba(config.centerHeader)}</div>`;
-      const footerHTML = `<div class="pdf-footer">${parseVba(config.centerFooter)}</div>`;
+      const headerText = config.centerHeader || config.header || "";
+      const footerText = config.centerFooter || config.footer || "";
+      const headerHTML = `<div class="pdf-header">${parseVba(headerText)}</div>`;
+      const footerHTML = `<div class="pdf-footer">${parseVba(footerText)}</div>`;
       const sigHTML = config.signature ? `<div class="pdf-signature">${config.signature}</div>` : '';
 
       config.sheets.forEach(sheetDef => {
@@ -538,7 +539,7 @@ Dialog.html
               page.style.height = height;
 
               let content = headerHTML;
-              content += buildTableHTML(rows.headers, rows.body, rawTable.colWidths);
+              content += buildTableHTML(rows.headers, rows.body, rows.colWidths);
               content += footerHTML + sigHTML;
               page.innerHTML = content;
               container.appendChild(page);
@@ -578,27 +579,22 @@ Dialog.html
         const headers = [];
         const body = [];
         const hiddenRows = sheetDef.hideRows || [];
-        
-        let startRow = 1;
-        if (sheetDef.printArea) {
-             const match = sheetDef.printArea.match(/[A-Z]+(\d+)/);
-             if (match) startRow = parseInt(match[1]);
-        }
+        const area = parsePrintArea(sheetDef.printArea);
         
         const headerRowCount = sheetDef.headerRows || 0;
         let localHeaderCount = 0;
 
         rawTable.values.forEach((row, index) => {
             const excelRowNum = index + 1; 
-            if (excelRowNum < startRow) return; 
+            if (excelRowNum < area.startRow || excelRowNum > area.endRow) return; 
             if (hiddenRows.includes(excelRowNum)) return; 
 
-            const meta = {
-                data: row, 
-                bg: rawTable.colors[index], 
+            const meta = sliceMeta({
+                data: row,
+                bg: rawTable.colors[index],
                 fc: rawTable.fontColors[index],
                 fw: rawTable.fontWeights[index]
-            };
+            }, area);
 
             if (localHeaderCount < headerRowCount) {
                 headers.push(meta);
@@ -607,7 +603,16 @@ Dialog.html
                 body.push(meta);
             }
         });
-        return { headers, body };
+
+        while (body.length > 0 && isEmptyMetaRow(body[body.length - 1])) {
+            body.pop();
+        }
+
+        const colWidths = rawTable.colWidths
+            ? rawTable.colWidths.slice(area.startCol - 1, area.endCol)
+            : null;
+
+        return { headers, body, colWidths };
     }
 
     function buildTableHTML(headers, body, colWidths) {
@@ -621,7 +626,7 @@ Dialog.html
             headers.forEach(r => { 
                 html += '<tr>' + r.data.map((c, i) => {
                     const bg = (r.bg[i] === '#ffffff' || r.bg[i] === '#fff') ? '#f0f0f0' : r.bg[i];
-                    return `<th style="background-color: ${bg}; color: ${r.fc[i]}; font-weight: ${r.fw[i]}">${c}</th>`;
+                    return `<th style="background-color: ${bg}; color: ${r.fc[i]}; font-weight: ${r.fw[i]}">${escapeHtml(c)}</th>`;
                 }).join('') + '</tr>'; 
             });
             html += '</thead>';
@@ -632,7 +637,7 @@ Dialog.html
                 const isNum = (c && !isNaN(c.toString().replace(/[.,]/g, '')) && c.toString().length < 15);
                 const align = isNum ? 'right' : 'left';
                 const bgStyle = (r.bg[i] !== '#ffffff' && r.bg[i] !== '#fff') ? `background-color: ${r.bg[i]};` : '';
-                return `<td style="text-align: ${align}; ${bgStyle} color: ${r.fc[i]}; font-weight: ${r.fw[i]}">${c}</td>`;
+                return `<td style="text-align: ${align}; ${bgStyle} color: ${r.fc[i]}; font-weight: ${r.fw[i]}">${escapeHtml(c)}</td>`;
             }).join('') + '</tr>';
         });
         html += '</tbody></table>';
@@ -640,6 +645,42 @@ Dialog.html
     }
 
     function showError(e) { statusEl.style.color = 'red'; statusEl.innerText = `Error: ${e.message}`; }
+    function columnLetterToIndex(letter) {
+        return letter.split('').reduce((sum, char) => (sum * 26) + char.charCodeAt(0) - 64, 0);
+    }
+    function parsePrintArea(printArea) {
+        const fallback = { startCol: 1, endCol: 999, startRow: 1, endRow: Number.MAX_SAFE_INTEGER };
+        if (!printArea) return fallback;
+        const match = printArea.toUpperCase().match(/^([A-Z]+)?(\d+)?(?::([A-Z]+)?(\d+)?)?$/);
+        if (!match) return fallback;
+        return {
+            startCol: match[1] ? columnLetterToIndex(match[1]) : 1,
+            startRow: match[2] ? parseInt(match[2], 10) : 1,
+            endCol: match[3] ? columnLetterToIndex(match[3]) : 999,
+            endRow: match[4] ? parseInt(match[4], 10) : Number.MAX_SAFE_INTEGER
+        };
+    }
+    function sliceMeta(meta, area) {
+        const from = area.startCol - 1;
+        const to = Math.min(area.endCol, meta.data.length);
+        return {
+            data: meta.data.slice(from, to),
+            bg: meta.bg.slice(from, to),
+            fc: meta.fc.slice(from, to),
+            fw: meta.fw.slice(from, to)
+        };
+    }
+    function isEmptyMetaRow(meta) {
+        return meta.data.every(value => String(value || '').trim() === '');
+    }
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
     function parseVba(str) { 
         if(!str) return ''; 
         return str.replace(/&""[^"]+""/g, '').replace(/&[\d]+/g, '').replace(/&[BUI]/g, '').replace(/&C/g, '').replace(/Chr\(10\)/g, '<br>').replace(/&P/g, '<span class="pageNumber"></span>').replace(/"/g, '').trim(); 
@@ -737,6 +778,12 @@ DialogBatchRenderer.html
         let hasData = false;
 
         BATCH_DATA.rawData.forEach(rawTable => {
+            const sheetDef = (BATCH_DATA.sheetConfigs && BATCH_DATA.sheetConfigs[rawTable.sheetName]) || {};
+            const area = parsePrintArea(sheetDef.printArea);
+            const colWidths = rawTable.colWidths
+                ? rawTable.colWidths.slice(area.startCol - 1, Math.min(area.endCol, rawTable.colWidths.length))
+                : null;
+
             // --- BRANCHING LOGIC ---
             
             // Branch A: Deckblatt (Whole Sheet Mode)
@@ -744,30 +791,26 @@ DialogBatchRenderer.html
                 // If this rawTable is NOT the current itemVal (Sheet Name), skip it
                 if (rawTable.sheetName !== itemVal) return;
                 
-                // Process rows based on hidden logic (53 weeks) passed in extraConfig
-                // Assuming "extraConfig.hide53" is a boolean
-                const hideLastRow = BATCH_DATA.extraConfig && BATCH_DATA.extraConfig.hide53;
-                // Deckblatts usually don't have headers, just data.
-                // We'll treat everything as body.
-                
+                const hiddenRows = sheetDef.hideRows || [];
                 const filteredBody = [];
                 rawTable.values.forEach((row, idx) => {
-                    // Start row offset? Deckblatts usually start B5 or A5.
-                    if (idx < 4) return; 
-                    
-                    // Handle 53rd week hiding
-                    // If hideLastRow is true, and this is the last row of data...
-                    if (hideLastRow && idx === rawTable.values.length - 1) return;
+                    const excelRowNum = idx + 1;
+                    if (excelRowNum < area.startRow || excelRowNum > area.endRow) return;
+                    if (hiddenRows.includes(excelRowNum)) return;
 
-                    const meta = {
+                    const meta = sliceMeta({
                         data: row, bg: rawTable.colors[idx], fc: rawTable.fontColors[idx], fw: rawTable.fontWeights[idx]
-                    };
+                    }, area);
                     filteredBody.push(meta);
                 });
+
+                while (filteredBody.length > 0 && isEmptyMetaRow(filteredBody[filteredBody.length - 1])) {
+                    filteredBody.pop();
+                }
                 
                 if (filteredBody.length > 0) {
                     hasData = true;
-                    const page = buildPage(width, height, rawTable.sheetName, "", filteredBody, rawTable.colWidths);
+                    const page = buildPage(width, height, rawTable.sheetName, "", filteredBody, colWidths);
                     container.appendChild(page);
                 }
             } 
@@ -783,21 +826,32 @@ DialogBatchRenderer.html
 
                 const filteredBody = [];
                 const headers = [];
-                const headerCount = 2; 
+                const headerCount = Number.isInteger(sheetDef.headerRows) ? sheetDef.headerRows : 2;
+                let localHeaderCount = 0;
                 
                 rawTable.values.forEach((row, idx) => {
-                    if (idx < 3) return; 
+                    const excelRowNum = idx + 1;
+                    if (excelRowNum < area.startRow || excelRowNum > area.endRow) return;
 
-                    const meta = { data: row, bg: rawTable.colors[idx], fc: rawTable.fontColors[idx], fw: rawTable.fontWeights[idx] };
+                    const meta = sliceMeta({
+                        data: row, bg: rawTable.colors[idx], fc: rawTable.fontColors[idx], fw: rawTable.fontWeights[idx]
+                    }, area);
 
-                    if (idx < 3 + headerCount) headers.push(meta);
+                    if (localHeaderCount < headerCount) {
+                        headers.push(meta);
+                        localHeaderCount++;
+                    }
                     else if (row[filterColIndex] == itemVal) filteredBody.push(meta);
                 });
+
+                while (filteredBody.length > 0 && isEmptyMetaRow(filteredBody[filteredBody.length - 1])) {
+                    filteredBody.pop();
+                }
 
                 if (filteredBody.length > 0) {
                     hasData = true;
                     // Note: In Batch, we construct a generic header/footer
-                    const page = buildPage(width, height, rawTable.sheetName, itemVal, filteredBody, rawTable.colWidths, headers);
+                    const page = buildPage(width, height, rawTable.sheetName, itemVal, filteredBody, colWidths, headers);
                     container.appendChild(page);
                 }
             }
@@ -865,18 +919,56 @@ DialogBatchRenderer.html
         headers.forEach(r => { 
             h += '<tr>' + r.data.map((c,i) => {
                 const bg = (r.bg[i] === '#ffffff' || r.bg[i] === '#fff') ? '#f0f0f0' : r.bg[i];
-                return `<th style="background:${bg}; color: ${r.fc[i]}; font-weight: ${r.fw[i]}">${c}</th>`;
+                return `<th style="background:${bg}; color: ${r.fc[i]}; font-weight: ${r.fw[i]}">${escapeHtml(c)}</th>`;
             }).join('') + '</tr>'; 
         });
         h += '</thead><tbody>';
         body.forEach(r => { 
             h += '<tr>' + r.data.map((c,i) => {
                 const bg = (r.bg[i] !== '#ffffff' && r.bg[i] !== '#fff') ? r.bg[i] : '';
-                return `<td style="background:${bg}; color: ${r.fc[i]}; font-weight: ${r.fw[i]}; text-align:${(!isNaN(c)&&c.length<15)?'right':'left'}">${c}</td>`;
+                const text = String(c == null ? '' : c);
+                const align = (!isNaN(text.replace(/[.,]/g, '')) && text.length < 15) ? 'right' : 'left';
+                return `<td style="background:${bg}; color: ${r.fc[i]}; font-weight: ${r.fw[i]}; text-align:${align}">${escapeHtml(c)}</td>`;
             }).join('') + '</tr>'; 
         });
         h += '</tbody></table>';
         return h;
+    }
+    function columnLetterToIndex(letter) {
+        return letter.split('').reduce((sum, char) => (sum * 26) + char.charCodeAt(0) - 64, 0);
+    }
+    function parsePrintArea(printArea) {
+        const fallback = { startCol: 1, endCol: 999, startRow: 1, endRow: Number.MAX_SAFE_INTEGER };
+        if (!printArea) return fallback;
+        const match = printArea.toUpperCase().match(/^([A-Z]+)?(\d+)?(?::([A-Z]+)?(\d+)?)?$/);
+        if (!match) return fallback;
+        return {
+            startCol: match[1] ? columnLetterToIndex(match[1]) : 1,
+            startRow: match[2] ? parseInt(match[2], 10) : 1,
+            endCol: match[3] ? columnLetterToIndex(match[3]) : 999,
+            endRow: match[4] ? parseInt(match[4], 10) : Number.MAX_SAFE_INTEGER
+        };
+    }
+    function sliceMeta(meta, area) {
+        const from = area.startCol - 1;
+        const to = Math.min(area.endCol, meta.data.length);
+        return {
+            data: meta.data.slice(from, to),
+            bg: meta.bg.slice(from, to),
+            fc: meta.fc.slice(from, to),
+            fw: meta.fw.slice(from, to)
+        };
+    }
+    function isEmptyMetaRow(meta) {
+        return meta.data.every(value => String(value || '').trim() === '');
+    }
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
     function parseVba(str) { return str.replace(/&""[^"]+""/g, '').replace(/&[\d]+/g, '').replace(/&[BUI]/g, '').replace(/&C/g, '').replace(/Chr\(10\)/g, '<br>').replace(/"/g, ''); }
     function log(msg) { const d = document.createElement('div'); d.innerText = msg; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
@@ -1123,8 +1215,8 @@ function export_food_gesamt() {
   }
 
   // Get KW explicitly from Food Qualitätsfälle cell S5 as per VBA (Modul14)
-  const kwSheet = ss.getSheetByName("Food Qualitätsfälle");
-  const kwValue = kwSheet ? kwSheet.getRange("S5").getValue() : "XX";
+  const kwSheet = ss.getSheetByName("O+G Qualitätsfälle");
+  const kwValue = kwSheet ? kwSheet.getRange("N5").getValue() : "XX";
 
   ss.toast("Prüfe 5 Tabellenblätter... Bitte warten.", "Schritt 1/3", 15);
 
@@ -1726,8 +1818,8 @@ function getPdfDataForEkl(recipient) {
 
   // Configurations for all 5 sheets (EKL DE is usually Col C -> Index 3)
   const configs = [
-    { id: "food", name: "Food Sortimentswünsche", filterCol: 3, includeBlanks: false, headerRows: 5, keepCols: 17 },
-    { id: "aenderung", name: "Änderungswünsche Sortierung", filterCol: 3, includeBlanks: false, headerRows: 5, keepCols: 17 },
+    { id: "food", name: "Food Sortimentswünsche", filterCol: 3, includeBlanks: false, headerRows: 5, keepCols: 18 },
+    { id: "aenderung", name: "Änderungswünsche Sortierung", filterCol: 3, includeBlanks: false, headerRows: 5, keepCols: 18 },
     { id: "allgemeine", name: "Allgemeine Sortimentswünsche", filterCol: null, includeBlanks: false, headerRows: 7, keepCols: 11 },
     { id: "sonstiges", name: "Sonstiges Food u Akt. Themen", filterCol: 3, includeBlanks: true, headerRows: 6, keepCols: 15 }, // Includes blanks per VBA Modul12
     { id: "quali", name: "Food Qualitätsfälle", filterCol: 3, includeBlanks: false, headerRows: 5, keepCols: 22 }
@@ -3893,9 +3985,9 @@ function ExportQualitätsfälleOGGesamt_new() {
     return;
   }
 
-  // --- STRICT VBA PARITY: Get KW explicitly from Food Qualitätsfälle cell S5 ---
-  const kwSheet = ss.getSheetByName("Food Qualitätsfälle");
-  const kwValue = kwSheet ? kwSheet.getRange("S5").getValue() : "XX";
+  // --- STRICT VBA PARITY: Get KW explicitly from O+G Qualitätsfälle cell N5 ---
+  const kwSheet = ss.getSheetByName("O+G Qualitätsfälle");
+  const kwValue = kwSheet ? kwSheet.getRange("N5").getValue() : "XX";
 
   ss.toast("Prüfe O+G Qualitätsfälle Tabellen... Bitte warten.", "Schritt 1/3", 15);
 
@@ -11164,9 +11256,16 @@ function getExportFolderId() {
   const folderValue = exportSheet.getRange("D4").getValue().toString().trim();
   if (!folderValue) throw new Error("Folder ID/URL missing in 'EXPORT!D4'.");
 
-  const match = folderValue.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-  if (match && match[1]) return match[1];
-  return folderValue;
+  const folderMatch = folderValue.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderMatch && folderMatch[1]) return folderMatch[1];
+
+  const idParamMatch = folderValue.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idParamMatch && idParamMatch[1]) return idParamMatch[1];
+
+  const rawIdMatch = folderValue.match(/^[a-zA-Z0-9_-]{20,}$/);
+  if (rawIdMatch) return folderValue;
+
+  throw new Error("EXPORT!D4 enthält keine gültige Google-Drive-Ordner-ID oder Ordner-URL.");
 }
 
 function fetchRawSheetData(sheetNames) {
@@ -11244,10 +11343,33 @@ function getBatchContext(batchType, extraConfig) {
   }
 
   const rawData = fetchRawSheetData(sheetNames);
+  const sheetConfigs = {};
+  sheetNames.forEach(name => {
+    sheetConfigs[name] = getWrapperParams(name);
+  });
+
+  if (batchType === "DECKBLATT_BATCH") {
+    sheetConfigs["Deckblatt Gesamt"] = {
+      printArea: "A5:N57",
+      headerRows: 0,
+      hideRows: extraConfig && extraConfig.hide53 ? [57] : []
+    };
+    sheetConfigs["Deckblatt Food"] = {
+      printArea: "R4:U56",
+      headerRows: 0,
+      hideRows: extraConfig && extraConfig.hide53 ? [56] : []
+    };
+    sheetConfigs["Deckblatt O+G"] = {
+      printArea: "R4:U56",
+      headerRows: 0,
+      hideRows: extraConfig && extraConfig.hide53 ? [56] : []
+    };
+  }
 
   return {
     items: items,
     rawData: rawData,
+    sheetConfigs: sheetConfigs,
     targetFolderId: getExportFolderId(),
     batchType: batchType,
     extraConfig: extraConfig || {} // Pass things like '53 weeks' decision
@@ -11267,6 +11389,8 @@ function launchSingleReport(config) {
 
   config.rawTables = rawData;
   config.targetFolderId = getExportFolderId();
+  config.centerHeader = config.centerHeader || config.header || "";
+  config.centerFooter = config.centerFooter || config.footer || "";
 
   const template = HtmlService.createTemplateFromFile('Dialog');
   template.jsonPayload = JSON.stringify(config); 
@@ -11285,8 +11409,10 @@ function launchBatchRenderer(type, title, extraConfig) {
 function uploadPDFBlobToDrive(pdfBase64, pdfName, folderId) {
   try {
     const targetFolder = DriveApp.getFolderById(folderId);
-    const parts = pdfBase64.split(',');
-    const blob = Utilities.newBlob(Utilities.base64Decode(parts[1]), 'application/pdf', pdfName);
+    const base64 = String(pdfBase64).includes(',')
+      ? String(pdfBase64).split(',').pop()
+      : String(pdfBase64);
+    const blob = Utilities.newBlob(Utilities.base64Decode(base64), 'application/pdf', pdfName);
     targetFolder.createFile(blob);
     SpreadsheetApp.getActiveSpreadsheet().toast(`Saved: ${pdfName}`, "Success", 3);
     return "OK";
@@ -11308,7 +11434,7 @@ function cleanUpOrphanedTempSheets() {
     // Case-insensitive check for any tab starting with "temp_"
     if (sheetName.toLowerCase().startsWith("temp_")) {
       try {
-        ss.deleteSheet(sheets[i]);
+        if (ss.getSheets().length > 1) ss.deleteSheet(sheets[i]);
         console.log(`Gelöscht: ${sheetName}`);
       } catch (e) {
         console.error(`Konnte ${sheetName} nicht löschen: ${e.message}`);
@@ -11356,118 +11482,46 @@ function getWrapperParams(sheetName) {
 // --- SINGLE REPORTS ---
 
 function ExportAsPDFAndExcelGesamt() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const kw = ss.getSheetByName('Food Qualitätsfälle').getRange("S5").getDisplayValue();
-  launchSingleReport({
-    pdfName: `8-Wochen-Statistik_Food_KW${kw}.pdf`,
-    header: PDF_WRAPPER_CONFIG["Food Qualitätsfälle"].header, 
-    footer: getWrapperFooter(kw),
-    signature: PDF_WRAPPER_SIG,
-    orientation: 'landscape',
-    sheets: [
-      {name: "Food Sortimentswünsche", ...getWrapperParams("Food Sortimentswünsche")},
-      {name: "Änderungswünsche Sortierung", ...getWrapperParams("Änderungswünsche Sortierung")},
-      {name: "Allgemeine Sortimentswünsche", ...getWrapperParams("Allgemeine Sortimentswünsche")},
-      {name: "Sonstiges Food u Akt. Themen", ...getWrapperParams("Sonstiges Food u Akt. Themen")},
-      {name: "Food Qualitätsfälle", ...getWrapperParams("Food Qualitätsfälle")}
-    ]
-  });
+  export_food_gesamt();
 }
 
 function ExportSortimentswünscheFoodGesamt() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const kw = ss.getSheetByName('Food Sortimentswünsche').getRange("P5").getDisplayValue();
-  launchSingleReport({
-    pdfName: `02_Statistik_Food_Sortimentswünsche_KW${kw}_DE.pdf`,
-    header: PDF_WRAPPER_CONFIG["Food Sortimentswünsche"].header,
-    footer: getWrapperFooter(kw),
-    signature: PDF_WRAPPER_SIG,
-    orientation: 'landscape',
-    sheets: [
-      {name: "Food Sortimentswünsche", ...getWrapperParams("Food Sortimentswünsche")},
-      {name: "Änderungswünsche Sortierung", ...getWrapperParams("Änderungswünsche Sortierung")},
-      {name: "Allgemeine Sortimentswünsche", ...getWrapperParams("Allgemeine Sortimentswünsche")}
-    ]
-  });
+  export_sortimentswuensche_gesamt();
 }
 
 function ExportSonstigesFoodGesamt() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const kw = ss.getSheetByName('Sonstiges Food u Akt. Themen').getRange("N6").getDisplayValue();
-  launchSingleReport({
-    pdfName: `03_Statistik_Food_Sonstiges Food_KW${kw}_DE.pdf`,
-    header: PDF_WRAPPER_CONFIG["Sonstiges Food u Akt. Themen"].header,
-    footer: getWrapperFooter(kw),
-    signature: PDF_WRAPPER_SIG,
-    orientation: 'landscape',
-    sheets: [ {name: "Sonstiges Food u Akt. Themen", ...getWrapperParams("Sonstiges Food u Akt. Themen")} ]
-  });
+  export_sonstiges_food_gesamt();
 }
 
 function ExportQualitätsfälleFoodGesamt() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const kw = ss.getSheetByName('Food Qualitätsfälle').getRange("S5").getDisplayValue();
-  launchSingleReport({
-    pdfName: `04_Statistik_Food_Qualitätsreklamationen_KW${kw}_DE.pdf`,
-    header: PDF_WRAPPER_CONFIG["Food Qualitätsfälle"].header,
-    footer: getWrapperFooter(kw),
-    signature: PDF_WRAPPER_SIG,
-    orientation: 'landscape',
-    sheets: [ {name: "Food Qualitätsfälle", ...getWrapperParams("Food Qualitätsfälle")} ]
-  });
+  ExportQualitätsfälleFoodGesamt_new();
 }
 
 function ExportQualitätsfälleOGGesamt() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const kw = ss.getSheetByName('O+G Qualitätsfälle').getRange("N5").getDisplayValue();
-  launchSingleReport({
-    pdfName: `05_Statistik_O+G_Qualitätsreklamationen_KW${kw}.pdf`,
-    header: PDF_WRAPPER_CONFIG["O+G Qualitätsfälle"].header,
-    footer: getWrapperFooter(kw),
-    signature: PDF_WRAPPER_SIG,
-    orientation: 'landscape',
-    sheets: [
-      {name: "O+G Qualitätsfälle", ...getWrapperParams("O+G Qualitätsfälle")},
-      {name: "O+G Qualitätsf. o. LFN", ...getWrapperParams("O+G Qualitätsf. o. LFN")}
-    ]
-  });
+  ExportQualitätsfälleOGGesamt_new();
 }
 
 function ExportPDFOGGesamt() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const kw = ss.getSheetByName('O+G Qualitätsfälle').getRange("N5").getDisplayValue();
-  const commonConfig = {
-    header: PDF_WRAPPER_CONFIG["O+G Qualitätsfälle"].header,
-    footer: getWrapperFooter(kw),
-    signature: PDF_WRAPPER_SIG,
-    orientation: 'landscape',
-    sheets: [
-      {name: "O+G Sortimentswünsche", ...getWrapperParams("O+G Sortimentswünsche")},
-      {name: "O+G Sonstiges", ...getWrapperParams("O+G Sonstiges")},
-      {name: "O+G Qualitätsfälle", ...getWrapperParams("O+G Qualitätsfälle")},
-      {name: "O+G Qualitätsf. o. LFN", ...getWrapperParams("O+G Qualitätsf. o. LFN")}
-    ]
-  };
-  launchSingleReport({ ...commonConfig, pdfName: `8-Wochen-Statistik_O+G_KW${kw}.pdf` });
-  Utilities.sleep(1500);
-  launchSingleReport({ ...commonConfig, pdfName: `05_Statistik_O+G_komplett_KW${kw}.pdf` });
+  export_og_gesamt();
 }
 
 // --- UPDATED DECKBLATT EXPORT ---
 function ExportDeckblatt() {
-  const ui = SpreadsheetApp.getUi();
-  const response = ui.alert('53 Kalenderwochen?', 'Hat das betrachtete Jahr 53 Kalenderwochen?', ui.ButtonSet.YES_NO);
-  const hide53 = (response == ui.Button.NO);
-  
-  // Use Batch Renderer to generate all 3 Deckblatts in one dialog
-  launchBatchRenderer("DECKBLATT_BATCH", "Generating Deckblatts", { hide53: hide53 });
+  export_deckblatt_new();
 }
 
 // --- BATCH TRIGGERS ---
-function ExportFoodGesamtEKLDE() { launchBatchRenderer("EKL_DE", "EKL DE Batch Export"); }
-function ExportSortimentswünscheGLEKINT() { launchBatchRenderer("GL_EK_INT_SORT", "GL-EK INT (Sortimentswünsche)"); }
-function ExportSonstigesGLEKINT() { launchBatchRenderer("GL_EK_INT_SONST", "GL-EK INT (Sonstiges)"); }
-function ExportFoodQualitätsfälleGLEKINT() { launchBatchRenderer("GL_EK_INT_QUAL", "GL-EK INT (Qualitätsfälle)"); }
+function ExportFoodGesamtEKLDE() { openFoodGesamtEKLDEDialog(); }
+function ExportSortimentswünscheGLEKINT() { openGLEKINTDialog(); }
+function ExportSonstigesGLEKINT() { openSonstigesGLEKINTDialog(); }
+function ExportFoodQualitätsfälleGLEKINT() { openFoodQualiGLEKINTDialog(); }
+
+// ASCII aliases are safer for assigned Google-Sheets drawing buttons.
+function ExportSortimentswuenscheFoodGesamt() { ExportSortimentswünscheFoodGesamt(); }
+function ExportQualitaetsfaelleFoodGesamt() { ExportQualitätsfälleFoodGesamt(); }
+function ExportQualitaetsfaelleOGGesamt() { ExportQualitätsfälleOGGesamt(); }
+function ExportSortimentswuenscheGLEKINT() { ExportSortimentswünscheGLEKINT(); }
+function ExportFoodQualitaetsfaelleGLEKINT() { ExportFoodQualitätsfälleGLEKINT(); }
 
 
 Save Archive.gs
@@ -11850,8 +11904,8 @@ function getPdfDataForRecipient(recipient) {
   const tempSheetIds = [];
 
   const configs = [
-    { id: "food", name: "Food Sortimentswünsche", filterCol: 4, headerRows: 5, keepCols: 17 },
-    { id: "aenderung", name: "Änderungswünsche Sortierung", filterCol: 4, headerRows: 5, keepCols: 17 },
+    { id: "food", name: "Food Sortimentswünsche", filterCol: 4, headerRows: 5, keepCols: 18 },
+    { id: "aenderung", name: "Änderungswünsche Sortierung", filterCol: 4, headerRows: 5, keepCols: 18 },
     { id: "allgemeine", name: "Allgemeine Sortimentswünsche", filterCol: null, headerRows: 7, keepCols: 11 } // No filter
   ];
 
@@ -12406,7 +12460,7 @@ function export_sortimentswuensche_gesamt() {
     {
       name: "Food Sortimentswünsche",
       dataRowStart: 6, // Rows below 5 are data
-      keepCols: 17,    // Keep A-R
+      keepCols: 18,    // Keep A-R
       keys: {
         htl: "Food Sortimentswünsche header left", htc: "Food Sortimentswünsche header center", htr: "Food Sortimentswünsche header right",
         fbl: "Food Sortimentswünsche footer left", fbc: "Food Sortimentswünsche footer center", fbr: "Food Sortimentswünsche footer right"
@@ -12415,7 +12469,7 @@ function export_sortimentswuensche_gesamt() {
     {
       name: "Änderungswünsche Sortierung",
       dataRowStart: 6, // Rows below 5 are data
-      keepCols: 17,    // Keep A-R
+      keepCols: 18,    // Keep A-R
       keys: {
         htl: "Änderungswünsche Sortierung header left", htc: "Änderungswünsche Sortierung header center", htr: "Änderungswünsche Sortierung header right",
         fbl: "Änderungswünsche Sortierung footer left", fbc: "Änderungswünsche Sortierung footer center", fbr: "Änderungswünsche Sortierung footer right"
