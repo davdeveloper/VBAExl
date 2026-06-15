@@ -1,3 +1,9 @@
+ich habe hier ein appscript code von der IT bereitgestellt bekommen, es war mal eine Excel und wurde jetzt in Google Sheet migriert.
+
+Mir wurde nun aber von der Fachabteilung berichtet, dass der Report - Es sind mehrere Buttons die getätigt werden - nicht funktioniert, oft mals bricht er ab oder ist nicht vollständig. Es sind sehr viele scripts und für mich ist es schwierig zu debuggen.
+
+Kannst du alles auf google sheet und appscript optimierung so wie nach möglichen Fehlern die wie beschrieben passen könnten analysieren und beheben? Was fällt dir auf, was kann man direkt optimieren, wo sind Fehler
+
 DECKBLATT_DYNAMIC.gs
 
 /**
