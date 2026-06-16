@@ -1,1329 +1,236 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 shrink-0 overflow-hidden">
-  <button onclick="toggleControlPanel('admin-panel')" class="w-full px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50 flex justify-between items-center hover:bg-gray-50 transition text-left">
-    <div>
-      <h3 class="font-bold text-slate-700 text-sm uppercase flex items-center gap-2">
-        <i class="fa-solid fa-user-shield text-lidl-blue"></i> Administration
-      </h3>
-      <p class="text-[11px] text-gray-400 mt-0.5">Import, Übermittlung, Plano-Analyse und Kapazitäten</p>
-    </div>
+/**
+ * Converts German umlauts and ss to simple ASCII equivalents for robust file matching.
+ */
+function normalizeGermanUmlauts(str) {
+  if (typeof str !== "string") return str;
+  return str.replace(/Ä/g, "A").replace(/ä/g, "a")
+            .replace(/Ö/g, "O").replace(/ö/g, "o")
+            .replace(/Ü/g, "U").replace(/ü/g, "u")
+            .replace(/ß/g, "s");
+}
 
-    <div class="flex items-center gap-2 text-gray-400">
-      <span class="hidden md:inline text-[10px] font-bold uppercase">Ein-/ausklappen</span>
-      <i id="admin-panel-icon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
-    </div>
-  </button>
+function convertNormalizeText_(value) {
+  return String(value == null ? "" : value).normalize("NFC").trim();
+}
 
-  <div id="admin-panel-body" class="p-3 grid grid-cols-1 md:grid-cols-4 gap-3">
-    <button onclick="openImportTypeModal()" id="btn-import-modal-open" class="group relative overflow-hidden bg-white border border-blue-100 rounded-xl p-3 hover:border-lidl-blue hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center shrink-0 group-hover:bg-lidl-blue group-hover:text-white transition">
-        <i class="fa-solid fa-file-import"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Plano Backup importieren</div>
-        <div class="text-[11px] text-gray-400 truncate">Tagesdaten oder Stundenerfassung übernehmen</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-lidl-blue transition"></i>
-    </button>
+function convertExtractDriveFolderId_(value) {
+  const text = convertNormalizeText_(value);
+  const patterns = [
+    /\/folders\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /^([a-zA-Z0-9_-]{20,})$/,
+    /([a-zA-Z0-9_-]{25,})/
+  ];
 
-    <button onclick="openUebermittelnModal()" class="group relative overflow-hidden bg-white border border-emerald-100 rounded-xl p-3 hover:border-modern-green hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-emerald-50 text-modern-green flex items-center justify-center shrink-0 group-hover:bg-modern-green group-hover:text-white transition">
-        <i class="fa-solid fa-paper-plane"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Stundenerfassung übermitteln</div>
-        <div class="text-[11px] text-gray-400 truncate">Tag löschen, übertragen oder Monat synchronisieren</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-modern-green transition"></i>
-    </button>
-
-    <button onclick="openCapacityOverviewModal()" class="group relative overflow-hidden bg-white border border-yellow-100 rounded-xl p-3 hover:border-lidl-yellow hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-yellow-50 text-yellow-600 flex items-center justify-center shrink-0 group-hover:bg-lidl-yellow group-hover:text-lidl-blue transition">
-        <i class="fa-solid fa-chart-simple"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Kapazitätenübersicht</div>
-        <div class="text-[11px] text-gray-400 truncate">Produktivstunden und Restkapazität je Skill</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-yellow-600 transition"></i>
-    </button>
-
-    <a href="https://docs.google.com/spreadsheets/d/1aq-TtGaW4yzRqKng_ZLT1sNmmNVi9BqAbrdYgj5FQrg/edit?gid=986034657#gid=986034657"
-       target="_blank"
-       rel="noopener noreferrer"
-       class="group relative overflow-hidden bg-white border border-gray-200 rounded-xl p-3 hover:border-slate-400 hover:shadow-md transition text-left flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gray-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-700 group-hover:text-white transition">
-        <i class="fa-solid fa-up-right-from-square"></i>
-      </div>
-      <div class="min-w-0">
-        <div class="font-bold text-sm text-slate-700 truncate">Plano Overview öffnen</div>
-        <div class="text-[11px] text-gray-400 truncate">Monatsübersicht und Analyse in Google Sheets</div>
-      </div>
-      <i class="fa-solid fa-chevron-right ml-auto text-gray-300 group-hover:text-slate-600 transition"></i>
-    </a>
-  </div>
-</div>
-
-<div class="flex justify-between items-center shrink-0 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-  <div class="flex gap-2 items-center">
-    <span class="text-xs font-bold text-gray-400 uppercase mr-2">
-      <i class="fa-solid fa-arrow-down-up-across-line"></i> Sortierung:
-    </span>
-
-    <button onclick="setControlSort('plus')" id="btn-ctrl-plus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition bg-blue-50 text-lidl-blue border-lidl-blue">
-      <i class="fa-solid fa-arrow-down-wide-short"></i> Überstunden
-    </button>
-    <button onclick="setControlSort('minus')" id="btn-ctrl-minus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
-      <i class="fa-solid fa-arrow-up-wide-short"></i> Minusstunden
-    </button>
-    <button onclick="setControlSort('time')" id="btn-ctrl-time" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">
-      <i class="fa-regular fa-clock"></i> Zeit
-    </button>
-  </div>
-
-  <div class="hidden xl:flex items-center gap-2 text-xs text-gray-400">
-    <i class="fa-solid fa-circle-info text-lidl-blue"></i>
-    <span>Sortierung wirkt auf die Schichtkarten darunter</span>
-  </div>
-</div>
-
-<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 shrink-0 flex items-start gap-4">
-  <span class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap mt-1.5">
-    <i class="fa-solid fa-list-check"></i> Tätigkeiten:
-  </span>
-  <div id="activity-filter-container" class="flex flex-wrap gap-2 items-center"></div>
-</div>
-
-<div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Frühschicht</h3>
-        <span class="text-xs font-bold bg-blue-100 text-lidl-blue px-2 py-0.5 rounded" id="count-frueh">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-frueh">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-frueh"></div>
-  </div>
-
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Mittelschicht</h3>
-        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" id="count-mittel">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-mittel">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-mittel"></div>
-  </div>
-
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-      <div class="flex justify-between items-center mb-1">
-        <h3 class="font-bold text-sm text-slate-700 uppercase">Spätschicht</h3>
-        <span class="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded" id="count-spaet">0</span>
-      </div>
-      <div class="text-[10px] text-gray-500 font-bold uppercase flex justify-between">
-        <span>Verfügbar:</span>
-        <span class="text-modern-green" id="sum-spaet">00:00 Std</span>
-      </div>
-    </div>
-    <div class="overflow-y-auto flex-1 custom-scroll p-2 space-y-2" id="list-spaet"></div>
-  </div>
-</div>
-
-<div id="shift-radar-widget" class="fixed bottom-6 right-6 flex flex-col items-end transition-all duration-300" style="z-index:9999;">
-  <div id="shift-radar-panel" class="hidden w-80 bg-white rounded-2xl shadow-2xl border border-blue-100 mb-4 overflow-hidden flex-col origin-bottom-right transition-all">
-    <div class="bg-gradient-to-r from-lidl-blue to-blue-800 p-4 flex justify-between items-center text-white shrink-0">
-      <div class="flex items-center gap-2 font-bold text-sm">
-        <i class="fa-solid fa-satellite-dish animate-pulse"></i> Live-Schicht-Radar
-      </div>
-      <span class="text-[10px] font-mono font-bold bg-white/20 px-2 py-0.5 rounded-full" id="radar-time">--:--</span>
-    </div>
-    <div class="p-0 max-h-72 overflow-y-auto custom-scroll bg-slate-50" id="radar-list"></div>
-  </div>
-
-  <button type="button" onclick="toggleRadar()" class="bg-lidl-blue text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl hover:bg-blue-800 hover:scale-105 transition-all flex items-center justify-center text-2xl relative cursor-pointer">
-    <i class="fa-solid fa-stopwatch"></i>
-    <span id="radar-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white hidden">0</span>
-  </button>
-</div>
-
-<div id="importTypeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 flex flex-col" id="importTypeModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-file-import"></i> Import-Typ wählen
-      </h3>
-      <button onclick="closeImportTypeModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 space-y-4">
-      <p class="text-sm text-gray-600">Für welchen Bereich möchtest du das Plano Backup importieren?</p>
-
-      <button onclick="closeImportTypeModal(); openPlanoImportModal();" class="w-full bg-blue-50 border border-blue-200 text-lidl-blue hover:bg-lidl-blue hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
-        <i class="fa-solid fa-clock"></i> Heutiger Tag
-      </button>
-
-      <button onclick="closeImportTypeModal(); openPlanoStundenerfassungModal();" class="w-full bg-emerald-50 border border-emerald-200 text-modern-green hover:bg-modern-green hover:text-white font-bold py-4 rounded-xl shadow-sm transition flex items-center justify-center gap-3 text-base">
-        <i class="fa-solid fa-database"></i> Stundenerfassung -/ Plano Overview
-      </button>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
-      <button onclick="closeImportTypeModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="planoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-file-excel"></i> Tagessteuerung Import
-      </h3>
-      <button onclick="closePlanoModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
-      <p class="text-sm text-gray-600 mb-4">Wähle die Datei für den heutigen Tag:</p>
-      <div id="plano-files-list" class="space-y-2">
-        <div class="text-center text-gray-400 py-4">
-          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
-        </div>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
-      <button onclick="closePlanoModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="planoStundenerfassungModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="planoStundenerfassungModalContent">
-    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-database"></i> Stundenerfassung Import
-      </h3>
-      <button onclick="closePlanoStundenerfassungModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 overflow-y-auto flex-1 custom-scroll">
-      <p class="text-sm text-gray-600 mb-4">Wähle die Backup-Datei zur Übertragung in die Datenbank:</p>
-      <div id="plano-st-files-list" class="space-y-2">
-        <div class="text-center text-gray-400 py-4">
-          <i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...
-        </div>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-200 shrink-0">
-      <button onclick="closePlanoStundenerfassungModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<div id="uebermittelnModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col" id="uebermittelnModalContent">
-    <div class="bg-modern-green px-6 py-4 rounded-t-2xl flex justify-between items-center">
-      <h3 class="text-white font-bold text-lg flex items-center gap-2">
-        <i class="fa-solid fa-paper-plane"></i> Stundenerfassung übermitteln
-      </h3>
-      <button onclick="closeUebermittelnModal()" class="text-white hover:bg-emerald-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-6 space-y-5">
-      <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
-        <span class="text-[10px] text-modern-green font-bold uppercase block mb-1">Aktuelle Zieldatei aus Einstellungen</span>
-        <strong id="st-filename-display" class="text-emerald-800 text-sm">Wird geladen...</strong>
-      </div>
-
-      <div class="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-xl text-xs font-bold flex items-start gap-2">
-        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-orange-500 text-lg"></i>
-        <p>WICHTIG: Übermittle die Daten immer als HEUTE für HEUTE oder GESTERN für GESTERN.</p>
-      </div>
-
-      <div>
-        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Datum für die Übermittlung</label>
-        <input type="date" id="uebermitteln-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-modern-green outline-none bg-white">
-      </div>
-
-      <div class="space-y-3 pt-2">
-        <button id="btn-st-transfer" onclick="startTransfer()" class="w-full bg-modern-green text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-emerald-700 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-upload"></i> Übermittlung starten
-        </button>
-
-        <button id="btn-st-delete" onclick="startDelete()" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-red-600 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-trash-can"></i> Tag aus Stundenerfassung löschen
-        </button>
-
-        <button id="btn-st-sync" onclick="startSync()" class="w-full bg-lidl-blue text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-arrows-rotate"></i> Ganzen Monat synchronisieren
-        </button>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
-      <button onclick="closeUebermittelnModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-    </div>
-  </div>
-</div>
-
-<div id="capacityOverviewModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="capacityOverviewModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0">
-      <div>
-        <h3 class="text-white font-bold text-lg flex items-center gap-2">
-          <i class="fa-solid fa-chart-simple"></i> Kapazitätenübersicht
-        </h3>
-        <p class="text-blue-100 text-xs mt-0.5">Stunden und Restkapazität aus dem aktuellen Plano Backup</p>
-      </div>
-
-      <button onclick="closeCapacityOverviewModal()" class="text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div id="capacity-overview-content" class="p-6 overflow-y-auto flex-1 custom-scroll bg-gray-50">
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Kapazitäten werden berechnet...</p>
-      </div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center border-t border-gray-200 shrink-0">
-      <div class="text-xs text-gray-400">
-        <i class="fa-solid fa-circle-info text-lidl-blue mr-1"></i>
-        Nur die Kapazitätenübersicht rechnet produktive Skill-Zeiten. Tagessteuerung und Radar zeigen den Ablauf inklusive Pause.
-      </div>
-
-      <div class="flex gap-3">
-        <button onclick="openCapacityOverviewModal(true)" class="px-4 py-2 rounded-lg bg-blue-50 text-lidl-blue border border-blue-100 hover:bg-blue-100 font-bold text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-arrows-rotate"></i> Aktualisieren
-        </button>
-        <button onclick="closeCapacityOverviewModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="shiftDetailsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-6 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="shiftDetailsModalContent">
-    <div class="bg-lidl-blue px-6 py-4 rounded-t-2xl flex justify-between items-center shrink-0 relative">
-      <div>
-        <h3 class="text-white font-bold text-lg" id="shift-modal-name">-</h3>
-        <p class="text-blue-200 text-xs" id="shift-modal-skill">-</p>
-      </div>
-      <div class="bg-white/20 px-3 py-1 rounded border border-white/30 text-white font-mono font-bold" id="shift-modal-time">--:--</div>
-      <button onclick="closeShiftDetailsModal()" class="absolute top-4 right-4 text-white hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center transition">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <div class="p-0 overflow-y-auto flex-1 custom-scroll bg-gray-50">
-      <div id="shift-modal-timeline" class="p-6"></div>
-    </div>
-
-    <div class="px-6 py-4 bg-white rounded-b-2xl flex justify-between items-center shrink-0 border-t border-gray-200">
-      <button onclick="openEditModal(currentEmpId)" class="px-4 py-2 bg-blue-50 text-lidl-blue border border-blue-200 rounded-lg text-sm font-bold hover:bg-blue-100 transition flex items-center gap-2">
-        <i class="fa-solid fa-pen-to-square"></i> ESS Daten bearbeiten
-      </button>
-      <button onclick="closeShiftDetailsModal()" class="px-4 py-2 rounded-lg text-gray-500 hover:text-gray-700 font-bold text-sm hover:bg-gray-100 transition">Schließen</button>
-    </div>
-  </div>
-</div>
-
-<script>
-  let capacityOverviewCache = null;
-  let capacitySkillFilter = 'Alle';
-
-  function isPauseActivity(activity) {
-    const a = String(activity || "").toLowerCase().trim();
-
-    return (
-      a.includes("pause") ||
-      a.includes("break")
-    );
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) return match[1];
   }
 
-  function getTimelineShiftDetails(emp) {
-    if (!emp || !emp.schicht || !Array.isArray(emp.schicht.details)) return [];
+  return "";
+}
 
-    return emp.schicht.details.filter(detail => {
-      return detail && (detail.time || detail.activity);
-    });
+function convertCleanDisplayText_(value) {
+  return convertNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+}
+
+function convertCellForPlainText_(rawValue, displayValue) {
+  if (Object.prototype.toString.call(rawValue) === "[object Date]") {
+    const year = rawValue.getFullYear();
+    const month = String(rawValue.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
   }
 
-  function getFilterShiftActivities(emp) {
-    if (!emp || !emp.schicht) return [];
-
-    const fromActivities = Array.isArray(emp.schicht.activities)
-      ? emp.schicht.activities
-      : [];
-
-    let visible = fromActivities.filter(activity => {
-      return activity && !isPauseActivity(activity);
-    });
-
-    if (visible.length === 0) {
-      visible = getTimelineShiftDetails(emp)
-        .map(detail => detail.activity)
-        .filter(activity => activity && !isPauseActivity(activity));
-    }
-
-    return [...new Set(visible)];
-  }
-
-  function toggleControlPanel(panelId) {
-    const body = document.getElementById(panelId + '-body');
-    const icon = document.getElementById(panelId + '-icon');
-
-    if (!body) return;
-
-    body.classList.toggle('hidden');
-
-    if (icon) {
-      icon.classList.toggle('rotate-180');
-    }
-  }
-
-  function openImportTypeModal() {
-    openModalById('importTypeModal', 'importTypeModalContent');
-  }
-
-  function closeImportTypeModal() {
-    closeModalById('importTypeModal', 'importTypeModalContent');
-  }
-
-  function openPlanoStundenerfassungModal() {
-    const list = document.getElementById('plano-st-files-list');
-
-    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
-
-    openModalById('planoStundenerfassungModal', 'planoStundenerfassungModalContent');
-
-    google.script.run
-      .withSuccessHandler(files => {
-        list.innerHTML = '';
-
-        if (!files || files.length === 0) {
-          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
-          return;
-        }
-
-        files.forEach(f => {
-          const d = new Date(f.dateCreated);
-          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
-          list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-200 transition group">
-              <div>
-                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <i class="fa-solid fa-database text-modern-green"></i> ${escapeHtml(f.name)}
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
-              </div>
-              <button onclick="runPlanoStundenerfassungImport('${f.id}', this)" class="bg-white border border-gray-300 text-modern-green px-3 py-1.5 rounded text-xs font-bold hover:bg-modern-green hover:text-white transition shadow-sm">
-                Datenbank Import
-              </button>
-            </div>`;
-        });
-      })
-      .withFailureHandler(err => {
-        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message || err}</div>`;
-      })
-      .getPlanoFilesList();
-  }
-
-  function closePlanoStundenerfassungModal() {
-    closeModalById('planoStundenerfassungModal', 'planoStundenerfassungModalContent');
-  }
-
-  function runPlanoStundenerfassungImport(fileId, btnEl) {
-    const oldContent = btnEl.innerHTML;
-
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importiere...';
-    btnEl.disabled = true;
-    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
-
-    const allBtns = document.getElementById('plano-st-files-list').querySelectorAll('button');
-    allBtns.forEach(b => b.disabled = true);
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        closePlanoStundenerfassungModal();
-        alert(response);
-      })
-      .withFailureHandler(function(error) {
-        btnEl.innerHTML = oldContent;
-        btnEl.disabled = false;
-        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
-        allBtns.forEach(b => b.disabled = false);
-        alert("Kritischer Fehler: " + (error.message || error));
-      })
-      .libProcessSelectedFile(fileId);
-  }
-
-  function openUebermittelnModal() {
-    openModalById('uebermittelnModal', 'uebermittelnModalContent');
-
-    document.getElementById('st-filename-display').innerText = "Lade Dateinamen aus Einstellungen...";
-
-    google.script.run
-      .withSuccessHandler(name => {
-        document.getElementById('st-filename-display').innerText = name;
-      })
-      .withFailureHandler(() => {
-        document.getElementById('st-filename-display').innerText = "Fehler beim Laden";
-      })
-      .libGetStundenerfassungFileName();
-  }
-
-  function closeUebermittelnModal() {
-    closeModalById('uebermittelnModal', 'uebermittelnModalContent');
-  }
-
-  function toggleUebermittelnButtons(disabled) {
-    ['btn-st-transfer', 'btn-st-delete', 'btn-st-sync', 'uebermitteln-date'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.disabled = disabled;
-    });
-  }
-
-  function startTransfer() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle ein Datum aus.");
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-transfer');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Übermittlung läuft...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Erfolgreich! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libProcessStundenerfassung(dateVal);
-  }
-
-  function startDelete() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle ein Datum aus.");
-      return;
-    }
-
-    if (!confirm("Möchtest du wirklich alle eingetragenen Zeiten für dieses Datum in der Stundenerfassung löschen?")) {
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-delete');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lösche Daten...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Gelöscht! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libDeleteStundenerfassung(dateVal);
-  }
-
-  function startSync() {
-    const dateVal = document.getElementById('uebermitteln-date').value;
-
-    if (!dateVal) {
-      alert("Bitte wähle irgendein Datum aus dem Monat.");
-      return;
-    }
-
-    toggleUebermittelnButtons(true);
-
-    const btn = document.getElementById('btn-st-sync');
-    const oldHtml = btn.innerHTML;
-
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Synchronisiere...';
-
-    google.script.run
-      .withSuccessHandler(res => {
-        alert("Erfolgreich! " + res);
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-        closeUebermittelnModal();
-      })
-      .withFailureHandler(err => {
-        alert("FEHLER: " + (err.message || err));
-        btn.innerHTML = oldHtml;
-        toggleUebermittelnButtons(false);
-      })
-      .libSyncStundenerfassung(dateVal);
-  }
-
-  function openPlanoImportModal() {
-    const list = document.getElementById('plano-files-list');
-
-    list.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin"></i> Lade Dateien...</div>';
-
-    openModalById('planoModal', 'planoModalContent');
-
-    google.script.run
-      .withSuccessHandler(files => {
-        list.innerHTML = '';
-
-        if (!files || files.length === 0) {
-          list.innerHTML = '<div class="text-sm text-gray-500 italic text-center py-4">Keine Backup-Dateien im Ordner gefunden.</div>';
-          return;
-        }
-
-        files.forEach(f => {
-          const d = new Date(f.dateCreated);
-          const dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
-          list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition group">
-              <div>
-                <div class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <i class="fa-solid fa-file-excel text-green-600"></i> ${escapeHtml(f.name)}
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Erstellt am: ${dateStr}</div>
-              </div>
-              <button onclick="runPlanoImport('${f.id}', this)" class="bg-white border border-gray-300 text-lidl-blue px-3 py-1.5 rounded text-xs font-bold hover:bg-lidl-blue hover:text-white transition shadow-sm">
-                Importieren
-              </button>
-            </div>`;
-        });
-      })
-      .withFailureHandler(err => {
-        list.innerHTML = `<div class="text-red-500 text-sm text-center py-4">Fehler: ${err.message || err}</div>`;
-      })
-      .getPlanoFilesList();
-  }
-
-  function closePlanoModal() {
-    closeModalById('planoModal', 'planoModalContent');
-  }
-
-  function runPlanoImport(fileId, btnEl) {
-    const oldContent = btnEl.innerHTML;
-
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Lade...';
-    btnEl.disabled = true;
-    btnEl.classList.add('opacity-75', 'cursor-not-allowed');
-
-    const allBtns = document.getElementById('plano-files-list').querySelectorAll('button');
-
-    allBtns.forEach(b => b.disabled = true);
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        closePlanoModal();
-
-        if (response.success) {
-          alert("Import erfolgreich! " + response.count + " Schichten importiert.\nDie Seite wird nun aktualisiert.");
-
-          const loader = document.getElementById('loader');
-          if (loader) loader.classList.remove('hidden');
-
-          google.script.run
-            .withSuccessHandler(onDataLoaded)
-            .withFailureHandler(onDataError)
-            .getData();
-        } else {
-          alert("Import fehlgeschlagen: " + response.message);
-        }
-      })
-      .withFailureHandler(function(error) {
-        btnEl.innerHTML = oldContent;
-        btnEl.disabled = false;
-        btnEl.classList.remove('opacity-75', 'cursor-not-allowed');
-
-        allBtns.forEach(b => b.disabled = false);
-
-        alert("Kritischer Fehler: " + (error.message || error));
-      })
-      .importSelectedPlano(fileId);
-  }
-
-  function renderControl(data) {
-    const listFrueh = document.getElementById('list-frueh');
-    const listMittel = document.getElementById('list-mittel');
-    const listSpaet = document.getElementById('list-spaet');
-
-    if (!listFrueh || !listMittel || !listSpaet) return;
-
-    let allActivities = new Set();
-
-    const sorted = [...data].sort((a, b) => {
-      if (activeControlSort === 'plus') return b.stundenSaldo - a.stundenSaldo;
-      if (activeControlSort === 'minus') return a.stundenSaldo - b.stundenSaldo;
-
-      if (activeControlSort === 'time') {
-        const timeA = parseStartTimeMinutes(getRelevantTimeStr(a, activeActivityFilter));
-        const timeB = parseStartTimeMinutes(getRelevantTimeStr(b, activeActivityFilter));
-
-        return timeA - timeB;
-      }
-
-      return 0;
-    });
-
-    sorted.forEach(e => {
-      const filterActivities = getFilterShiftActivities(e);
-
-      if (filterActivities.length > 0) {
-        filterActivities.forEach(act => allActivities.add(act));
+  return convertCleanDisplayText_(displayValue);
+}
+
+/**
+ * Converts listed Excel files and updates/creates matching Google Sheets.
+ *
+ * Important fix:
+ * - Reads getDisplayValues() from the converted temp sheet instead of getValues().
+ *   This preserves values exactly as users see them in Excel/Sheets, e.g.
+ *   190.164 does not become the raw unrounded value 190.163.788.
+ *
+ * Button function: convertExcelFilesToSheets
+ */
+function convertExcelFilesToSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
+  const ui = SpreadsheetApp.getUi();
+
+  try {
+    const fileNamesRange = sheet.getRange("B4:B17");
+    const fileNamesValues = fileNamesRange.getValues();
+    const namesMap = new Map();
+
+    fileNamesValues.flat().forEach(name => {
+      const trimmedName = convertNormalizeText_(name);
+      if (trimmedName.length < 3) return;
+
+      let baseName = trimmedName;
+      if (trimmedName.toLowerCase().endsWith(".xlsx")) baseName = trimmedName.slice(0, -5);
+      else if (trimmedName.toLowerCase().endsWith(".xls")) baseName = trimmedName.slice(0, -4);
+
+      const robustName = normalizeGermanUmlauts(baseName);
+      if (robustName.length >= 3) {
+        namesMap.set(robustName, trimmedName);
       }
     });
 
-    buildActivityFilters(Array.from(allActivities).sort());
-
-    listFrueh.innerHTML = '';
-    listMittel.innerHTML = '';
-    listSpaet.innerHTML = '';
-
-    let cF = 0;
-    let cM = 0;
-    let cS = 0;
-
-    let sF = 0;
-    let sM = 0;
-    let sS = 0;
-
-    sorted.forEach(e => {
-      if (e.schicht && e.schicht.type) {
-        const filterActivities = getFilterShiftActivities(e);
-
-        let showItem = true;
-
-        if (activeActivityFilter !== 'Alle') {
-          if (!filterActivities.includes(activeActivityFilter)) {
-            showItem = false;
-          }
-        }
-
-        if (showItem) {
-          const col = getBalanceColor(e.stundenSaldo);
-
-          let pauseBadge = "";
-
-          if (e.schicht.pause) {
-            pauseBadge = `<span class="bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-block" title="Pause"><i class="fa-solid fa-mug-hot mr-1"></i>${escapeHtml(e.schicht.pause)}</span>`;
-          }
-
-          let actHtml = "";
-
-          if (filterActivities.length > 0) {
-            const actsStr = filterActivities.join(' • ');
-            actHtml = `<div class="text-[9px] text-gray-400 mt-1 truncate" title="${escapeHtml(actsStr)}"><i class="fa-solid fa-briefcase mr-1"></i>${escapeHtml(actsStr)}</div>`;
-          }
-
-          const displayTime = getRelevantTimeStr(e, activeActivityFilter);
-
-          let timeClass = "text-lidl-blue bg-blue-50 border border-blue-100";
-
-          if (activeActivityFilter !== 'Alle' && displayTime !== e.schicht.time) {
-            timeClass = "text-white bg-lidl-blue shadow-sm border-transparent";
-          }
-
-          const item = `
-            <div onclick="openShiftDetailsModal(${e.id})" class="p-3 border border-gray-100 rounded-xl bg-white hover:border-blue-300 hover:shadow-md cursor-pointer flex flex-col gap-1 text-sm transition-all group">
-              <div class="flex justify-between items-start">
-                <div class="overflow-hidden pr-2">
-                  <div class="font-bold text-slate-700 truncate">${escapeHtml(e.fullName)}</div>
-                  <div class="flex items-center text-[10px] text-gray-500 mt-0.5">
-                    <span class="truncate max-w-[80px]" title="${escapeHtml(e.skill)}">${escapeHtml(e.skill)}</span>
-                    <span class="mx-1 text-gray-300">|</span>
-                    <span class="font-mono font-bold ${col}">${decimalToTime(e.stundenSaldo)}</span>
-                  </div>
-                </div>
-                <div class="text-right flex flex-col items-end shrink-0">
-                  <div class="font-mono text-[10px] font-bold px-2 py-0.5 rounded ${timeClass} whitespace-nowrap">${escapeHtml(displayTime)}</div>
-                  ${pauseBadge}
-                </div>
-              </div>
-              ${actHtml}
-            </div>`;
-
-          const saldoVal = parseFloat(e.stundenSaldo) || 0;
-
-          if (e.schicht.type === "Früh") {
-            listFrueh.innerHTML += item;
-            cF++;
-            if (saldoVal > 0) sF += saldoVal;
-          } else if (e.schicht.type === "Mittel") {
-            listMittel.innerHTML += item;
-            cM++;
-            if (saldoVal > 0) sM += saldoVal;
-          } else if (e.schicht.type === "Spät") {
-            listSpaet.innerHTML += item;
-            cS++;
-            if (saldoVal > 0) sS += saldoVal;
-          }
-        }
-      }
-    });
-
-    document.getElementById('count-frueh').innerText = cF;
-    document.getElementById('sum-frueh').innerText = "+" + decimalToTime(sF) + " Std";
-
-    document.getElementById('count-mittel').innerText = cM;
-    document.getElementById('sum-mittel').innerText = "+" + decimalToTime(sM) + " Std";
-
-    document.getElementById('count-spaet').innerText = cS;
-    document.getElementById('sum-spaet').innerText = "+" + decimalToTime(sS) + " Std";
-  }
-
-  function getRelevantTimeStr(emp, filter) {
-    if (!emp || !emp.schicht) return "";
-
-    if (filter === 'Alle') {
-      return emp.schicht.time || "";
+    if (namesMap.size === 0) {
+      ui.alert("Keine Dateien", "In B4:B17 wurden keine gültigen Dateinamen gefunden.", ui.ButtonSet.OK);
+      return;
     }
 
-    const timelineDetails = getTimelineShiftDetails(emp);
-    const matches = timelineDetails.filter(d => d.activity === filter);
+    const folderId = convertExtractDriveFolderId_(sheet.getRange("B19").getValue());
+    if (!folderId) {
+      ui.alert("Ordner-Link fehlt", "Bitte den vollständigen Google-Drive-Ordnerlink oder die Ordner-ID in B19 eintragen.", ui.ButtonSet.OK);
+      return;
+    }
 
-    if (matches.length > 0) {
-      if (matches.length === 1) {
-        return matches[0].time;
-      }
+    let processedCount = 0;
+    const finalFileIds = new Map();
+    const allFilesInFolder = [];
+    let pageToken;
 
-      let minStart = null;
-      let maxEnd = null;
-      let minStartMins = 99999;
-      let maxEndMins = -1;
-
-      matches.forEach(m => {
-        const tMatch = String(m.time || '').match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
-
-        if (tMatch) {
-          const sStr = tMatch[1];
-          const eStr = tMatch[2];
-
-          const sMins = parseInt(sStr.split(':')[0], 10) * 60 + parseInt(sStr.split(':')[1], 10);
-          let eMins = parseInt(eStr.split(':')[0], 10) * 60 + parseInt(eStr.split(':')[1], 10);
-
-          if (eMins <= sMins) {
-            eMins += 24 * 60;
-          }
-
-          if (sMins < minStartMins) {
-            minStartMins = sMins;
-            minStart = sStr;
-          }
-
-          if (eMins > maxEndMins) {
-            maxEndMins = eMins;
-            maxEnd = eStr;
-          }
-        }
+    do {
+      const listResult = Drive.Files.list({
+        q: `'${folderId}' in parents and trashed = false`,
+        corpora: "allDrives",
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        pageToken: pageToken,
+        pageSize: 1000
       });
 
-      if (minStart && maxEnd) {
-        return `${minStart}-${maxEnd}`;
-      }
+      if (listResult.items) allFilesInFolder.push(...listResult.items);
+      pageToken = listResult.nextPageToken;
+    } while (pageToken);
 
-      return matches.map(m => m.time).join(', ');
-    }
+    const excelFilesToProcess = allFilesInFolder.filter(file => {
+      const isExcel = file.title.toLowerCase().endsWith(".xlsx") || file.title.toLowerCase().endsWith(".xls");
+      if (!isExcel) return false;
 
-    return emp.schicht.time || "";
-  }
-
-  function parseStartTimeMinutes(timeStr) {
-    if (!timeStr) return 9999;
-
-    const match = String(timeStr).match(/(\d{2}):(\d{2})/);
-
-    if (match) {
-      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-    }
-
-    return 9999;
-  }
-
-  function buildActivityFilters(activities) {
-    const container = document.getElementById('activity-filter-container');
-
-    if (!container) return;
-
-    const cleanActivities = (activities || [])
-      .filter(act => act && !isPauseActivity(act))
-      .filter((act, index, arr) => arr.indexOf(act) === index);
-
-    container.innerHTML = '';
-
-    const btnAll = document.createElement('button');
-
-    btnAll.innerText = 'Alle anzeigen';
-    btnAll.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === 'Alle' ? 'active' : 'default'}`;
-    btnAll.onclick = () => {
-      activeActivityFilter = 'Alle';
-      applyFilters();
-    };
-
-    container.appendChild(btnAll);
-
-    cleanActivities.forEach(act => {
-      const btn = document.createElement('button');
-
-      btn.innerText = act;
-      btn.className = `act-filter-chip px-3 py-1 rounded-full border shadow-sm ${activeActivityFilter === act ? 'active' : 'default'}`;
-      btn.onclick = () => {
-        activeActivityFilter = act;
-        applyFilters();
-      };
-
-      container.appendChild(btn);
+      const baseNameRaw = file.title.replace(/\.xlsx$/i, "").replace(/\.xls$/i, "");
+      return namesMap.has(normalizeGermanUmlauts(baseNameRaw));
     });
 
-    if (activeActivityFilter !== 'Alle' && !cleanActivities.includes(activeActivityFilter)) {
-      activeActivityFilter = 'Alle';
-    }
-  }
+    for (const file of excelFilesToProcess) {
+      const fileName = file.title;
+      const baseNameRaw = fileName.replace(/\.xlsx$/i, "").replace(/\.xls$/i, "");
+      const robustBaseName = normalizeGermanUmlauts(baseNameRaw);
+      let tempFile = null;
 
-  function openShiftDetailsModal(id) {
-    const emp = allData.find(d => d.id == id);
+      try {
+        SpreadsheetApp.getActive().toast(`Konvertiere: ${fileName}`);
 
-    if (!emp || !emp.schicht) return;
+        const destinationSheetFile = allFilesInFolder.find(item =>
+          item.mimeType === MimeType.GOOGLE_SHEETS &&
+          normalizeGermanUmlauts(item.title) === robustBaseName
+        );
 
-    currentEmpId = id;
+        let attempts = 0;
+        while (attempts < 7) {
+          try {
+            attempts++;
+            const fileBlob = DriveApp.getFileById(file.id).getBlob();
+            const resource = {
+              title: `temp_${new Date().getTime()}`,
+              mimeType: MimeType.GOOGLE_SHEETS
+            };
 
-    document.getElementById('shift-modal-name').innerText = emp.fullName;
-    document.getElementById('shift-modal-skill').innerText = `${emp.skill || '-'} | ${emp.tmaVorname || '-'}`;
-    document.getElementById('shift-modal-time').innerText = emp.schicht.time || '--:--';
+            tempFile = Drive.Files.insert(resource, fileBlob, {
+              supportsAllDrives: true,
+              convert: true
+            });
 
-    const timelineContainer = document.getElementById('shift-modal-timeline');
+            if (tempFile) break;
+          } catch (err) {
+            Logger.log(`Versuch ${attempts} fehlgeschlagen für ${fileName}: ${err.message}`);
+            if (attempts >= 7) throw err;
+            Utilities.sleep(5000);
+          }
+        }
 
-    if (!timelineContainer) return;
+        const tempSpreadsheet = SpreadsheetApp.openById(tempFile.id);
+        const tempSourceSheet = tempSpreadsheet.getSheets()[0];
+        const dataRange = tempSourceSheet.getDataRange();
+        const rawValues = dataRange.getValues();
+        const displayValues = dataRange.getDisplayValues();
 
-    let html = '';
-
-    const details = getTimelineShiftDetails(emp);
-
-    if (details.length === 0) {
-      html = `
-        <div class="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-400">
-          <i class="fa-regular fa-clock text-3xl mb-3"></i>
-          <p class="font-bold text-slate-600">Keine Tätigkeitsdetails vorhanden</p>
-          <p class="text-xs mt-1">Schichtzeit: ${escapeHtml(emp.schicht.time || '-')}</p>
-        </div>
-      `;
-    } else {
-      html = '<div class="space-y-3">';
-
-      details.forEach(item => {
-        const pause = isPauseActivity(item.activity);
-
-        html += `
-          <div class="bg-white border ${pause ? 'border-gray-200' : 'border-blue-100'} rounded-xl p-3 shadow-sm flex gap-3 items-start hover:border-lidl-blue transition">
-            <div class="w-24 shrink-0 font-mono text-xs font-bold ${pause ? 'text-gray-500 bg-gray-100' : 'text-lidl-blue bg-blue-50'} rounded-lg px-2 py-1 text-center">
-              ${escapeHtml(item.time || '-')}
-            </div>
-            <div class="flex-1">
-              <div class="font-bold text-sm ${pause ? 'text-gray-500' : 'text-slate-700'}">
-                ${pause ? '<i class="fa-solid fa-mug-hot mr-1"></i>' : ''}
-                ${escapeHtml(item.activity || '-')}
-              </div>
-            </div>
-          </div>
-        `;
-      });
-
-      html += '</div>';
-    }
-
-    timelineContainer.innerHTML = html;
-
-    openModalById('shiftDetailsModal', 'shiftDetailsModalContent');
-  }
-
-  function closeShiftDetailsModal() {
-    closeModalById('shiftDetailsModal', 'shiftDetailsModalContent');
-  }
-
-  function toggleRadar() {
-    const panel = document.getElementById('shift-radar-panel');
-
-    if (!panel) return;
-
-    isRadarOpen = !isRadarOpen;
-
-    if (isRadarOpen) {
-      panel.classList.remove('hidden');
-      panel.classList.add('flex');
-      updateRadar();
-    } else {
-      panel.classList.add('hidden');
-      panel.classList.remove('flex');
-    }
-  }
-
-  function updateRadar() {
-    const list = document.getElementById('radar-list');
-    const badge = document.getElementById('radar-badge');
-    const time = document.getElementById('radar-time');
-
-    if (time) {
-      time.innerText = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    if (!list || !badge || !allData) return;
-
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-
-    const upcoming = [];
-
-    allData.forEach(emp => {
-      const timelineDetails = getTimelineShiftDetails(emp);
-
-      timelineDetails.forEach(detail => {
-        const match = String(detail.time || '').match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
-
-        if (!match) return;
-
-        const start = Number(match[1]) * 60 + Number(match[2]);
-        const diff = start - nowMins;
-
-        if (diff >= -5 && diff <= 30) {
-          upcoming.push({
-            id: emp.id,
-            name: emp.fullName,
-            time: detail.time,
-            activity: detail.activity,
-            diff: diff,
-            isPause: isPauseActivity(detail.activity)
+        const sanitizedData = rawValues.map((row, rowIndex) => {
+          return row.map((cell, columnIndex) => {
+            return convertCellForPlainText_(cell, displayValues[rowIndex][columnIndex]);
           });
+        });
+
+        if (!destinationSheetFile) {
+          tempSourceSheet.clear();
+
+          if (sanitizedData.length > 0 && sanitizedData[0].length > 0) {
+            const targetRange = tempSourceSheet.getRange(1, 1, sanitizedData.length, sanitizedData[0].length);
+            targetRange.setNumberFormat("@");
+            targetRange.setValues(sanitizedData);
+          }
+
+          const tempFileParents = Drive.Files.get(tempFile.id, { supportsAllDrives: true }).parents;
+          const parentIdsToRemove = tempFileParents.map(parent => parent.id).join(",");
+
+          Drive.Files.update({ title: baseNameRaw }, tempFile.id, null, {
+            addParents: folderId,
+            removeParents: parentIdsToRemove,
+            supportsAllDrives: true
+          });
+
+          finalFileIds.set(robustBaseName, tempFile.id);
+          tempFile = null;
+        } else {
+          const destSpreadsheet = SpreadsheetApp.openById(destinationSheetFile.id);
+          const destSheet = destSpreadsheet.getSheets()[0];
+
+          destSheet.clear();
+
+          if (sanitizedData.length > 0 && sanitizedData[0].length > 0) {
+            const targetRange = destSheet.getRange(1, 1, sanitizedData.length, sanitizedData[0].length);
+            targetRange.setNumberFormat("@");
+            targetRange.setValues(sanitizedData);
+          }
+
+          finalFileIds.set(robustBaseName, destinationSheetFile.id);
         }
-      });
+
+        processedCount++;
+      } catch (e) {
+        Logger.log(`Fehler bei ${fileName}: ${e.message}\n${e.stack}`);
+      } finally {
+        if (tempFile) {
+          try {
+            Drive.Files.trash(tempFile.id, { supportsAllDrives: true });
+          } catch (e) {
+            Logger.log(`Temp-Datei konnte nicht gelöscht werden: ${e.message}`);
+          }
+        }
+      }
+    }
+
+    const outputIdsArray = fileNamesValues.map(row => {
+      const name = convertNormalizeText_(row);
+      let baseName = name;
+      if (name.toLowerCase().endsWith(".xlsx")) baseName = name.slice(0, -5);
+      else if (name.toLowerCase().endsWith(".xls")) baseName = name.slice(0, -4);
+
+      return [finalFileIds.get(normalizeGermanUmlauts(baseName)) || ""];
     });
 
-    upcoming.sort((a, b) => a.diff - b.diff);
-
-    badge.innerText = upcoming.length;
-    badge.classList.toggle('hidden', upcoming.length === 0);
-
-    if (upcoming.length === 0) {
-      list.innerHTML = '<div class="p-5 text-center text-xs text-gray-400">Keine Wechsel in den nächsten 30 Minuten.</div>';
-      return;
-    }
-
-    list.innerHTML = '';
-
-    upcoming.forEach(item => {
-      const diffText = item.diff < 0
-        ? `seit ${Math.abs(item.diff)} Min.`
-        : `in ${item.diff} Min.`;
-
-      const icon = item.isPause
-        ? '<i class="fa-solid fa-mug-hot text-gray-400 mr-1"></i>'
-        : '<i class="fa-solid fa-briefcase text-lidl-blue mr-1"></i>';
-
-      list.innerHTML += `
-        <button type="button" onclick="openShiftDetailsModal(${item.id})" class="w-full text-left p-3 border-b border-gray-100 bg-white hover:bg-blue-50 transition cursor-pointer">
-          <div class="flex justify-between items-center gap-2">
-            <div class="font-bold text-sm text-slate-700 truncate">${escapeHtml(item.name)}</div>
-            <div class="font-mono text-xs font-bold ${item.isPause ? 'text-gray-500' : 'text-lidl-blue'} shrink-0">${escapeHtml(item.time)}</div>
-          </div>
-          <div class="text-xs ${item.isPause ? 'text-gray-500' : 'text-gray-600'} mt-1 truncate">${icon}${escapeHtml(item.activity)}</div>
-          <div class="text-[10px] font-bold text-gray-400 mt-1">${escapeHtml(diffText)}</div>
-        </button>
-      `;
-    });
-  }
-
-  function openCapacityOverviewModal(forceRefresh) {
-    const content = document.getElementById('capacity-overview-content');
-
-    openModalById('capacityOverviewModal', 'capacityOverviewModalContent');
-
-    if (!content) return;
-
-    content.innerHTML = `
-      <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-lidl-blue"></i>
-        <p class="font-medium">Kapazitäten werden berechnet...</p>
-        <p class="text-xs mt-1">Basis: aktuelles Schichtmodell aus dem Plano Backup</p>
-      </div>
-    `;
-
-    capacitySkillFilter = 'Alle';
-
-    google.script.run
-      .withSuccessHandler(data => {
-        capacityOverviewCache = data;
-        renderCapacityOverview(data);
-      })
-      .withFailureHandler(err => {
-        content.innerHTML = `
-          <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 text-center">
-            <i class="fa-solid fa-triangle-exclamation text-3xl mb-3"></i>
-            <h4 class="font-bold text-lg">Fehler beim Laden</h4>
-            <p class="text-sm mt-2">${err.message || err}</p>
-          </div>
-        `;
-      })
-      .getCapacityOverviewData();
-  }
-
-  function closeCapacityOverviewModal() {
-    closeModalById('capacityOverviewModal', 'capacityOverviewModalContent');
-  }
-
-  function setCapacitySkillFilter(encodedSkill) {
-    capacitySkillFilter = decodeURIComponent(encodedSkill || 'Alle');
-
-    if (capacityOverviewCache) {
-      renderCapacityOverview(capacityOverviewCache);
-    }
-  }
-
-  function renderCapacityOverview(data) {
-    const content = document.getElementById('capacity-overview-content');
-
-    if (!content) return;
-
-    if (!data || !data.success) {
-      content.innerHTML = '<div class="text-center text-gray-400 py-10">Keine Daten gefunden.</div>';
-      return;
-    }
-
-    let allAreas = (data.areas || []).filter(a =>
-      a.area &&
-      String(a.area).trim() !== '' &&
-      String(a.area).toLowerCase() !== 'ohne skill'
-    );
-
-    const skills = allAreas.map(a => a.area);
-
-    let areas = allAreas;
-
-    if (capacitySkillFilter !== 'Alle') {
-      areas = allAreas.filter(a => a.area === capacitySkillFilter);
-    }
-
-    const totalHours = areas.reduce((sum, area) => sum + Number(area.totalHours || 0), 0);
-    const remainingHours = areas.reduce((sum, area) => sum + Number(area.remainingHours || 0), 0);
-    const usedHours = areas.reduce((sum, area) => sum + Number(area.usedHours || 0), 0);
-
-    let html = `
-      <div class="space-y-5">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Gesamtkapazität Tag</div>
-            <div class="font-mono text-3xl font-bold text-slate-700 mt-1">${capacityDecimalToTime(totalHours)}</div>
-          </div>
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Bereits vergangen</div>
-            <div class="font-mono text-3xl font-bold text-lidl-blue mt-1">${capacityDecimalToTime(usedHours)}</div>
-          </div>
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-[10px] uppercase font-bold text-gray-400">Restkapazität ab jetzt</div>
-            <div class="font-mono text-3xl font-bold text-modern-green mt-1">${capacityDecimalToTime(remainingHours)}</div>
-          </div>
-        </div>
-
-        ${renderCapacitySkillFilters(skills)}
-
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <div class="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 flex items-center justify-between">
-            <div>
-              <h4 class="font-bold text-slate-700 flex items-center gap-2">
-                <i class="fa-solid fa-layer-group text-lidl-blue"></i> Kapazität nach Skill
-              </h4>
-              <p class="text-xs text-gray-400 mt-0.5">Nur produktive Skill-Zeiträume aus den Tätigkeitsblöcken</p>
-            </div>
-            <div class="text-xs text-gray-400">Stand: ${escapeHtml(data.updatedAt || '-')}</div>
-          </div>
-
-          <div class="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-    `;
-
-    if (areas.length === 0) {
-      html += `
-        <div class="col-span-full text-center py-10 text-gray-400">
-          <i class="fa-regular fa-folder-open text-3xl mb-3"></i>
-          <p>Keine produktiven Skill-Zeiten gefunden.</p>
-        </div>
-      `;
-    }
-
-    areas.forEach(area => {
-      html += `
-        <div class="border border-gray-100 rounded-2xl p-4 bg-white hover:shadow-md transition">
-          <div class="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <div class="font-bold text-slate-700">${escapeHtml(area.area)}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5 truncate" title="${escapeHtml((area.originalSkills || []).join(', '))}">
-                ${(area.originalSkills || []).length ? escapeHtml((area.originalSkills || []).join(' • ')) : 'Produktiver Skill'}
-              </div>
-            </div>
-            <div class="w-9 h-9 rounded-xl bg-blue-50 text-lidl-blue flex items-center justify-center">
-              <i class="fa-solid fa-clock"></i>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-3 gap-2 text-right">
-            <div class="rounded-xl bg-gray-50 border border-gray-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Gesamt</div>
-              <div class="font-mono font-bold text-slate-700">${capacityDecimalToTime(area.totalHours)}</div>
-            </div>
-            <div class="rounded-xl bg-blue-50 border border-blue-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Vergangen</div>
-              <div class="font-mono font-bold text-lidl-blue">${capacityDecimalToTime(area.usedHours)}</div>
-            </div>
-            <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-2">
-              <div class="text-[9px] uppercase font-bold text-gray-400">Rest</div>
-              <div class="font-mono font-bold text-modern-green">${capacityDecimalToTime(area.remainingHours)}</div>
-            </div>
-          </div>
-        </div>
-      `;
+    const outputUrlsArray = outputIdsArray.map(([fileId]) => {
+      return [fileId ? `https://docs.google.com/spreadsheets/d/${fileId}/edit` : ""];
     });
 
-    html += `
-          </div>
-        </div>
-      </div>
-    `;
-
-    content.innerHTML = html;
+    sheet.getRange("E4:E17").setValues(outputIdsArray);
+    sheet.getRange("F4:F17").setValues(outputUrlsArray);
+    SpreadsheetApp.getActive().toast(`${processedCount} Dateien verarbeitet.`, "Fertig", 5);
+  } catch (e) {
+    ui.alert("Fehler", `Details: ${e.message}`, ui.ButtonSet.OK);
   }
-
-  function renderCapacitySkillFilters(skills) {
-    const safeSkills = (skills || []).filter(s => s && String(s).trim() !== "" && String(s).toLowerCase() !== "ohne skill");
-
-    let html = `
-      <div class="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
-        <div class="flex flex-wrap gap-2 items-center">
-          <span class="text-[10px] uppercase font-bold text-gray-400 mr-1">
-            <i class="fa-solid fa-filter text-lidl-blue mr-1"></i> Skill Filter:
-          </span>
-    `;
-
-    const allClass = capacitySkillFilter === 'Alle'
-      ? 'bg-lidl-blue text-white border-lidl-blue'
-      : 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-lidl-blue hover:border-blue-200';
-
-    html += `
-      <button onclick="setCapacitySkillFilter('${encodeURIComponent('Alle')}')" class="px-3 py-1 rounded-full border text-xs font-bold transition ${allClass}">
-        Alle Skills
-      </button>
-    `;
-
-    safeSkills.forEach(skill => {
-      const active = capacitySkillFilter === skill;
-      const cls = active
-        ? 'bg-lidl-blue text-white border-lidl-blue'
-        : 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-lidl-blue hover:border-blue-200';
-
-      html += `
-        <button onclick="setCapacitySkillFilter('${encodeURIComponent(skill)}')" class="px-3 py-1 rounded-full border text-xs font-bold transition ${cls}">
-          ${escapeHtml(skill)}
-        </button>
-      `;
-    });
-
-    html += `
-        </div>
-      </div>
-    `;
-
-    return html;
-  }
-
-  function capacityDecimalToTime(decimalVal) {
-    decimalVal = Number(decimalVal || 0);
-
-    const isNegative = decimalVal < 0;
-    decimalVal = Math.abs(decimalVal);
-
-    let hours = Math.floor(decimalVal);
-    let minutes = Math.round((decimalVal - hours) * 60);
-
-    if (minutes === 60) {
-      hours += 1;
-      minutes = 0;
-    }
-
-    return `${isNegative ? '-' : ''}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  }
-
-  function openModalById(modalId, contentId) {
-    const modal = document.getElementById(modalId);
-    const content = document.getElementById(contentId);
-
-    if (!modal || !content) return;
-
-    modal.classList.remove('hidden');
-
-    setTimeout(() => {
-      modal.classList.remove('opacity-0');
-      content.classList.remove('scale-95');
-      content.classList.add('scale-100');
-    }, 10);
-  }
-
-  function closeModalById(modalId, contentId) {
-    const modal = document.getElementById(modalId);
-    const content = document.getElementById(contentId);
-
-    if (!modal || !content) return;
-
-    modal.classList.add('opacity-0');
-    content.classList.remove('scale-100');
-    content.classList.add('scale-95');
-
-    setTimeout(() => {
-      modal.classList.add('hidden');
-    }, 300);
-  }
-
-  function escapeHtml(value) {
-    return String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-</script>
+}
