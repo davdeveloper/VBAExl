@@ -68,31 +68,10 @@ function misSetSettingsFileReference_(settingsSheet, rowNumber, fileId) {
   settingsSheet.getRange(rowNumber, 6).setValue(`https://docs.google.com/spreadsheets/d/${fileId}/edit`);
 }
 
-function misBuildSourceValues_(rawValues, displayValues) {
-  return rawValues.map((row, rowIndex) => {
-    return row.map((value, colIndex) => {
-      const displayText = misNormalizeText_(displayValues[rowIndex][colIndex]).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
-
-      // Column A is used as lookup key. Keep normal integer article numbers numeric
-      // so existing MIS formulas still match, but never use a non-integer raw value
-      // that would expose hidden decimals such as 190.163.788.
-      if (colIndex === 0) {
-        if (typeof value === "number" && Number.isInteger(value)) return value;
-
-        const looksLikeGermanThousands = /^\d{1,3}(\.\d{3})+$/.test(displayText);
-        if (looksLikeGermanThousands && !displayText.startsWith("0")) {
-          return Number(displayText.replace(/\./g, ""));
-        }
-
-        return displayText;
-      }
-
-      // Keep numeric/date columns usable for formulas. Only clean strings.
-      if (value === "" || value == null) return "";
-      if (typeof value === "string") return misNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
-      return value;
-    });
-  });
+function misBuildSourceValues_(rawValues) {
+  // MIS formulas in E:G depend on the exact value types in A:D.
+  // The old working script copied getValues() 1:1, so keep that behavior here.
+  return rawValues;
 }
 
 function misColumnLooksAllZero_(displayValues, columnIndex) {
@@ -231,7 +210,7 @@ function importAndProcessMisData(sourceFileId) {
   }
 
   const sourceRange = sourceSheet.getRange(2, 1, sourceLastRow - 1, 4);
-  const sourceValues = misBuildSourceValues_(sourceRange.getValues(), sourceRange.getDisplayValues());
+  const sourceValues = misBuildSourceValues_(sourceRange.getValues());
 
   if (!sourceValues.length || !sourceValues[0].length) {
     ui.alert('Keine Daten', 'Die MIS-Quelldatei enthält keine importierbaren Daten.', ui.ButtonSet.OK);
