@@ -1,186 +1,100 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-    <style>
-      body {
-        font-family: 'Arial', sans-serif;
-        padding: 15px;
-        color: #333;
+﻿/**
+ * Imports and processes data from 'Rohdaten Änderungswünsche Sort.' to 'Änderungswünsche Sortierung'.
+ * Replicates VBA macro 'Daten_Aus_RohdatenÄnderungswünscheSort_Importieren'.
+ * Key difference: De-duplicates based on BOTH Artikelnummer (Col F) AND Artikel (Col G).
+ */
+function importToChangeWishesSorting() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const sourceSheet = ss.getSheetByName("Rohdaten Änderungswünsche Sort.");
+  const destSheet = ss.getSheetByName("Änderungswünsche Sortierung");
+
+  Logger.log("--- Starting importToChangeWishesSorting ---");
+
+  if (!sourceSheet || !destSheet) {
+    ui.alert('Error', 'Could not find the source ("Rohdaten...") or destination ("Änderungswünsche Sortierung") sheet.', ui.ButtonSet.OK);
+    Logger.log('Error: A required sheet is missing.');
+    return;
+  }
+
+// Check source sheet using Column H (Artikel) as per VBA
+  const columnHValues = sourceSheet.getRange("H1:H" + sourceSheet.getMaxRows()).getValues();
+  let sourceLastRow = 0;
+  for (let i = columnHValues.length - 1; i >= 0; i--) {
+    if (String(columnHValues[i][0]).trim() !== "") {
+      sourceLastRow = i + 1;
+      break;
+    }
+  }
+
+  if (sourceLastRow < 8) {
+    ui.alert('No Data', 'The "Rohdaten Änderungswünsche Sort." sheet has no data to import (checked Col H).', ui.ButtonSet.OK);
+    Logger.log('Warning: No data to process on the source sheet.');
+    // Optional: Add redirect logic here if needed
+    return;
+  }
+  Logger.log(`Found data up to row ${sourceLastRow} on source sheet.`);
+
+  try {
+    // --- 1. Clear Old Data Content ---
+    const destLastRow = destSheet.getLastRow();
+    if (destLastRow >= 6) {
+      Logger.log(`Clearing old content from A6:R${destLastRow} in 'Änderungswünsche Sortierung'.`);
+      destSheet.getRange("A6:R" + destLastRow).clearContent();
+    }
+
+    // --- 2. Read, Re-order, and De-duplicate Data in Memory ---
+    Logger.log("Reading source data...");
+    // Read all relevant columns (A to H) from the source sheet at once.
+    const sourceRange = sourceSheet.getRange("A8:H" + sourceLastRow);
+    const sourceValues = sourceRange.getValues();
+
+    const uniqueKeys = new Set(); // Use a Set to track unique combinations
+    const processedData = [];
+
+    Logger.log("Processing and de-duplicating data based on Artikelnummer AND Artikel...");
+    for (const row of sourceValues) {
+      const artikelNummer = row[4]; // Column E (becomes Col F in dest)
+      const artikel = row[7];       // Column H (becomes Col G in dest)
+      const uniqueKey = `${artikelNummer}|||${artikel}`; // Combine both for uniqueness check
+      
+      // If we haven't seen this combination before, process it.
+      if (!uniqueKeys.has(uniqueKey)) {
+        processedData.push([
+          row[0], // Column A -> A
+          row[1], // Column B -> B
+          row[2], // Column C -> C
+          row[3], // Column D -> D
+          row[5], // Column F -> E ('Artikelnummer QUELLE')
+          artikelNummer, // Column E -> F ('Artikelnummer') - Part 1 of key
+          artikel,       // Column H -> G ('Artikel') - Part 2 of key
+        ]);
+        uniqueKeys.add(uniqueKey);
       }
+    }
+    Logger.log(`Finished processing. Found ${processedData.length} unique rows.`);
+    
+    if (processedData.length === 0) {
+        ui.alert('No Data', 'No unique data rows were found to import.', ui.ButtonSet.OK);
+        return;
+    }
 
-      h3 {
-        color: #0050AA;
-        margin-top: 0;
-        font-size: 18px;
-      }
+    // --- 3. Write Processed Data to Destination ---
+    Logger.log("Writing processed data to 'Änderungswünsche Sortierung' sheet (A:G).");
+    destSheet.getRange(6, 1, processedData.length, 7).setValues(processedData);
+    
+    const newLastRow = 5 + processedData.length;
 
-      p {
-        font-size: 13px;
-        color: #555;
-      }
+    // --- 4. Apply Formulas using a Format-Preserving Method ---
+    Logger.log(`Applying formulas from H3:R3 to H6:R${newLastRow} using R1C1 notation.`);
+    const formulaTemplateRange = destSheet.getRange("H3:R3");
+    const templateFormulas = formulaTemplateRange.getFormulasR1C1()[0]; 
 
-      select {
-        width: 100%;
-        padding: 10px;
-        margin-bottom: 14px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        font-size: 14px;
-        box-sizing: border-box;
-      }
-
-      .check-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: #f1f8ff;
-        border: 1px solid #cce5ff;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 18px;
-        font-size: 13px;
-        color: #333;
-      }
-
-      .check-row input {
-        width: 16px;
-        height: 16px;
-        cursor: pointer;
-      }
-
-      button {
-        background-color: #0050AA;
-        color: white;
-        border: none;
-        padding: 12px 20px;
-        font-size: 14px;
-        font-weight: bold;
-        cursor: pointer;
-        width: 100%;
-        border-radius: 4px;
-      }
-
-      button:hover {
-        background-color: #003d82;
-      }
-
-      button:disabled {
-        background-color: #ccc;
-        cursor: not-allowed;
-      }
-
-      #status {
-        margin-top: 15px;
-        font-size: 13px;
-        padding: 10px;
-        border-radius: 4px;
-        display: none;
-        white-space: pre-line;
-      }
-
-      .loading {
-        background-color: #e8f0fe;
-        color: #0050AA;
-        border: 1px solid #b6d4fe;
-      }
-
-      .success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-
-      .error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-    </style>
-  </head>
-
-  <body>
-    <h3>Plano-Daten importieren</h3>
-    <p>Wähle eine Datei aus der geteilten Ablage:</p>
-
-    <select id="fileSelect">
-      <option value="">Lade Dateien...</option>
-    </select>
-
-    <label class="check-row">
-      <input type="checkbox" id="fullMonthCheckbox">
-      <span>Gesamten Monat importieren</span>
-    </label>
-
-    <button id="importBtn" onclick="startImport()" disabled>Auswerten & Importieren</button>
-
-    <div id="status"></div>
-
-    <script>
-      google.script.run
-        .withSuccessHandler(function(files) {
-          const select = document.getElementById('fileSelect');
-          select.innerHTML = '';
-
-          if (files.length === 0) {
-            select.innerHTML = '<option value="">Keine Dateien im Ordner gefunden</option>';
-            return;
-          }
-
-          files.forEach(function(f) {
-            const option = document.createElement('option');
-            option.value = f.id;
-            option.text = f.name;
-            select.appendChild(option);
-          });
-
-          document.getElementById('importBtn').disabled = false;
-        })
-        .withFailureHandler(function(err) {
-          showStatus("Fehler beim Laden der Dateien: " + err.message, "error");
-        })
-        .getFilesInFolder();
-
-      function startImport() {
-        const select = document.getElementById('fileSelect');
-        const fileId = select.value;
-        const importFullMonth = document.getElementById('fullMonthCheckbox').checked;
-
-        if (!fileId) return;
-
-        document.getElementById('importBtn').disabled = true;
-        select.disabled = true;
-        document.getElementById('fullMonthCheckbox').disabled = true;
-
-        if (importFullMonth) {
-          showStatus("Monatsimport läuft. Die Datei wird blockweise ausgewertet und in die Testdatenbank geschrieben.", "loading");
-        } else {
-          showStatus("Datei wird eingelesen und ausgewertet. Bitte warten.", "loading");
+    if (templateFormulas.join('').length > 0) {
+        const numRows = newLastRow - 5;
+        const formulasForRange = [];
+        for (let i = 0; i < numRows; i++) {
+            formulasForRange.push(templateFormulas);
         }
-
-        google.script.run
-          .withSuccessHandler(function(res) {
-            showStatus("Erfolgreich! " + res, "success");
-
-            setTimeout(function() {
-              google.script.host.close();
-            }, 5000);
-          })
-          .withFailureHandler(function(err) {
-            showStatus("Fehler: " + err.message, "error");
-            document.getElementById('importBtn').disabled = false;
-            select.disabled = false;
-            document.getElementById('fullMonthCheckbox').disabled = false;
-          })
-          .processPlanoImport(fileId, importFullMonth);
-      }
-
-      function showStatus(msg, type) {
-        const el = document.getElementById('status');
-        el.style.display = 'block';
-        el.className = type;
-        el.innerText = msg;
-      }
-    </script>
-  </body>
-</html>
+        
+        const formulaDestinationRange = destSheet.getRange("H6:R" + newLastRow);
