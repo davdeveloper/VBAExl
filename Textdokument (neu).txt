@@ -1,504 +1,159 @@
 /**
- * Consolidated Rohdaten import fixes.
- *
- * Core fix:
- * - The project mixed source IDs in Einstellungen column E and URLs in column F.
- * - Raw imports opened some sources from E, others from F.
- * - The later IMPORTRANGE formulas mostly read column F.
- *
- * This file keeps E and F synchronized for each source row:
- * - E = Google Sheet file ID
- * - F = full Google Sheet URL
- *
- * Replace the old Rohdaten import functions with these versions.
+ * Imports and processes data from 'Rohdaten Änderungswünsche Sort.' to 'Änderungswünsche Sortierung'.
+ * Replicates VBA macro 'Daten_Aus_RohdatenÄnderungswünscheSort_Importieren'.
+ * Key difference: De-duplicates based on BOTH Artikelnummer (Col F) AND Artikel (Col G).
  */
-
-function rohNormalizeText_(value) {
-  return String(value == null ? "" : value).normalize("NFC").trim();
-}
-
-function rohFoldText_(value) {
-  return rohNormalizeText_(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/ß/g, "ss")
-    .toLowerCase()
-    .trim();
-}
-
-function rohExtractDriveId_(value) {
-  const text = rohNormalizeText_(value);
-  if (!text) return "";
-
-  const patterns = [
-    /\/d\/([a-zA-Z0-9_-]+)/,
-    /\/folders\/([a-zA-Z0-9_-]+)/,
-    /[?&]id=([a-zA-Z0-9_-]+)/,
-    /^([a-zA-Z0-9_-]{20,})$/,
-    /([a-zA-Z0-9_-]{25,})/
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) return match[1];
-  }
-
-  return "";
-}
-
-function rohSheetUrl_(fileId) {
-  return `https://docs.google.com/spreadsheets/d/${fileId}/edit`;
-}
-
-function rohCleanText_(value) {
-  return rohNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
-}
-
-function rohCleanWgText_(value, minLength) {
-  let text = rohCleanText_(value);
-  while (text.length > minLength && text.endsWith("0")) {
-    text = text.slice(0, -1);
-  }
-  return text;
-}
-
-function rohFindSettingsSource_(settingsSheet, searchFileName) {
-  const values = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
-  const searchBase = rohFoldText_(searchFileName);
-  const searchExcel = rohFoldText_(searchFileName + ".xlsx");
-
-  for (let i = 0; i < values.length; i++) {
-    const cellA = rohFoldText_(values[i][0]);
-    const cellB = rohFoldText_(values[i][1]);
-
-    const matches =
-      cellA === searchBase ||
-      cellB === searchBase ||
-      cellA === searchExcel ||
-      cellB === searchExcel ||
-      cellA.includes(searchBase) ||
-      cellB.includes(searchBase);
-
-    if (!matches) continue;
-
-    const idFromE = rohExtractDriveId_(values[i][4]);
-    const idFromF = rohExtractDriveId_(values[i][5]);
-    const fileId = idFromE || idFromF;
-
-    if (!fileId) {
-      return {
-        rowNumber: i + 1,
-        fileId: "",
-        fileUrl: "",
-        error: `In Einstellungen Zeile ${i + 1} wurde weder in Spalte E noch F eine gültige Google-Sheet-ID gefunden.`
-      };
-    }
-
-    const rowNumber = i + 1;
-    const fileUrl = rohSheetUrl_(fileId);
-
-    const idCell = settingsSheet.getRange(rowNumber, 5);
-    const urlCell = settingsSheet.getRange(rowNumber, 6);
-
-    if (!idFromE || rohNormalizeText_(values[i][4]) !== fileId) {
-      idCell.setValue(fileId);
-    }
-
-    if (!idFromF || !rohNormalizeText_(values[i][5]).includes(fileId)) {
-      urlCell.setValue(fileUrl);
-    }
-
-    return { rowNumber, fileId, fileUrl };
-  }
-
-  return {
-    rowNumber: -1,
-    fileId: "",
-    fileUrl: "",
-    error: `Quelle "${searchFileName}" wurde in Einstellungen Spalte A/B nicht gefunden.`
-  };
-}
-
-function rohGetSourceSheet_(sourceSs, preferredSheetName) {
-  if (preferredSheetName) {
-    const exact = sourceSs.getSheetByName(preferredSheetName);
-    if (exact) return exact;
-  }
-
-  const sheets = sourceSs.getSheets();
-  if (!sheets.length) return null;
-
-  if (preferredSheetName) {
-    const foldedPreferred = rohFoldText_(preferredSheetName);
-    const loose = sheets.find(sheet => rohFoldText_(sheet.getName()) === foldedPreferred);
-    if (loose) return loose;
-  }
-
-  return sheets[0];
-}
-
-function rohReadSourceValues_(sheet, startRow, startColumn, columnCount) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow < startRow) return [];
-
-  const values = sheet.getRange(startRow, startColumn, lastRow - startRow + 1, columnCount).getDisplayValues();
-
-  while (values.length && values[values.length - 1].every(cell => rohCleanText_(cell) === "")) {
-    values.pop();
-  }
-
-  return values;
-}
-
-function rohSanitizeRows_(values, options) {
-  const wgColumnIndex = options && Number.isInteger(options.wgColumnIndex) ? options.wgColumnIndex : -1;
-  const wgMinLength = options && Number.isInteger(options.wgMinLength) ? options.wgMinLength : 5;
-
-  return values.map(row => row.map((value, index) => {
-    if (index === wgColumnIndex) return rohCleanWgText_(value, wgMinLength);
-    return rohCleanText_(value);
-  }));
-}
-
-function rohFindHeaderColumn_(sheet, headerText, headerRows, maxColumns) {
-  const headers = sheet.getRange(1, 1, headerRows, maxColumns).getDisplayValues();
-  const wanted = rohFoldText_(headerText);
-
-  for (let r = 0; r < headers.length; r++) {
-    for (let c = 0; c < headers[r].length; c++) {
-      if (rohFoldText_(headers[r][c]) === wanted) return c;
-    }
-  }
-
-  return -1;
-}
-
-function rohClearContentFromRow_(sheet, startRow, columnCount) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow >= startRow) {
-    sheet.getRange(startRow, 1, lastRow - startRow + 1, columnCount).clearContent();
-  }
-}
-
-function rohImportBlock_(config) {
+function importToChangeWishesSorting() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  const settingsSheet = ss.getSheetByName("Einstellungen");
-  const targetSheet = ss.getSheetByName(config.targetSheetName);
+  const sourceSheet = ss.getSheetByName("Rohdaten Änderungswünsche Sort.");
+  const destSheet = ss.getSheetByName("Änderungswünsche Sortierung");
 
-  if (!settingsSheet || !targetSheet) {
-    ui.alert("Fehler", `Benötigte Tabellenblätter fehlen: Einstellungen oder ${config.targetSheetName}.`, ui.ButtonSet.OK);
-    return null;
-  }
+  Logger.log("--- Starting importToChangeWishesSorting ---");
 
-  const sourceInfo = rohFindSettingsSource_(settingsSheet, config.searchFileName);
-  if (!sourceInfo.fileId) {
-    ui.alert("Konfigurationsfehler", sourceInfo.error || `Quelle für ${config.searchFileName} nicht gefunden.`, ui.ButtonSet.OK);
-    return null;
-  }
-
-  let sourceSs;
-  try {
-    sourceSs = SpreadsheetApp.openById(sourceInfo.fileId);
-  } catch (e) {
-    ui.alert("Dateifehler", `Quelldatei "${config.searchFileName}" konnte nicht geöffnet werden.\n\n${e.message}`, ui.ButtonSet.OK);
-    return null;
-  }
-
-  const sourceSheet = rohGetSourceSheet_(sourceSs, config.sourceSheetName || "");
-  if (!sourceSheet) {
-    ui.alert("Tabellenblattfehler", `In der Quelldatei "${config.searchFileName}" wurde kein Tabellenblatt gefunden.`, ui.ButtonSet.OK);
-    return null;
-  }
-
-  let wgColumnIndex = -1;
-  if (config.detectWgColumn) {
-    wgColumnIndex = rohFindHeaderColumn_(sourceSheet, "WG", 3, Math.max(10, config.sourceColumnCount));
-    if (wgColumnIndex < 0 || wgColumnIndex >= config.sourceColumnCount) {
-      wgColumnIndex = config.wgFallbackColumnIndex || 0;
-    }
-  } else if (Number.isInteger(config.wgColumnIndex)) {
-    wgColumnIndex = config.wgColumnIndex;
-  }
-
-  let sourceValues = rohReadSourceValues_(
-    sourceSheet,
-    config.sourceStartRow,
-    config.sourceStartColumn,
-    config.sourceColumnCount
-  );
-
-  if (!sourceValues.length) {
-    ui.alert("Keine Daten", `Die Quelle "${config.searchFileName}" enthält ab Zeile ${config.sourceStartRow} keine Daten.`, ui.ButtonSet.OK);
-    return null;
-  }
-
-  sourceValues = rohSanitizeRows_(sourceValues, {
-    wgColumnIndex,
-    wgMinLength: config.wgMinLength || 5
-  });
-
-  rohClearContentFromRow_(targetSheet, config.targetStartRow, config.clearColumnCount);
-
-  const destinationRange = targetSheet.getRange(
-    config.targetStartRow,
-    config.targetStartColumn,
-    sourceValues.length,
-    sourceValues[0].length
-  );
-  destinationRange.setNumberFormat("@");
-  destinationRange.setValues(sourceValues);
-
-  if (typeof config.afterImport === "function") {
-    config.afterImport(sourceInfo.rowNumber, targetSheet);
-  }
-
-  targetSheet.getRange(config.activateCell || "E2").activate();
-  ss.toast(`${config.targetSheetName}: ${sourceValues.length} Datenzeilen importiert.`, "Erfolg", 8);
-
-  return {
-    rowNumber: sourceInfo.rowNumber,
-    sourceFileId: sourceInfo.fileId,
-    sourceSheetName: sourceSheet.getName(),
-    importedRows: sourceValues.length
-  };
-}
-
-/**
- * Diagnose: shows whether the Rohdaten sources are found and how many data rows exist.
- */
-function debugRohdatenQuellen() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const ui = SpreadsheetApp.getUi();
-  const settingsSheet = ss.getSheetByName("Einstellungen");
-
-  if (!settingsSheet) {
-    ui.alert("Fehler", 'Tabellenblatt "Einstellungen" wurde nicht gefunden.', ui.ButtonSet.OK);
+  if (!sourceSheet || !destSheet) {
+    ui.alert('Error', 'Could not find the source ("Rohdaten...") or destination ("Änderungswünsche Sortierung") sheet.', ui.ButtonSet.OK);
+    Logger.log('Error: A required sheet is missing.');
     return;
   }
 
-  const configs = rohImportConfigs_();
-  const lines = [];
+// Check source sheet using Column H (Artikel) as per VBA
+  const columnHValues = sourceSheet.getRange("H1:H" + sourceSheet.getMaxRows()).getValues();
+  let sourceLastRow = 0;
+  for (let i = columnHValues.length - 1; i >= 0; i--) {
+    if (String(columnHValues[i][0]).trim() !== "") {
+      sourceLastRow = i + 1;
+      break;
+    }
+  }
 
-  configs.forEach(config => {
-    const info = rohFindSettingsSource_(settingsSheet, config.searchFileName);
-    if (!info.fileId) {
-      lines.push(`${config.targetSheetName}: FEHLER - ${info.error}`);
-      return;
+  if (sourceLastRow < 8) {
+    ui.alert('No Data', 'The "Rohdaten Änderungswünsche Sort." sheet has no data to import (checked Col H).', ui.ButtonSet.OK);
+    Logger.log('Warning: No data to process on the source sheet.');
+    // Optional: Add redirect logic here if needed
+    return;
+  }
+  Logger.log(`Found data up to row ${sourceLastRow} on source sheet.`);
+
+  try {
+    // --- 1. Clear Old Data Content ---
+    const destLastRow = destSheet.getLastRow();
+    if (destLastRow >= 6) {
+      Logger.log(`Clearing old content from A6:R${destLastRow} in 'Änderungswünsche Sortierung'.`);
+      destSheet.getRange("A6:R" + destLastRow).clearContent();
     }
 
-    try {
-      const sourceSs = SpreadsheetApp.openById(info.fileId);
-      const sourceSheet = rohGetSourceSheet_(sourceSs, config.sourceSheetName || "");
-      const rows = sourceSheet
-        ? rohReadSourceValues_(sourceSheet, config.sourceStartRow, config.sourceStartColumn, config.sourceColumnCount).length
-        : 0;
-      lines.push(`${config.targetSheetName}: Zeile ${info.rowNumber}, Tab "${sourceSheet ? sourceSheet.getName() : "-"}", ${rows} Datenzeilen`);
-    } catch (e) {
-      lines.push(`${config.targetSheetName}: FEHLER beim Öffnen - ${e.message}`);
+    // --- 2. Read, Re-order, and De-duplicate Data in Memory ---
+    Logger.log("Reading source data...");
+    // Read all relevant columns (A to H) from the source sheet at once.
+    const sourceRange = sourceSheet.getRange("A8:H" + sourceLastRow);
+    const sourceValues = sourceRange.getValues();
+
+    const uniqueKeys = new Set(); // Use a Set to track unique combinations
+    const processedData = [];
+
+    Logger.log("Processing and de-duplicating data based on Artikelnummer AND Artikel...");
+    for (const row of sourceValues) {
+      const artikelNummer = row[4]; // Column E (becomes Col F in dest)
+      const artikel = row[7];       // Column H (becomes Col G in dest)
+      const uniqueKey = `${artikelNummer}|||${artikel}`; // Combine both for uniqueness check
+      
+      // If we haven't seen this combination before, process it.
+      if (!uniqueKeys.has(uniqueKey)) {
+        processedData.push([
+          row[0], // Column A -> A
+          row[1], // Column B -> B
+          row[2], // Column C -> C
+          row[3], // Column D -> D
+          row[5], // Column F -> E ('Artikelnummer QUELLE')
+          artikelNummer, // Column E -> F ('Artikelnummer') - Part 1 of key
+          artikel,       // Column H -> G ('Artikel') - Part 2 of key
+        ]);
+        uniqueKeys.add(uniqueKey);
+      }
     }
-  });
-
-  ui.alert("Rohdaten-Diagnose", lines.join("\n"), ui.ButtonSet.OK);
-}
-
-function rohImportConfigs_() {
-  return [
-    {
-      searchFileName: "8WS_Food_DE_Sortimentswünsche",
-      targetSheetName: "Rohdaten Food Sortimentswünsche",
-      sourceSheetName: "In_Development_8_weeks_Report_F",
-      sourceStartRow: 3,
-      sourceStartColumn: 1,
-      sourceColumnCount: 4,
-      targetStartRow: 8,
-      targetStartColumn: 6,
-      clearColumnCount: 18,
-      wgColumnIndex: 0,
-      wgMinLength: 5,
-      afterImport: updateRohdatenFoodFormulas
-    },
-    {
-      searchFileName: "8WS_Food_DE_Änderungswünsche Sortierung",
-      targetSheetName: "Rohdaten Änderungswünsche Sort.",
-      sourceSheetName: "In_Development_8_weeks_Report_F",
-      sourceStartRow: 3,
-      sourceStartColumn: 1,
-      sourceColumnCount: 4,
-      targetStartRow: 8,
-      targetStartColumn: 6,
-      clearColumnCount: 18,
-      wgColumnIndex: 0,
-      wgMinLength: 5,
-      afterImport: updateRohdatenChangeWishesFormulas
-    },
-    {
-      searchFileName: "8WS_Food_DE_Allgemeine Sortimentswünsche",
-      targetSheetName: "Rohdaten Allg. Sortimentsw.",
-      sourceSheetName: "",
-      sourceStartRow: 3,
-      sourceStartColumn: 1,
-      sourceColumnCount: 1,
-      targetStartRow: 8,
-      targetStartColumn: 2,
-      clearColumnCount: 11,
-      wgColumnIndex: 0,
-      wgMinLength: 5,
-      activateCell: "C1"
-    },
-    {
-      searchFileName: "8WS_Food_DE_Sonstiges und aktuelle Themen",
-      targetSheetName: "Sonstiges Food u Akt. Themen",
-      sourceSheetName: "In_Development_8_weeks_Report_F",
-      sourceStartRow: 3,
-      sourceStartColumn: 1,
-      sourceColumnCount: 1,
-      targetStartRow: 7,
-      targetStartColumn: 5,
-      clearColumnCount: 18,
-      detectWgColumn: true,
-      wgFallbackColumnIndex: 0,
-      wgMinLength: 7
-    },
-    {
-      searchFileName: "8WS_Food_DE_Qualitätsfälle",
-      targetSheetName: "Rohdaten Food Qualitätsfälle",
-      sourceSheetName: "In_Development_8_weeks_Report_F",
-      sourceStartRow: 3,
-      sourceStartColumn: 1,
-      sourceColumnCount: 8,
-      targetStartRow: 8,
-      targetStartColumn: 7,
-      clearColumnCount: 25,
-      detectWgColumn: true,
-      wgFallbackColumnIndex: 0,
-      wgMinLength: 5
-    },
-    {
-      searchFileName: "8WS_O+G_DE_Sortimentswünsche",
-      targetSheetName: "O+G Sortimentswünsche",
-      sourceSheetName: "",
-      sourceStartRow: 3,
-      sourceStartColumn: 2,
-      sourceColumnCount: 1,
-      targetStartRow: 7,
-      targetStartColumn: 1,
-      clearColumnCount: 11,
-      wgColumnIndex: 0,
-      wgMinLength: 5,
-      activateCell: "A1"
-    },
-    {
-      searchFileName: "8WS_O+G_DE_Sonstiges",
-      targetSheetName: "O+G Sonstiges",
-      sourceSheetName: "",
-      sourceStartRow: 3,
-      sourceStartColumn: 1,
-      sourceColumnCount: 1,
-      targetStartRow: 7,
-      targetStartColumn: 1,
-      clearColumnCount: 11,
-      wgColumnIndex: 0,
-      wgMinLength: 5,
-      activateCell: "A1"
-    },
-    {
-      searchFileName: "8WS_O+G_DE_Qualitätsfälle",
-      targetSheetName: "Rohdaten O+G Qualitätsfälle",
-      sourceSheetName: "",
-      sourceStartRow: 3,
-      sourceStartColumn: 1,
-      sourceColumnCount: 6,
-      targetStartRow: 8,
-      targetStartColumn: 2,
-      clearColumnCount: 17,
-      wgColumnIndex: 0,
-      wgMinLength: 5
-    },
-    {
-      searchFileName: "8WS_O+G_DE_Qualitätsfälle (ohne LFN)",
-      targetSheetName: "Rohdaten O+G Qualitätsf. o. LFN",
-      sourceSheetName: "",
-      sourceStartRow: 3,
-      sourceStartColumn: 1,
-      sourceColumnCount: 6,
-      targetStartRow: 8,
-      targetStartColumn: 2,
-      clearColumnCount: 17,
-      wgColumnIndex: 0,
-      wgMinLength: 5
+    Logger.log(`Finished processing. Found ${processedData.length} unique rows.`);
+    
+    if (processedData.length === 0) {
+        ui.alert('No Data', 'No unique data rows were found to import.', ui.ButtonSet.OK);
+        return;
     }
-  ];
-}
 
-function importFoodAssortmentWishes() {
-  rohImportBlock_(rohImportConfigs_()[0]);
-}
+    // --- 3. Write Processed Data to Destination ---
+    Logger.log("Writing processed data to 'Änderungswünsche Sortierung' sheet (A:G).");
+    destSheet.getRange(6, 1, processedData.length, 7).setValues(processedData);
+    
+    const newLastRow = 5 + processedData.length;
 
-function importChangeWishesSorting() {
-  rohImportBlock_(rohImportConfigs_()[1]);
-}
+    // --- 4. Apply Formulas using a Format-Preserving Method ---
+    Logger.log(`Applying formulas from H3:R3 to H6:R${newLastRow} using R1C1 notation.`);
+    const formulaTemplateRange = destSheet.getRange("H3:R3");
+    const templateFormulas = formulaTemplateRange.getFormulasR1C1()[0]; 
 
-function importRawGeneralAssortment() {
-  rohImportBlock_(rohImportConfigs_()[2]);
-}
+    if (templateFormulas.join('').length > 0) {
+        const numRows = newLastRow - 5;
+        const formulasForRange = [];
+        for (let i = 0; i < numRows; i++) {
+            formulasForRange.push(templateFormulas);
+        }
+        
+        const formulaDestinationRange = destSheet.getRange("H6:R" + newLastRow);
+        formulaDestinationRange.setFormulasR1C1(formulasForRange);
+    } else {
+        Logger.log("Warning: No formulas found in template range H3:R3.");
+    }
+    
+    // --- 5. Wait for Calculations and Convert to Values ---
+    SpreadsheetApp.flush();
+    Logger.log("Waiting for formulas to calculate...");
+    Utilities.sleep(5000);
 
-function importRawOtherFoodTopics() {
-  rohImportBlock_(rohImportConfigs_()[3]);
-}
+    Logger.log(`Converting formulas in H6:R${newLastRow} to static values.`);
+    const rangeToConvert = destSheet.getRange("H6:R" + newLastRow);
+    rangeToConvert.copyTo(rangeToConvert, { contentsOnly: true });
 
-function importRawFoodQualityCases() {
-  rohImportBlock_(rohImportConfigs_()[4]);
-}
+    // --- 6. Sort the Data ---
+    Logger.log("Sorting the data...");
+    const fullDataRange = destSheet.getRange("A6:R" + newLastRow); 
+    
+    fullDataRange.sort({ column: 7, ascending: true }); // First sort: by Column G
+    fullDataRange.sort([ // Second sort: multi-level
+        { column: 1, ascending: true },
+        { column: 2, ascending: true },
+        { column: 3, ascending: true }
+    ]);
 
-function importOGAssortmentWishes() {
-  rohImportBlock_(rohImportConfigs_()[5]);
-}
+    // --- 7. Apply Formatting (Mimicking VBA) ---
+    // Although setFormulasR1C1 preserves format, the VBA explicitly reapplies it.
+    Logger.log("Applying formatting from template row A6:R6 to all new rows.");
+    const formatTemplateRange = destSheet.getRange("A6:R6");
+    if (newLastRow > 6) {
+        const formatDestination = destSheet.getRange("A7:R" + newLastRow);
+        formatTemplateRange.copyTo(formatDestination, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    }
+    
+    // --- 8. Cleanup: Lösche alles unterhalb der formatierten/sortierten Daten ---
+    const maxRows = destSheet.getMaxRows();
+    if (maxRows > newLastRow) {
+        // Löscht alles ab der ersten leeren Zeile bis ganz unten. 
+        // Spalten A bis R = 18 Spalten
+        destSheet.getRange(newLastRow + 1, 1, maxRows - newLastRow, 18).clear();
+        Logger.log(`Tabelle von Zeile ${newLastRow + 1} bis ${maxRows} komplett gesäubert.`);
+    }
 
-function importOGOther() {
-  rohImportBlock_(rohImportConfigs_()[6]);
-}
+    destSheet.getRange("A1").activate(); // Activate A1 as per VBA
+    if (typeof navigateOnSuccess === "function") {
+      navigateOnSuccess();
+    } else {
+      ss.toast('Die Daten wurden erfolgreich importiert.', 'Erfolg!', 5);
+    }
+    Logger.log("--- Finished importToChangeWishesSorting ---");
+    
+    // Optional: Add redirect logic here if needed (e.g., activate another sheet)
 
-function importRawOGQualityCases() {
-  rohImportBlock_(rohImportConfigs_()[7]);
-}
-
-function importRawOGQualityCasesNoLFN() {
-  rohImportBlock_(rohImportConfigs_()[8]);
-}
-
-function updateRohdatenFoodFormulas(foundRowNumber) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const targetSheet = ss.getSheetByName("Rohdaten Food Sortimentswünsche");
-  if (!targetSheet || !foundRowNumber) return;
-
-  const newFormulaForJ6 = `=ARRAY_CONSTRAIN(ARRAYFORMULA(IFERROR(IF(J$5=J$4;INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$5;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0));IFERROR(NUMBERVALUE(INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$5;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0)));0)+IFERROR(NUMBERVALUE(INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$Q$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"));0);MATCH(J$4;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$1:$Q$1");0)));0));"")); 1; 1)`;
-
-  const templateFormulaCell = targetSheet.getRange("J6");
-  templateFormulaCell.setFormula(newFormulaForJ6);
-  templateFormulaCell.autoFill(targetSheet.getRange("J6:Q6"), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
-}
-
-function updateRohdatenChangeWishesFormulas(foundRowNumber) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const targetSheet = ss.getSheetByName("Rohdaten Änderungswünsche Sort.");
-  if (!targetSheet || !foundRowNumber) return;
-
-  const urlCellReference = `Einstellungen!$F$${foundRowNumber}`;
-  const sheetName = "In_Development_8_weeks_Report_F";
-
-  const newFormulaForJ6 = `=LET(` +
-    `url;${urlCellReference};` +
-    `sheet_name;"${sheetName}";` +
-    `data_range;IMPORTRANGE(url;"'"&sheet_name&"'!E3:Q1000");` +
-    `criteria1_range;IMPORTRANGE(url;"'"&sheet_name&"'!B3:B1000");` +
-    `criteria2_range;IMPORTRANGE(url;"'"&sheet_name&"'!C3:C1000");` +
-    `header_range;IMPORTRANGE(url;"'"&sheet_name&"'!E1:Q1");` +
-    `filtered_row;IFERROR(FILTER(data_range;TO_TEXT(criteria1_range)=TO_TEXT($G6);TO_TEXT(criteria2_range)=TO_TEXT($H6)));` +
-    `IF(ISBLANK(filtered_row);"";IFERROR(IF(J$5=J$4;INDEX(filtered_row;1;MATCH(J$5;header_range;0));N(INDEX(filtered_row;1;MATCH(J$5;header_range;0)))+N(INDEX(filtered_row;1;MATCH(J$4;header_range;0))))))` +
-    `)`;
-
-  const templateFormulaCell = targetSheet.getRange("J6");
-  templateFormulaCell.setFormula(newFormulaForJ6);
-  templateFormulaCell.autoFill(targetSheet.getRange("J6:Q6"), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+  } catch (e) {
+    const errorMessage = `An error occurred: ${e.message}\n\nStack:\n${e.stack}`;
+    ui.alert('Processing Error', errorMessage, ui.ButtonSet.OK);
+    Logger.log(`ERROR: ${e.stack}`);
+  }
 }
