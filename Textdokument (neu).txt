@@ -69,16 +69,19 @@
 
     .input-group {
       display: flex;
-      gap: 15px;
-      align-items: flex-start;
+      flex-direction: column;
+      gap: 14px;
+      align-items: stretch;
     }
 
     textarea {
-      flex: 1;
-      min-height: 110px;
+      width: 100%;
+      min-height: 135px;
+      box-sizing: border-box;
       padding: 15px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+      border: 1px solid #D5DAE3;
+      border-radius: 6px;
+      background: #FBFCFE;
       font-size: 1rem;
       font-family: inherit;
       line-height: 1.45;
@@ -89,23 +92,34 @@
 
     textarea:focus {
       border-color: var(--lidl-blue);
+      box-shadow: 0 0 0 3px rgba(0, 80, 170, 0.12);
     }
 
     button.primary {
       background-color: var(--lidl-blue);
       color: white;
       border: none;
-      border-radius: 4px;
-      padding: 0 30px;
-      min-height: 52px;
+      border-radius: 6px;
+      padding: 0 28px;
+      min-height: 46px;
+      align-self: flex-end;
+      min-width: 190px;
       font-size: 1rem;
       font-weight: bold;
       cursor: pointer;
-      transition: background-color 0.2s;
+      box-shadow: 0 8px 18px rgba(0, 80, 170, 0.22);
+      transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s;
     }
 
     button.primary:hover {
       background-color: #003d82;
+      box-shadow: 0 10px 22px rgba(0, 80, 170, 0.28);
+      transform: translateY(-1px);
+    }
+
+    button.primary:active {
+      transform: translateY(0);
+      box-shadow: 0 5px 12px rgba(0, 80, 170, 0.2);
     }
 
     button:disabled {
@@ -319,10 +333,10 @@
   <div class="container">
     
     <div class="input-card">
-      <h2>Anliegen mit Knowledge prüfen</h2>
+      <h2>KI-Antwort auf Basis unserer Wissensdatenbank</h2>
       <div class="input-group">
         <textarea id="question" rows="4" placeholder="Kundenanliegen oder Textbaustein hier einfügen..." onkeydown="handleKeyPress(event)"></textarea>
-        <button class="primary" id="submitBtn" onclick="sendQuestion()">Antwort erstellen</button>
+        <button class="primary" id="submitBtn" onclick="sendQuestion()">Frage absenden</button>
       </div>
 
       <div class="loader-container" id="loader">
