@@ -1,94 +1,3 @@
-Ich habe hier ein Code.gs für die Knowledge AI
-
-Code.gs
-
-const SHEET_NAME = "_DB_CC_KnowledgeAI";
-
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('Knowledge AI')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
-
-function submitQuestion(userId, question) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-  const id = Utilities.getUuid();
-  const timestamp = new Date();
-
-  const lastRow = sheet.getLastRow();
-  let nextFlow = "Flow4"; 
-  if (lastRow > 1) {
-    const lastFlow = sheet.getRange(lastRow, 9).getValue();
-    if (lastFlow === "Flow4") nextFlow = "Flow4";
-    else if (lastFlow === "Flow4") nextFlow = "Flow4";
-    else if (lastFlow === "Flow4") nextFlow = "Flow4";
-  }
-
-  const status = "Knowledge AI Antwort wird generiert...";
-  
-  sheet.appendRow([
-    id, userId, timestamp, question, "", status, "", "", nextFlow
-  ]);
-
-  return { id: id, status: status, timestamp: timestamp.toLocaleString() };
-}
-
-function checkAnswer(id) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-  const data = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === id) {
-      const answer = data[i][4];
-      if (answer && answer.toString().trim() !== "") {
-        sheet.getRange(i + 1, 6).setValue("Antwort erhalten");
-        return { status: "Antwort erhalten", answer: answer.toString() };
-      } else {
-        return { status: "waiting" };
-      }
-    }
-  }
-  return { status: "error", message: "ID nicht gefunden" };
-}
-
-function getUserHistory(userId) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-  if(!sheet) return [];
-  
-  const data = sheet.getDataRange().getValues();
-  const history = [];
-  
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][1] === userId) {
-      history.push({
-        id: data[i][0],
-        timestamp: data[i][2] ? new Date(data[i][2]).toLocaleString() : "",
-        question: data[i][3],
-        answer: data[i][4],
-        status: data[i][5],
-        feedback: data[i][6]
-      });
-    }
-  }
-  return history.reverse(); 
-}
-
-function saveFeedback(id, feedbackValue) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-  const data = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === id) {
-      sheet.getRange(i + 1, 7).setValue(feedbackValue);
-      return true;
-    }
-  }
-  return false;
-}
-
-index.html
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -161,19 +70,24 @@ index.html
     .input-group {
       display: flex;
       gap: 15px;
+      align-items: flex-start;
     }
 
-    input[type="text"] {
+    textarea {
       flex: 1;
+      min-height: 110px;
       padding: 15px;
       border: 1px solid #ccc;
       border-radius: 4px;
       font-size: 1rem;
+      font-family: inherit;
+      line-height: 1.45;
       outline: none;
+      resize: vertical;
       transition: border-color 0.2s;
     }
 
-    input[type="text"]:focus {
+    textarea:focus {
       border-color: var(--lidl-blue);
     }
 
@@ -183,6 +97,7 @@ index.html
       border: none;
       border-radius: 4px;
       padding: 0 30px;
+      min-height: 52px;
       font-size: 1rem;
       font-weight: bold;
       cursor: pointer;
@@ -286,7 +201,7 @@ index.html
       border-radius: 12px;
       font-weight: bold;
     }
-    .status-badge.done { background-color: #d4edda; color: #155724; }
+    .status-badge.done { background-color: #E5E7EB; color: #4B5563; }
     .status-badge.wait { background-color: #fff3cd; color: #856404; }
 
     .header-feedback-preview {
@@ -304,13 +219,45 @@ index.html
     }
 
     .toggle-icon {
-      color: var(--lidl-blue);
-      font-weight: bold;
-      transition: transform 0.3s ease;
-      font-size: 1.2rem;
+      width: 30px;
+      height: 30px;
+      min-width: 30px;
+      margin-left: 16px;
+      border: 1px solid #D9DEE7;
+      border-radius: 50%;
+      background: #F7F8FA;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.25s ease, background-color 0.2s, border-color 0.2s;
     }
 
-    /* Dreht den Pfeil, wenn die Box geöffnet ist */
+    .toggle-icon::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--lidl-blue);
+      border-bottom: 2px solid var(--lidl-blue);
+      transform: rotate(45deg);
+      margin-top: -3px;
+    }
+
+    .card-header:hover .toggle-icon {
+      background: #ffffff;
+      border-color: #C7D0DE;
+    }
+
+    @media (max-width: 640px) {
+      .input-group {
+        flex-direction: column;
+      }
+
+      button.primary {
+        width: 100%;
+      }
+    }
+
+    /* Dreht den Chevron, wenn die Box geöffnet ist */
     details[open] .toggle-icon {
       transform: rotate(180deg);
     }
@@ -372,10 +319,10 @@ index.html
   <div class="container">
     
     <div class="input-card">
-      <h2>Kundenanliegen KI Unterstützung auf Basis Knowledge</h2>
+      <h2>Anliegen mit Knowledge prüfen</h2>
       <div class="input-group">
-        <input type="text" id="question" placeholder="Kundenanliegen oder generierten Textbaustein hier einfügen..." onkeypress="handleKeyPress(event)">
-        <button class="primary" id="submitBtn" onclick="sendQuestion()">Anfragen</button>
+        <textarea id="question" rows="4" placeholder="Kundenanliegen oder Textbaustein hier einfügen..." onkeydown="handleKeyPress(event)"></textarea>
+        <button class="primary" id="submitBtn" onclick="sendQuestion()">Antwort erstellen</button>
       </div>
 
       <div class="loader-container" id="loader">
@@ -385,7 +332,7 @@ index.html
     </div>
 
     <div class="history-section">
-      <h3>Bisherige Anfragen</h3>
+      <h3>Deine aktuellen Anfragen</h3>
       <div id="history-container">
         </div>
     </div>
@@ -408,7 +355,10 @@ index.html
     };
 
     function handleKeyPress(e) {
-      if (e.key === 'Enter') sendQuestion();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        sendQuestion();
+      }
     }
 
     function setLoader(state) {
@@ -500,7 +450,7 @@ index.html
           </div>
           <div class="q-text">Anliegen: ${item.question}</div>
         </div>
-        <div class="toggle-icon">▼</div>
+        <div class="toggle-icon" aria-hidden="true"></div>
       `;
       details.appendChild(summary);
 
@@ -634,16 +584,3 @@ index.html
   </script>
 </body>
 </html>
-
-Mir gefällt ds Design und die Texte jedoch nicht so gut.
-
-Bitte "Kundenanliegen KI Unterstützung auf Basis Knowledge" hierfür etwas neues schlichtes einfallen lassen 
-Genau so wie für den Button "Anfragen"
-
-Anschließend auch Antwort erhalten nicht grün markieren sondern grau 
-
-"Bisherige Anfragen" ersetzen durch Deine aktuellen Anfragen
-
-Und das Symbol zum aufklappen gefällt mir noch nicht so gut.
-
-Ebenfalls das Kundenanliegen wo man rein schreiben kann direkt etwas höher machen, es soll mehrere Zeilen zulassen.
