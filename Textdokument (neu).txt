@@ -85,9 +85,14 @@ function ogqIsMeaningfulArticle_(value) {
 }
 
 function ogqIsImportRow_(row) {
-  // Source col D becomes target col E and is the article key used by later formulas.
-  // Source col F becomes target col G and separates this import from "ohne LFN".
-  return ogqIsMeaningfulArticle_(row[3]) && ogqIsMeaningfulValue_(row[5]);
+  // Source A:F is pasted to target B:G.
+  // For the normal O+G quality sheet, only rows with usable supplier data belong here.
+  // Source B/C/D/E/F become target C/D/E/F/G and are required by the report/formulas.
+  return ogqIsMeaningfulValue_(row[1]) &&
+    ogqIsMeaningfulValue_(row[2]) &&
+    ogqIsMeaningfulArticle_(row[3]) &&
+    ogqIsMeaningfulValue_(row[4]) &&
+    ogqIsMeaningfulValue_(row[5]);
 }
 
 function ogqLastSourceRowByImportRows_(sheet, startRow) {
@@ -142,7 +147,7 @@ function importRawOGQualityCases() {
   const sourceDataSheet = sourceSs.getSheets()[0];
   const sourceLastRow = ogqLastSourceRowByImportRows_(sourceDataSheet, 3);
   if (sourceLastRow < 3) {
-    ui.alert("Keine Daten", "Die Quelldatei enthält ab Zeile 3 keine importierbaren O+G-Qualitätsfälle mit Artikel und LFN.", ui.ButtonSet.OK);
+    ui.alert("Keine Daten", "Die Quelldatei enthält ab Zeile 3 keine importierbaren O+G-Qualitätsfälle mit KW, Artikel, Lieferant und LFN.", ui.ButtonSet.OK);
     return;
   }
 
