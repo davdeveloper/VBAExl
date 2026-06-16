@@ -1,7 +1,24 @@
+function cwsNormalizeText_(value) {
+  return String(value == null ? "" : value).normalize("NFC").trim();
+}
+
+function cwsFindLastDataRow_(sheet, startRow, startColumn, columnCount) {
+  const maxRows = sheet.getMaxRows();
+  if (maxRows < startRow) return 0;
+
+  const values = sheet.getRange(startRow, startColumn, maxRows - startRow + 1, columnCount).getDisplayValues();
+  for (let r = values.length - 1; r >= 0; r--) {
+    if (values[r].some(cell => cwsNormalizeText_(cell) !== "")) {
+      return startRow + r;
+    }
+  }
+
+  return 0;
+}
+
 /**
- * Imports and processes data from 'Rohdaten Änderungswünsche Sort.' to 'Änderungswünsche Sortierung'.
- * Replicates VBA macro 'Daten_Aus_RohdatenÄnderungswünscheSort_Importieren'.
- * Key difference: De-duplicates based on BOTH Artikelnummer (Col F) AND Artikel (Col G).
+ * Button function: importToChangeWishesSorting
+ * Imports from "Rohdaten Änderungswünsche Sort." to "Änderungswünsche Sortierung".
  */
 function importToChangeWishesSorting() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -12,148 +29,107 @@ function importToChangeWishesSorting() {
   Logger.log("--- Starting importToChangeWishesSorting ---");
 
   if (!sourceSheet || !destSheet) {
-    ui.alert('Error', 'Could not find the source ("Rohdaten...") or destination ("Änderungswünsche Sortierung") sheet.', ui.ButtonSet.OK);
-    Logger.log('Error: A required sheet is missing.');
+    ui.alert("Fehler", 'Quelle "Rohdaten Änderungswünsche Sort." oder Ziel "Änderungswünsche Sortierung" wurde nicht gefunden.', ui.ButtonSet.OK);
     return;
   }
 
-// Check source sheet using Column H (Artikel) as per VBA
-  const columnHValues = sourceSheet.getRange("H1:H" + sourceSheet.getMaxRows()).getValues();
-  let sourceLastRow = 0;
-  for (let i = columnHValues.length - 1; i >= 0; i--) {
-    if (String(columnHValues[i][0]).trim() !== "") {
-      sourceLastRow = i + 1;
-      break;
-    }
-  }
-
+  const sourceLastRow = cwsFindLastDataRow_(sourceSheet, 8, 1, 8);
   if (sourceLastRow < 8) {
-    ui.alert('No Data', 'The "Rohdaten Änderungswünsche Sort." sheet has no data to import (checked Col H).', ui.ButtonSet.OK);
-    Logger.log('Warning: No data to process on the source sheet.');
-    // Optional: Add redirect logic here if needed
+    ui.alert("Keine Daten", 'Das Blatt "Rohdaten Änderungswünsche Sort." enthält ab Zeile 8 keine importierbaren Daten.', ui.ButtonSet.OK);
     return;
   }
-  Logger.log(`Found data up to row ${sourceLastRow} on source sheet.`);
 
   try {
-    // --- 1. Clear Old Data Content ---
     const destLastRow = destSheet.getLastRow();
     if (destLastRow >= 6) {
-      Logger.log(`Clearing old content from A6:R${destLastRow} in 'Änderungswünsche Sortierung'.`);
       destSheet.getRange("A6:R" + destLastRow).clearContent();
     }
 
-    // --- 2. Read, Re-order, and De-duplicate Data in Memory ---
-    Logger.log("Reading source data...");
-    // Read all relevant columns (A to H) from the source sheet at once.
-    const sourceRange = sourceSheet.getRange("A8:H" + sourceLastRow);
-    const sourceValues = sourceRange.getValues();
-
-    const uniqueKeys = new Set(); // Use a Set to track unique combinations
+    const sourceValues = sourceSheet.getRange("A8:H" + sourceLastRow).getDisplayValues();
+    const uniqueKeys = new Set();
     const processedData = [];
 
-    Logger.log("Processing and de-duplicating data based on Artikelnummer AND Artikel...");
     for (const row of sourceValues) {
-      const artikelNummer = row[4]; // Column E (becomes Col F in dest)
-      const artikel = row[7];       // Column H (becomes Col G in dest)
-      const uniqueKey = `${artikelNummer}|||${artikel}`; // Combine both for uniqueness check
-      
-      // If we haven't seen this combination before, process it.
-      if (!uniqueKeys.has(uniqueKey)) {
-        processedData.push([
-          row[0], // Column A -> A
-          row[1], // Column B -> B
-          row[2], // Column C -> C
-          row[3], // Column D -> D
-          row[5], // Column F -> E ('Artikelnummer QUELLE')
-          artikelNummer, // Column E -> F ('Artikelnummer') - Part 1 of key
-          artikel,       // Column H -> G ('Artikel') - Part 2 of key
-        ]);
-        uniqueKeys.add(uniqueKey);
-      }
-    }
-    Logger.log(`Finished processing. Found ${processedData.length} unique rows.`);
-    
-    if (processedData.length === 0) {
-        ui.alert('No Data', 'No unique data rows were found to import.', ui.ButtonSet.OK);
-        return;
+      const artikelNummer = cwsNormalizeText_(row[4]); // Source E -> destination F
+      const artikel = cwsNormalizeText_(row[7]);       // Source H -> destination G
+      const uniqueKey = `${artikelNummer}|||${artikel}`;
+
+      if (!artikelNummer && !artikel) continue;
+      if (uniqueKeys.has(uniqueKey)) continue;
+
+      processedData.push([
+        cwsNormalizeText_(row[0]), // A -> A
+        cwsNormalizeText_(row[1]), // B -> B
+        cwsNormalizeText_(row[2]), // C -> C
+        cwsNormalizeText_(row[3]), // D -> D
+        cwsNormalizeText_(row[5]), // F -> E
+        artikelNummer,             // E -> F
+        artikel                    // H -> G
+      ]);
+
+      uniqueKeys.add(uniqueKey);
     }
 
-    // --- 3. Write Processed Data to Destination ---
-    Logger.log("Writing processed data to 'Änderungswünsche Sortierung' sheet (A:G).");
-    destSheet.getRange(6, 1, processedData.length, 7).setValues(processedData);
-    
+    if (!processedData.length) {
+      ui.alert("Keine Daten", "Es wurden keine eindeutigen Datenzeilen zum Import gefunden.", ui.ButtonSet.OK);
+      return;
+    }
+
+    const outputRange = destSheet.getRange(6, 1, processedData.length, 7);
+    outputRange.setNumberFormat("@");
+    outputRange.setValues(processedData);
+
     const newLastRow = 5 + processedData.length;
-
-    // --- 4. Apply Formulas using a Format-Preserving Method ---
-    Logger.log(`Applying formulas from H3:R3 to H6:R${newLastRow} using R1C1 notation.`);
     const formulaTemplateRange = destSheet.getRange("H3:R3");
-    const templateFormulas = formulaTemplateRange.getFormulasR1C1()[0]; 
+    const templateFormulas = formulaTemplateRange.getFormulasR1C1()[0];
 
-    if (templateFormulas.join('').length > 0) {
-        const numRows = newLastRow - 5;
-        const formulasForRange = [];
-        for (let i = 0; i < numRows; i++) {
-            formulasForRange.push(templateFormulas);
-        }
-        
-        const formulaDestinationRange = destSheet.getRange("H6:R" + newLastRow);
-        formulaDestinationRange.setFormulasR1C1(formulasForRange);
+    if (templateFormulas.join("").length > 0) {
+      const formulaRows = [];
+      for (let i = 0; i < processedData.length; i++) {
+        formulaRows.push(templateFormulas);
+      }
+
+      const formulaDestinationRange = destSheet.getRange("H6:R" + newLastRow);
+      formulaDestinationRange.setFormulasR1C1(formulaRows);
+
+      SpreadsheetApp.flush();
+      Utilities.sleep(3000);
+
+      const calculatedValues = formulaDestinationRange.getDisplayValues();
+      formulaDestinationRange.setValues(calculatedValues);
     } else {
-        Logger.log("Warning: No formulas found in template range H3:R3.");
+      Logger.log("Keine Formeln in H3:R3 gefunden.");
     }
-    
-    // --- 5. Wait for Calculations and Convert to Values ---
-    SpreadsheetApp.flush();
-    Logger.log("Waiting for formulas to calculate...");
-    Utilities.sleep(5000);
 
-    Logger.log(`Converting formulas in H6:R${newLastRow} to static values.`);
-    const rangeToConvert = destSheet.getRange("H6:R" + newLastRow);
-    rangeToConvert.copyTo(rangeToConvert, { contentsOnly: true });
-
-    // --- 6. Sort the Data ---
-    Logger.log("Sorting the data...");
-    const fullDataRange = destSheet.getRange("A6:R" + newLastRow); 
-    
-    fullDataRange.sort({ column: 7, ascending: true }); // First sort: by Column G
-    fullDataRange.sort([ // Second sort: multi-level
-        { column: 1, ascending: true },
-        { column: 2, ascending: true },
-        { column: 3, ascending: true }
+    const fullDataRange = destSheet.getRange("A6:R" + newLastRow);
+    fullDataRange.sort({ column: 7, ascending: true });
+    fullDataRange.sort([
+      { column: 1, ascending: true },
+      { column: 2, ascending: true },
+      { column: 3, ascending: true }
     ]);
 
-    // --- 7. Apply Formatting (Mimicking VBA) ---
-    // Although setFormulasR1C1 preserves format, the VBA explicitly reapplies it.
-    Logger.log("Applying formatting from template row A6:R6 to all new rows.");
     const formatTemplateRange = destSheet.getRange("A6:R6");
     if (newLastRow > 6) {
-        const formatDestination = destSheet.getRange("A7:R" + newLastRow);
-        formatTemplateRange.copyTo(formatDestination, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-    }
-    
-    // --- 8. Cleanup: Lösche alles unterhalb der formatierten/sortierten Daten ---
-    const maxRows = destSheet.getMaxRows();
-    if (maxRows > newLastRow) {
-        // Löscht alles ab der ersten leeren Zeile bis ganz unten. 
-        // Spalten A bis R = 18 Spalten
-        destSheet.getRange(newLastRow + 1, 1, maxRows - newLastRow, 18).clear();
-        Logger.log(`Tabelle von Zeile ${newLastRow + 1} bis ${maxRows} komplett gesäubert.`);
+      formatTemplateRange.copyTo(destSheet.getRange("A7:R" + newLastRow), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
     }
 
-    destSheet.getRange("A1").activate(); // Activate A1 as per VBA
+    const maxRows = destSheet.getMaxRows();
+    if (maxRows > newLastRow) {
+      destSheet.getRange(newLastRow + 1, 1, maxRows - newLastRow, 18).clearContent();
+    }
+
+    destSheet.getRange("A1").activate();
+
     if (typeof navigateOnSuccess === "function") {
       navigateOnSuccess();
     } else {
-      ss.toast('Die Daten wurden erfolgreich importiert.', 'Erfolg!', 5);
+      ss.toast(`${processedData.length} Zeilen importiert.`, "Änderungswünsche Sortierung", 8);
     }
-    Logger.log("--- Finished importToChangeWishesSorting ---");
-    
-    // Optional: Add redirect logic here if needed (e.g., activate another sheet)
 
+    Logger.log("--- Finished importToChangeWishesSorting ---");
   } catch (e) {
-    const errorMessage = `An error occurred: ${e.message}\n\nStack:\n${e.stack}`;
-    ui.alert('Processing Error', errorMessage, ui.ButtonSet.OK);
+    ui.alert("Importfehler", `${e.message}\n\n${e.stack}`, ui.ButtonSet.OK);
     Logger.log(`ERROR: ${e.stack}`);
   }
 }
