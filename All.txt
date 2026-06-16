@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Imports and processes data from 'Rohdaten Änderungswünsche Sort.' to 'Änderungswünsche Sortierung'.
  * Replicates VBA macro 'Daten_Aus_RohdatenÄnderungswünscheSort_Importieren'.
  * Key difference: De-duplicates based on BOTH Artikelnummer (Col F) AND Artikel (Col G).
@@ -98,3 +98,63 @@ function importToChangeWishesSorting() {
         }
         
         const formulaDestinationRange = destSheet.getRange("H6:R" + newLastRow);
+        formulaDestinationRange.setFormulasR1C1(formulasForRange);
+    } else {
+        Logger.log("Warning: No formulas found in template range H3:R3.");
+    }
+    
+    // --- 5. Wait for Calculations and Convert to Values ---
+    SpreadsheetApp.flush();
+    Logger.log("Waiting for formulas to calculate...");
+    Utilities.sleep(5000);
+
+    Logger.log(`Converting formulas in H6:R${newLastRow} to static values.`);
+    const rangeToConvert = destSheet.getRange("H6:R" + newLastRow);
+    rangeToConvert.copyTo(rangeToConvert, { contentsOnly: true });
+
+    // --- 6. Sort the Data ---
+    Logger.log("Sorting the data...");
+    const fullDataRange = destSheet.getRange("A6:R" + newLastRow); 
+    
+    fullDataRange.sort({ column: 7, ascending: true }); // First sort: by Column G
+    fullDataRange.sort([ // Second sort: multi-level
+        { column: 1, ascending: true },
+        { column: 2, ascending: true },
+        { column: 3, ascending: true }
+    ]);
+
+    // --- 7. Apply Formatting (Mimicking VBA) ---
+    // Although setFormulasR1C1 preserves format, the VBA explicitly reapplies it.
+    Logger.log("Applying formatting from template row A6:R6 to all new rows.");
+    const formatTemplateRange = destSheet.getRange("A6:R6");
+    if (newLastRow > 6) {
+        const formatDestination = destSheet.getRange("A7:R" + newLastRow);
+        formatTemplateRange.copyTo(formatDestination, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    }
+    
+    // --- 8. Cleanup: Lösche alles unterhalb der formatierten/sortierten Daten ---
+    const maxRows = destSheet.getMaxRows();
+    if (maxRows > newLastRow) {
+        // Löscht alles ab der ersten leeren Zeile bis ganz unten. 
+        // Spalten A bis R = 18 Spalten
+        destSheet.getRange(newLastRow + 1, 1, maxRows - newLastRow, 18).clear();
+        Logger.log(`Tabelle von Zeile ${newLastRow + 1} bis ${maxRows} komplett gesäubert.`);
+    }
+
+    destSheet.getRange("A1").activate(); // Activate A1 as per VBA
+    if (typeof navigateOnSuccess === "function") {
+      navigateOnSuccess();
+    } else {
+      ss.toast('Die Daten wurden erfolgreich importiert.', 'Erfolg!', 5);
+    }
+    Logger.log("--- Finished importToChangeWishesSorting ---");
+    
+    // Optional: Add redirect logic here if needed (e.g., activate another sheet)
+
+  } catch (e) {
+    const errorMessage = `An error occurred: ${e.message}\n\nStack:\n${e.stack}`;
+    ui.alert('Processing Error', errorMessage, ui.ButtonSet.OK);
+    Logger.log(`ERROR: ${e.stack}`);
+  }
+}
+
