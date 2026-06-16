@@ -73,14 +73,35 @@ function misBuildSourceValues_(rawValues, displayValues) {
     return row.map((value, colIndex) => {
       const displayText = misNormalizeText_(displayValues[rowIndex][colIndex]).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
 
-      // Column A is used as lookup key. Keep it exactly as displayed to avoid 190.164 -> 190.163.788.
-      if (colIndex === 0) return displayText;
+      // Column A is used as lookup key. Keep normal integer article numbers numeric
+      // so existing MIS formulas still match, but never use a non-integer raw value
+      // that would expose hidden decimals such as 190.163.788.
+      if (colIndex === 0) {
+        if (typeof value === "number" && Number.isInteger(value)) return value;
+
+        const looksLikeGermanThousands = /^\d{1,3}(\.\d{3})+$/.test(displayText);
+        if (looksLikeGermanThousands && !displayText.startsWith("0")) {
+          return Number(displayText.replace(/\./g, ""));
+        }
+
+        return displayText;
+      }
 
       // Keep numeric/date columns usable for formulas. Only clean strings.
       if (value === "" || value == null) return "";
       if (typeof value === "string") return misNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
       return value;
     });
+  });
+}
+
+function misColumnLooksAllZero_(displayValues, columnIndex) {
+  const meaningful = displayValues
+    .map(row => misNormalizeText_(row[columnIndex]))
+    .filter(value => value !== "");
+
+  return meaningful.length > 0 && meaningful.every(value => {
+    return value === "0" || value === "0,0" || value === "0,00" || value === "0.0" || value === "0.00";
   });
 }
 
@@ -221,14 +242,13 @@ function importAndProcessMisData(sourceFileId) {
 
   const targetDataRange = targetSheet.getRange(6, 1, sourceValues.length, sourceValues[0].length);
   targetDataRange.setValues(sourceValues);
-  targetSheet.getRange(6, 1, sourceValues.length, 1).setNumberFormat("@");
 
   const newLastRow = 5 + sourceValues.length;
 
   if (newLastRow >= 6) {
     const formulaTemplateRange = targetSheet.getRange("E4:G4");
     const formulaDestinationRange = targetSheet.getRange(6, 5, newLastRow - 5, 3);
-    const templateFormulas = formulaTemplateRange.getFormulasR1C1()[0];
+    const templateFormulas = formulaTemplateRange.getFormulas()[0];
 
     if (templateFormulas.join("").length === 0) {
       ui.alert(
@@ -239,19 +259,31 @@ function importAndProcessMisData(sourceFileId) {
       return false;
     }
 
-    const formulas = [];
-    for (let i = 0; i < newLastRow - 5; i++) {
-      formulas.push(templateFormulas);
+    // Same method as the previously working script: copy the real template cells.
+    formulaTemplateRange.copyTo(formulaDestinationRange);
+    SpreadsheetApp.flush();
+    Utilities.sleep(8000);
+
+    let calculatedValues = formulaDestinationRange.getDisplayValues();
+
+    if (misColumnLooksAllZero_(calculatedValues, 0)) {
+      Logger.log("MIS column E still evaluates to 0 after first wait. Waiting once more before freezing values.");
+      Utilities.sleep(10000);
+      SpreadsheetApp.flush();
+      calculatedValues = formulaDestinationRange.getDisplayValues();
     }
 
-    formulaDestinationRange.setFormulasR1C1(formulas);
-    SpreadsheetApp.flush();
-    Utilities.sleep(5000);
-
-    const calculatedValues = formulaDestinationRange.getDisplayValues();
-    formulaDestinationRange.setValues(calculatedValues);
-    formulaDestinationRange.setFontColor("black");
-    formulaDestinationRange.setBackground("white");
+    if (misColumnLooksAllZero_(calculatedValues, 0)) {
+      SpreadsheetApp.getActive().toast(
+        'MIS Spalte E steht noch komplett auf 0. Formeln bleiben stehen, damit Google Sheets weiter berechnen kann.',
+        "MIS Hinweis",
+        10
+      );
+    } else {
+      formulaDestinationRange.setValues(calculatedValues);
+      formulaDestinationRange.setFontColor("black");
+      formulaDestinationRange.setBackground("white");
+    }
   }
 
   targetSheet.getRange("D1").activate();
