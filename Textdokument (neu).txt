@@ -1,173 +1,649 @@
-function ogqNormalizeText_(value) {
-  return String(value == null ? "" : value).normalize("NFC").trim();
+Ich habe hier ein Code.gs für die Knowledge AI
+
+Code.gs
+
+const SHEET_NAME = "_DB_CC_KnowledgeAI";
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Knowledge AI')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-function ogqFoldText_(value) {
-  return ogqNormalizeText_(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase().trim();
-}
+function submitQuestion(userId, question) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const id = Utilities.getUuid();
+  const timestamp = new Date();
 
-function ogqExtractDriveId_(value) {
-  const text = ogqNormalizeText_(value);
-  if (!text) return "";
-
-  const patterns = [
-    /\/d\/([a-zA-Z0-9_-]+)/,
-    /[?&]id=([a-zA-Z0-9_-]+)/,
-    /^([a-zA-Z0-9_-]{20,})$/,
-    /([a-zA-Z0-9_-]{25,})/
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) return match[1];
+  const lastRow = sheet.getLastRow();
+  let nextFlow = "Flow4"; 
+  if (lastRow > 1) {
+    const lastFlow = sheet.getRange(lastRow, 9).getValue();
+    if (lastFlow === "Flow4") nextFlow = "Flow4";
+    else if (lastFlow === "Flow4") nextFlow = "Flow4";
+    else if (lastFlow === "Flow4") nextFlow = "Flow4";
   }
 
-  return "";
+  const status = "Knowledge AI Antwort wird generiert...";
+  
+  sheet.appendRow([
+    id, userId, timestamp, question, "", status, "", "", nextFlow
+  ]);
+
+  return { id: id, status: status, timestamp: timestamp.toLocaleString() };
 }
 
-function ogqFindSettingsSource_(settingsSheet, searchFileName) {
-  const values = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
-  const searchBase = ogqFoldText_(searchFileName);
-  const searchExcel = ogqFoldText_(searchFileName + ".xlsx");
+function checkAnswer(id) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
 
-  for (let i = 0; i < values.length; i++) {
-    const cellA = ogqFoldText_(values[i][0]);
-    const cellB = ogqFoldText_(values[i][1]);
-
-    if (cellA === searchBase || cellB === searchBase || cellA === searchExcel || cellB === searchExcel ||
-        cellA.includes(searchBase) || cellB.includes(searchBase)) {
-      const fileId = ogqExtractDriveId_(values[i][4]) || ogqExtractDriveId_(values[i][5]);
-      if (!fileId) return null;
-
-      const rowNumber = i + 1;
-      settingsSheet.getRange(rowNumber, 5).setValue(fileId);
-      settingsSheet.getRange(rowNumber, 6).setValue(`https://docs.google.com/spreadsheets/d/${fileId}/edit`);
-      return { rowNumber, fileId };
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      const answer = data[i][4];
+      if (answer && answer.toString().trim() !== "") {
+        sheet.getRange(i + 1, 6).setValue("Antwort erhalten");
+        return { status: "Antwort erhalten", answer: answer.toString() };
+      } else {
+        return { status: "waiting" };
+      }
     }
   }
-
-  return null;
+  return { status: "error", message: "ID nicht gefunden" };
 }
 
-function ogqCleanText_(value) {
-  return ogqNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
-}
-
-function ogqCleanWgText_(value) {
-  let text = ogqCleanText_(value);
-  while (text.length > 5 && text.endsWith("0")) text = text.slice(0, -1);
-  return text;
-}
-
-function ogqIsMeaningfulValue_(value) {
-  const text = ogqCleanText_(value);
-  const folded = ogqFoldText_(text);
-
-  return text !== "" &&
-    folded !== "0" &&
-    folded !== "0,0" &&
-    folded !== "0,00" &&
-    folded !== "0.0" &&
-    folded !== "0.00" &&
-    folded !== "-" &&
-    folded !== "n/a";
-}
-
-function ogqIsMeaningfulArticle_(value) {
-  const text = ogqCleanText_(value);
-  const folded = ogqFoldText_(text);
-
-  if (!ogqIsMeaningfulValue_(text)) return false;
-  if (folded === "artikel" || folded === "article" || folded === "artikelnr" || folded === "artikelnummer") return false;
-
-  const digits = text.replace(/\D/g, "");
-  return digits !== "" && !/^0+$/.test(digits);
-}
-
-function ogqIsImportRow_(row) {
-  // Source A:F is pasted to target B:G.
-  // For the normal O+G quality sheet, only rows with usable supplier data belong here.
-  // Source B/C/D/E/F become target C/D/E/F/G and are required by the report/formulas.
-  return ogqIsMeaningfulValue_(row[1]) &&
-    ogqIsMeaningfulValue_(row[2]) &&
-    ogqIsMeaningfulArticle_(row[3]) &&
-    ogqIsMeaningfulValue_(row[4]) &&
-    ogqIsMeaningfulValue_(row[5]);
-}
-
-function ogqLastSourceRowByImportRows_(sheet, startRow) {
-  const lastSheetRow = sheet.getLastRow();
-  if (lastSheetRow < startRow) return startRow - 1;
-
-  const values = sheet.getRange(startRow, 1, lastSheetRow - startRow + 1, 6).getDisplayValues();
-  for (let i = values.length - 1; i >= 0; i--) {
-    if (ogqIsImportRow_(values[i])) return startRow + i;
+function getUserHistory(userId) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  if(!sheet) return [];
+  
+  const data = sheet.getDataRange().getValues();
+  const history = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][1] === userId) {
+      history.push({
+        id: data[i][0],
+        timestamp: data[i][2] ? new Date(data[i][2]).toLocaleString() : "",
+        question: data[i][3],
+        answer: data[i][4],
+        status: data[i][5],
+        feedback: data[i][6]
+      });
+    }
   }
-
-  return startRow - 1;
+  return history.reverse(); 
 }
 
-function ogqClearContentFromRow_(sheet, startRow, columnCount) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow >= startRow) {
-    sheet.getRange(startRow, 1, lastRow - startRow + 1, columnCount).clearContent();
+function saveFeedback(id, feedbackValue) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      sheet.getRange(i + 1, 7).setValue(feedbackValue);
+      return true;
+    }
   }
+  return false;
 }
 
-/**
- * Button function: importRawOGQualityCases
- * Imports "8WS_O+G_DE_Qualitätsfälle" into "Rohdaten O+G Qualitätsfälle".
- */
-function importRawOGQualityCases() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const ui = SpreadsheetApp.getUi();
-  const settingsSheet = ss.getSheetByName("Einstellungen");
-  const targetSheet = ss.getSheetByName("Rohdaten O+G Qualitätsfälle");
+index.html
 
-  if (!settingsSheet || !targetSheet) {
-    ui.alert("Fehler", 'Benötigte Tabellenblätter fehlen: "Einstellungen" oder "Rohdaten O+G Qualitätsfälle".', ui.ButtonSet.OK);
-    return;
-  }
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --lidl-blue: #0050AA;
+      --lidl-yellow: #FFF000;
+      --lidl-red: #E10019;
+      --bg-color: #F4F5F7;
+      --card-bg: #FFFFFF;
+      --text-main: #333333;
+      --text-muted: #666666;
+    }
 
-  const searchFileName = "8WS_O+G_DE_Qualitätsfälle";
-  const sourceInfo = ogqFindSettingsSource_(settingsSheet, searchFileName);
-  if (!sourceInfo) {
-    ui.alert("Konfigurationsfehler", `Quelle "${searchFileName}" wurde in Einstellungen nicht gefunden oder enthält keine gültige ID/URL.`, ui.ButtonSet.OK);
-    return;
-  }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      margin: 0;
+      padding: 0;
+    }
 
-  let sourceSs;
-  try {
-    sourceSs = SpreadsheetApp.openById(sourceInfo.fileId);
-  } catch (e) {
-    ui.alert("Dateifehler", `Quelldatei konnte nicht geöffnet werden.\n\n${e.message}`, ui.ButtonSet.OK);
-    return;
-  }
+    /* Header */
+    .header {
+      background-color: var(--lidl-blue);
+      color: white;
+      padding: 15px 0;
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      border-bottom: 5px solid var(--lidl-yellow);
+      position: relative;
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 0;
+      width: 15%;
+      height: 5px;
+      background-color: var(--lidl-red);
+    }
 
-  const sourceDataSheet = sourceSs.getSheets()[0];
-  const sourceLastRow = ogqLastSourceRowByImportRows_(sourceDataSheet, 3);
-  if (sourceLastRow < 3) {
-    ui.alert("Keine Daten", "Die Quelldatei enthält ab Zeile 3 keine importierbaren O+G-Qualitätsfälle mit KW, Artikel, Lieferant und LFN.", ui.ButtonSet.OK);
-    return;
-  }
+    .container {
+      width: 100%;
+      max-width: 800px;
+      margin: 30px auto;
+      padding: 0 20px;
+      box-sizing: border-box;
+    }
 
-  const rawValues = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 6).getDisplayValues();
-  const sourceValues = rawValues
-    .filter(row => ogqIsImportRow_(row))
-    .map(row => row.map((value, index) => index === 0 ? ogqCleanWgText_(value) : ogqCleanText_(value)))
-    .filter(row => ogqCleanText_(row[3]) !== "");
+    /* Eingabebereich Oben */
+    .input-card {
+      background: var(--card-bg);
+      border-top: 4px solid var(--lidl-blue);
+      border-radius: 8px;
+      padding: 25px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin-bottom: 40px;
+    }
 
-  if (!sourceValues.length) {
-    ui.alert("Keine Daten", "Nach Bereinigung wurden keine importierbaren Daten gefunden.", ui.ButtonSet.OK);
-    return;
-  }
+    .input-card h2 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 1.2rem;
+      color: var(--lidl-blue);
+    }
 
-  ogqClearContentFromRow_(targetSheet, 8, 17);
+    .input-group {
+      display: flex;
+      gap: 15px;
+    }
 
-  const destinationRange = targetSheet.getRange(8, 2, sourceValues.length, sourceValues[0].length);
-  destinationRange.setNumberFormat("@");
-  destinationRange.setValues(sourceValues);
+    input[type="text"] {
+      flex: 1;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
 
-  targetSheet.getRange("E2").activate();
-  ss.toast(`${sourceValues.length} Zeilen importiert.`, "Rohdaten O+G Qualitätsfälle", 8);
-}
+    input[type="text"]:focus {
+      border-color: var(--lidl-blue);
+    }
+
+    button.primary {
+      background-color: var(--lidl-blue);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0 30px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button.primary:hover {
+      background-color: #003d82;
+    }
+
+    button:disabled {
+      background-color: #ccc !important;
+      cursor: not-allowed;
+    }
+
+    /* Zentrierter Ladekreis */
+    .loader-container {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      margin-top: 15px;
+      gap: 15px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--lidl-red);
+      border-right: 4px solid var(--lidl-yellow);
+      border-bottom: 4px solid var(--lidl-blue);
+      border-radius: 50%;
+      width: 25px;
+      height: 25px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Verlauf / Historie - Akkordeon Style */
+    .history-section h3 {
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 10px;
+      color: var(--text-muted);
+      margin-top: 0;
+    }
+
+    .history-card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      border-left: 5px solid var(--lidl-blue);
+      overflow: hidden;
+    }
+
+    .history-card.pending {
+      border-left-color: var(--lidl-yellow);
+    }
+
+    /* Summary: Der einklappbare Header der Box */
+    .card-header {
+      padding: 15px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      list-style: none; /* Versteckt Standard-Pfeil */
+      user-select: none;
+      background-color: #ffffff;
+      transition: background-color 0.2s;
+    }
+    
+    .card-header::-webkit-details-marker {
+      display: none; /* Versteckt Standard-Pfeil in Safari/Chrome */
+    }
+
+    .card-header:hover {
+      background-color: #fcfcfc;
+    }
+
+    .header-left {
+      flex: 1;
+    }
+
+    .meta-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .status-badge {
+      background-color: #E9ECEF;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+    }
+    .status-badge.done { background-color: #d4edda; color: #155724; }
+    .status-badge.wait { background-color: #fff3cd; color: #856404; }
+
+    .header-feedback-preview {
+      font-size: 1.1rem;
+    }
+
+    .q-text { 
+      font-weight: bold; 
+      font-size: 1.05rem; 
+      color: #333; 
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 650px;
+    }
+
+    .toggle-icon {
+      color: var(--lidl-blue);
+      font-weight: bold;
+      transition: transform 0.3s ease;
+      font-size: 1.2rem;
+    }
+
+    /* Dreht den Pfeil, wenn die Box geöffnet ist */
+    details[open] .toggle-icon {
+      transform: rotate(180deg);
+    }
+    
+    /* Macht den Text in der geöffneten Box komplett sichtbar */
+    details[open] .q-text {
+      white-space: normal;
+    }
+
+    /* Box Content: Der Inhalt, wenn aufgeklappt */
+    .card-body {
+      padding: 0 20px 20px 20px;
+      border-top: 1px solid #f0f0f0;
+      margin-top: 10px;
+      padding-top: 15px;
+    }
+
+    .a-text { 
+      background: #f8f9fa; 
+      padding: 15px; 
+      border-radius: 4px; 
+      white-space: pre-wrap; 
+      line-height: 1.6; 
+      font-size: 1rem; 
+    }
+
+    /* Highlights für Textbausteine & Kategorien */
+    .highlight-label { font-weight: bold; color: var(--lidl-blue); }
+    .highlight-instruction { font-weight: bold; color: var(--lidl-red); background-color: #fff3f3; padding: 2px 6px; border-radius: 4px; display: inline-block; margin: 5px 0; }
+    .highlight-customer { font-weight: bold; color: var(--lidl-blue); background-color: #e8f0f9; padding: 2px 6px; border-radius: 4px; display: inline-block; margin: 5px 0; }
+    .highlight-category { font-weight: bold; color: #2b7a1a; }
+    .list-number { font-weight: bold; color: var(--lidl-blue); font-size: 1.05rem; }
+    .list-bullet { display: inline-block; margin-left: 15px; color: var(--lidl-blue); font-weight: bold; }
+
+    /* Feedback Bereich */
+    .feedback-area {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px dashed #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .feedback-text { font-size: 0.85rem; color: var(--text-muted); font-style: italic; }
+    .feedback-buttons { display: flex; align-items: center; gap: 10px; }
+    .btn-feedback { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 5px 12px; cursor: pointer; font-size: 1.1rem; transition: all 0.2s; }
+    .btn-feedback:hover { background: #f0f0f0; border-color: var(--lidl-blue); }
+    .btn-feedback.active { background: var(--lidl-blue); color: white; border-color: var(--lidl-blue); }
+
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    Knowledge AI
+  </div>
+
+  <div class="container">
+    
+    <div class="input-card">
+      <h2>Kundenanliegen KI Unterstützung auf Basis Knowledge</h2>
+      <div class="input-group">
+        <input type="text" id="question" placeholder="Kundenanliegen oder generierten Textbaustein hier einfügen..." onkeypress="handleKeyPress(event)">
+        <button class="primary" id="submitBtn" onclick="sendQuestion()">Anfragen</button>
+      </div>
+
+      <div class="loader-container" id="loader">
+        <div class="loader"></div>
+        <span id="loader-text">Knowledge AI Antwort wird generiert...</span>
+      </div>
+    </div>
+
+    <div class="history-section">
+      <h3>Bisherige Anfragen</h3>
+      <div id="history-container">
+        </div>
+    </div>
+
+  </div>
+
+  <script>
+    let pollInterval;
+    
+    let userId = localStorage.getItem('knowledge_ai_user_id');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+      localStorage.setItem('knowledge_ai_user_id', userId);
+    }
+
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(renderHistory)
+        .getUserHistory(userId);
+    };
+
+    function handleKeyPress(e) {
+      if (e.key === 'Enter') sendQuestion();
+    }
+
+    function setLoader(state) {
+      const loader = document.getElementById('loader');
+      const input = document.getElementById('question');
+      const btn = document.getElementById('submitBtn');
+      
+      if (state) {
+        loader.style.display = 'flex';
+        input.disabled = true;
+        btn.disabled = true;
+      } else {
+        loader.style.display = 'none';
+        input.disabled = false;
+        btn.disabled = false;
+        input.focus();
+      }
+    }
+
+    // Textformatierung
+    function formatAIText(text) {
+      if (!text) return "";
+      
+      text = text.replace(/(^|\n)(\d+\.)(\s)/g, function(match, p1, p2, p3) {
+        return '\n\n<span class="list-number">' + p2 + '</span>' + p3;
+      });
+      text = text.replace(/(^|\n)[ \t]*-\s/g, '$1<span class="list-bullet">•</span> ');
+      text = text.replace(/\n{3,}/g, '\n\n');
+
+      text = text.replace(/Kategorie\(n\):/g, '<span class="highlight-label">Kategorie(n):</span>');
+      text = text.replace(/Text:/g, '<span class="highlight-label">Text:</span>');
+      text = text.replace(/Titel:/g, '<span class="highlight-label">Titel:</span>');
+      text = text.replace(/Typ:/g, '<span class="highlight-label">Typ:</span>');
+      text = text.replace(/Kurzcode\./g, '<span class="highlight-label">Kurzcode.</span>');
+      text = text.replace(/Kurzcode:/g, '<span class="highlight-label">Kurzcode:</span>');
+      text = text.replace(/Text Block ID:/g, '<span class="highlight-label">Text Block ID:</span>');
+      
+      text = text.replace(/\[HANDLUNGSANWEISUNG FÜR DICH:\]/g, '<span class="highlight-instruction">[HANDLUNGSANWEISUNG FÜR DICH:]</span>');
+      text = text.replace(/\[TEXTBAUSTEINE FÜR DEN KUNDEN:\]/g, '<span class="highlight-customer">[TEXTBAUSTEINE FÜR DEN KUNDEN:]</span>');
+
+      const categories = [
+        "4.1.1 Order confirmation",
+        "4.3.1 General inquiry forward logistics",
+        "4.3.2 Delivery process",
+        "4.3.3 After delivery",
+        "4.3.4 Transportation damage"
+      ];
+      categories.forEach(cat => {
+        const regex = new RegExp(cat, "g");
+        text = text.replace(regex, `<span class="highlight-category">${cat}</span>`);
+      });
+
+      return text;
+    }
+
+    function renderHistory(historyData) {
+      const container = document.getElementById('history-container');
+      container.innerHTML = '';
+
+      if(historyData.length === 0) {
+        container.innerHTML = '<p style="color:#666;">Noch keine Anfragen vorhanden.</p>';
+        return;
+      }
+
+      historyData.forEach((item, index) => {
+        // Die allererste (neueste) Box soll standardmäßig ausgeklappt sein (index === 0)
+        container.appendChild(createHistoryCard(item, index === 0));
+      });
+    }
+
+    // Baut das <details> HTML Element (Akkordeon)
+    function createHistoryCard(item, isExpanded) {
+      const isDone = item.status === 'Antwort erhalten';
+      
+      const details = document.createElement('details');
+      details.className = 'history-card' + (!isDone ? ' pending' : '');
+      details.id = 'card-' + item.id;
+      if(isExpanded) details.setAttribute('open', '');
+
+      // Header (Summary) = immer sichtbar
+      const summary = document.createElement('summary');
+      summary.className = 'card-header';
+      summary.innerHTML = `
+        <div class="header-left">
+          <div class="meta-info">
+            <span>${item.timestamp}</span>
+            <span class="status-badge ${isDone ? 'done' : 'wait'}" id="status-${item.id}">${item.status}</span>
+            <span class="header-feedback-preview" id="preview-feedback-${item.id}">${item.feedback || ''}</span>
+          </div>
+          <div class="q-text">Anliegen: ${item.question}</div>
+        </div>
+        <div class="toggle-icon">▼</div>
+      `;
+      details.appendChild(summary);
+
+      // Body (Inhalt) = aufklappbar
+      const body = document.createElement('div');
+      body.className = 'card-body';
+      
+      let bodyHtml = `<div class="a-text" id="answer-${item.id}">`;
+      if(isDone) {
+        bodyHtml += formatAIText(item.answer);
+      } else {
+        bodyHtml += `<em>Antwort wird generiert...</em>`;
+      }
+      bodyHtml += `</div>`;
+      
+      body.innerHTML = bodyHtml;
+
+      // Feedback Bereich einfügen, falls Antwort da
+      if(isDone) {
+        body.insertAdjacentHTML('beforeend', createFeedbackHTML(item.id, item.feedback));
+      }
+
+      details.appendChild(body);
+      return details;
+    }
+
+    function createFeedbackHTML(id, currentFeedback) {
+      const upActive = currentFeedback === '👍' ? 'active' : '';
+      const downActive = currentFeedback === '👎' ? 'active' : '';
+      
+      return `
+        <div class="feedback-area" id="feedback-${id}">
+          <span class="feedback-text">Hilf uns die Qualität zu verbessern. Bitte sende uns dazu ein kurzes anonymisiertes Feedback, ob dir diese Antwort geholfen hat:</span>
+          <div class="feedback-buttons">
+            <button class="btn-feedback ${upActive}" onclick="sendFeedback('${id}', '👍', this)">👍</button>
+            <button class="btn-feedback ${downActive}" onclick="sendFeedback('${id}', '👎', this)">👎</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function sendQuestion() {
+      const input = document.getElementById('question');
+      const question = input.value.trim();
+      if (!question) return;
+
+      setLoader(true);
+      input.value = '';
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          const container = document.getElementById('history-container');
+          if(container.innerHTML.includes('Noch keine Anfragen')) {
+             container.innerHTML = '';
+          }
+
+          // Vorhandene geöffnete Boxen einklappen
+          const openDetails = container.querySelectorAll('details[open]');
+          openDetails.forEach(d => d.removeAttribute('open'));
+
+          const tempItem = {
+            id: response.id,
+            timestamp: response.timestamp,
+            question: question,
+            answer: "",
+            status: response.status,
+            feedback: ""
+          };
+          
+          // Neue Box generieren und GANZ OBEN (ausgeklappt) einfügen
+          const newCard = createHistoryCard(tempItem, true);
+          container.insertBefore(newCard, container.firstChild);
+
+          startPolling(response.id);
+        })
+        .withFailureHandler(function(err) {
+          alert("Fehler: " + err);
+          setLoader(false);
+        })
+        .submitQuestion(userId, question);
+    }
+
+    function startPolling(rowId) {
+      pollInterval = setInterval(() => {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            if (response.status === "Antwort erhalten") {
+              clearInterval(pollInterval);
+              setLoader(false);
+              updateCardAfterAnswer(rowId, response.answer);
+            }
+          })
+          .checkAnswer(rowId);
+      }, 2000);
+    }
+
+    function updateCardAfterAnswer(id, answer) {
+      const card = document.getElementById('card-' + id);
+      if(!card) return;
+
+      card.classList.remove('pending');
+      
+      const statusBadge = document.getElementById('status-' + id);
+      statusBadge.className = 'status-badge done';
+      statusBadge.innerText = 'Antwort erhalten';
+
+      const answerBox = document.getElementById('answer-' + id);
+      answerBox.innerHTML = formatAIText(answer); 
+
+      // Feedback Bereich an den Body anhängen (Race Condition Check)
+      const cardBody = card.querySelector('.card-body');
+      if (!document.getElementById('feedback-' + id)) {
+        cardBody.insertAdjacentHTML('beforeend', createFeedbackHTML(id, ""));
+      }
+    }
+
+    function sendFeedback(id, value, btnElement) {
+      // 1. Visuelles Feedback an den Buttons
+      const parent = btnElement.parentElement;
+      const buttons = parent.querySelectorAll('.btn-feedback');
+      buttons.forEach(b => b.classList.remove('active'));
+      btnElement.classList.add('active');
+
+      // 2. Feedback-Emoji im Header (Zugeklappter Zustand) aktualisieren
+      const preview = document.getElementById('preview-feedback-' + id);
+      if(preview) preview.innerText = value;
+
+      // 3. Im Backend speichern
+      google.script.run.saveFeedback(id, value);
+    }
+  </script>
+</body>
+</html>
+
+Mir gefällt ds Design und die Texte jedoch nicht so gut.
+
+Bitte "Kundenanliegen KI Unterstützung auf Basis Knowledge" hierfür etwas neues schlichtes einfallen lassen 
+Genau so wie für den Button "Anfragen"
+
+Anschließend auch Antwort erhalten nicht grün markieren sondern grau 
+
+"Bisherige Anfragen" ersetzen durch Deine aktuellen Anfragen
+
+Und das Symbol zum aufklappen gefällt mir noch nicht so gut.
+
+Ebenfalls das Kundenanliegen wo man rein schreiben kann direkt etwas höher machen, es soll mehrere Zeilen zulassen.
