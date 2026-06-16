@@ -1,135 +1,236 @@
-function cwsNormalizeText_(value) {
+/**
+ * Converts German umlauts and ss to simple ASCII equivalents for robust file matching.
+ */
+function normalizeGermanUmlauts(str) {
+  if (typeof str !== "string") return str;
+  return str.replace(/Ä/g, "A").replace(/ä/g, "a")
+            .replace(/Ö/g, "O").replace(/ö/g, "o")
+            .replace(/Ü/g, "U").replace(/ü/g, "u")
+            .replace(/ß/g, "s");
+}
+
+function convertNormalizeText_(value) {
   return String(value == null ? "" : value).normalize("NFC").trim();
 }
 
-function cwsFindLastDataRow_(sheet, startRow, startColumn, columnCount) {
-  const maxRows = sheet.getMaxRows();
-  if (maxRows < startRow) return 0;
+function convertExtractDriveFolderId_(value) {
+  const text = convertNormalizeText_(value);
+  const patterns = [
+    /\/folders\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /^([a-zA-Z0-9_-]{20,})$/,
+    /([a-zA-Z0-9_-]{25,})/
+  ];
 
-  const values = sheet.getRange(startRow, startColumn, maxRows - startRow + 1, columnCount).getDisplayValues();
-  for (let r = values.length - 1; r >= 0; r--) {
-    if (values[r].some(cell => cwsNormalizeText_(cell) !== "")) {
-      return startRow + r;
-    }
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) return match[1];
   }
 
-  return 0;
+  return "";
+}
+
+function convertCleanDisplayText_(value) {
+  return convertNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+}
+
+function convertCellForPlainText_(rawValue, displayValue) {
+  if (Object.prototype.toString.call(rawValue) === "[object Date]") {
+    const year = rawValue.getFullYear();
+    const month = String(rawValue.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  }
+
+  return convertCleanDisplayText_(displayValue);
 }
 
 /**
- * Button function: importToChangeWishesSorting
- * Imports from "Rohdaten Änderungswünsche Sort." to "Änderungswünsche Sortierung".
+ * Converts listed Excel files and updates/creates matching Google Sheets.
+ *
+ * Important fix:
+ * - Reads getDisplayValues() from the converted temp sheet instead of getValues().
+ *   This preserves values exactly as users see them in Excel/Sheets, e.g.
+ *   190.164 does not become the raw unrounded value 190.163.788.
+ *
+ * Button function: convertExcelFilesToSheets
  */
-function importToChangeWishesSorting() {
+function convertExcelFilesToSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
   const ui = SpreadsheetApp.getUi();
-  const sourceSheet = ss.getSheetByName("Rohdaten Änderungswünsche Sort.");
-  const destSheet = ss.getSheetByName("Änderungswünsche Sortierung");
-
-  Logger.log("--- Starting importToChangeWishesSorting ---");
-
-  if (!sourceSheet || !destSheet) {
-    ui.alert("Fehler", 'Quelle "Rohdaten Änderungswünsche Sort." oder Ziel "Änderungswünsche Sortierung" wurde nicht gefunden.', ui.ButtonSet.OK);
-    return;
-  }
-
-  const sourceLastRow = cwsFindLastDataRow_(sourceSheet, 8, 1, 8);
-  if (sourceLastRow < 8) {
-    ui.alert("Keine Daten", 'Das Blatt "Rohdaten Änderungswünsche Sort." enthält ab Zeile 8 keine importierbaren Daten.', ui.ButtonSet.OK);
-    return;
-  }
 
   try {
-    const destLastRow = destSheet.getLastRow();
-    if (destLastRow >= 6) {
-      destSheet.getRange("A6:R" + destLastRow).clearContent();
-    }
+    const fileNamesRange = sheet.getRange("B4:B17");
+    const fileNamesValues = fileNamesRange.getValues();
+    const namesMap = new Map();
 
-    const sourceValues = sourceSheet.getRange("A8:H" + sourceLastRow).getDisplayValues();
-    const uniqueKeys = new Set();
-    const processedData = [];
+    fileNamesValues.flat().forEach(name => {
+      const trimmedName = convertNormalizeText_(name);
+      if (trimmedName.length < 3) return;
 
-    for (const row of sourceValues) {
-      const artikelNummer = cwsNormalizeText_(row[4]); // Source E -> destination F
-      const artikel = cwsNormalizeText_(row[7]);       // Source H -> destination G
-      const uniqueKey = `${artikelNummer}|||${artikel}`;
+      let baseName = trimmedName;
+      if (trimmedName.toLowerCase().endsWith(".xlsx")) baseName = trimmedName.slice(0, -5);
+      else if (trimmedName.toLowerCase().endsWith(".xls")) baseName = trimmedName.slice(0, -4);
 
-      if (!artikelNummer && !artikel) continue;
-      if (uniqueKeys.has(uniqueKey)) continue;
+      const robustName = normalizeGermanUmlauts(baseName);
+      if (robustName.length >= 3) {
+        namesMap.set(robustName, trimmedName);
+      }
+    });
 
-      processedData.push([
-        cwsNormalizeText_(row[0]), // A -> A
-        cwsNormalizeText_(row[1]), // B -> B
-        cwsNormalizeText_(row[2]), // C -> C
-        cwsNormalizeText_(row[3]), // D -> D
-        cwsNormalizeText_(row[5]), // F -> E
-        artikelNummer,             // E -> F
-        artikel                    // H -> G
-      ]);
-
-      uniqueKeys.add(uniqueKey);
-    }
-
-    if (!processedData.length) {
-      ui.alert("Keine Daten", "Es wurden keine eindeutigen Datenzeilen zum Import gefunden.", ui.ButtonSet.OK);
+    if (namesMap.size === 0) {
+      ui.alert("Keine Dateien", "In B4:B17 wurden keine gültigen Dateinamen gefunden.", ui.ButtonSet.OK);
       return;
     }
 
-    const outputRange = destSheet.getRange(6, 1, processedData.length, 7);
-    outputRange.setNumberFormat("@");
-    outputRange.setValues(processedData);
+    const folderId = convertExtractDriveFolderId_(sheet.getRange("B19").getValue());
+    if (!folderId) {
+      ui.alert("Ordner-Link fehlt", "Bitte den vollständigen Google-Drive-Ordnerlink oder die Ordner-ID in B19 eintragen.", ui.ButtonSet.OK);
+      return;
+    }
 
-    const newLastRow = 5 + processedData.length;
-    const formulaTemplateRange = destSheet.getRange("H3:R3");
-    const templateFormulas = formulaTemplateRange.getFormulasR1C1()[0];
+    let processedCount = 0;
+    const finalFileIds = new Map();
+    const allFilesInFolder = [];
+    let pageToken;
 
-    if (templateFormulas.join("").length > 0) {
-      const formulaRows = [];
-      for (let i = 0; i < processedData.length; i++) {
-        formulaRows.push(templateFormulas);
+    do {
+      const listResult = Drive.Files.list({
+        q: `'${folderId}' in parents and trashed = false`,
+        corpora: "allDrives",
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        pageToken: pageToken,
+        pageSize: 1000
+      });
+
+      if (listResult.items) allFilesInFolder.push(...listResult.items);
+      pageToken = listResult.nextPageToken;
+    } while (pageToken);
+
+    const excelFilesToProcess = allFilesInFolder.filter(file => {
+      const isExcel = file.title.toLowerCase().endsWith(".xlsx") || file.title.toLowerCase().endsWith(".xls");
+      if (!isExcel) return false;
+
+      const baseNameRaw = file.title.replace(/\.xlsx$/i, "").replace(/\.xls$/i, "");
+      return namesMap.has(normalizeGermanUmlauts(baseNameRaw));
+    });
+
+    for (const file of excelFilesToProcess) {
+      const fileName = file.title;
+      const baseNameRaw = fileName.replace(/\.xlsx$/i, "").replace(/\.xls$/i, "");
+      const robustBaseName = normalizeGermanUmlauts(baseNameRaw);
+      let tempFile = null;
+
+      try {
+        SpreadsheetApp.getActive().toast(`Konvertiere: ${fileName}`);
+
+        const destinationSheetFile = allFilesInFolder.find(item =>
+          item.mimeType === MimeType.GOOGLE_SHEETS &&
+          normalizeGermanUmlauts(item.title) === robustBaseName
+        );
+
+        let attempts = 0;
+        while (attempts < 7) {
+          try {
+            attempts++;
+            const fileBlob = DriveApp.getFileById(file.id).getBlob();
+            const resource = {
+              title: `temp_${new Date().getTime()}`,
+              mimeType: MimeType.GOOGLE_SHEETS
+            };
+
+            tempFile = Drive.Files.insert(resource, fileBlob, {
+              supportsAllDrives: true,
+              convert: true
+            });
+
+            if (tempFile) break;
+          } catch (err) {
+            Logger.log(`Versuch ${attempts} fehlgeschlagen für ${fileName}: ${err.message}`);
+            if (attempts >= 7) throw err;
+            Utilities.sleep(5000);
+          }
+        }
+
+        const tempSpreadsheet = SpreadsheetApp.openById(tempFile.id);
+        const tempSourceSheet = tempSpreadsheet.getSheets()[0];
+        const dataRange = tempSourceSheet.getDataRange();
+        const rawValues = dataRange.getValues();
+        const displayValues = dataRange.getDisplayValues();
+
+        const sanitizedData = rawValues.map((row, rowIndex) => {
+          return row.map((cell, columnIndex) => {
+            return convertCellForPlainText_(cell, displayValues[rowIndex][columnIndex]);
+          });
+        });
+
+        if (!destinationSheetFile) {
+          tempSourceSheet.clear();
+
+          if (sanitizedData.length > 0 && sanitizedData[0].length > 0) {
+            const targetRange = tempSourceSheet.getRange(1, 1, sanitizedData.length, sanitizedData[0].length);
+            targetRange.setNumberFormat("@");
+            targetRange.setValues(sanitizedData);
+          }
+
+          const tempFileParents = Drive.Files.get(tempFile.id, { supportsAllDrives: true }).parents;
+          const parentIdsToRemove = tempFileParents.map(parent => parent.id).join(",");
+
+          Drive.Files.update({ title: baseNameRaw }, tempFile.id, null, {
+            addParents: folderId,
+            removeParents: parentIdsToRemove,
+            supportsAllDrives: true
+          });
+
+          finalFileIds.set(robustBaseName, tempFile.id);
+          tempFile = null;
+        } else {
+          const destSpreadsheet = SpreadsheetApp.openById(destinationSheetFile.id);
+          const destSheet = destSpreadsheet.getSheets()[0];
+
+          destSheet.clear();
+
+          if (sanitizedData.length > 0 && sanitizedData[0].length > 0) {
+            const targetRange = destSheet.getRange(1, 1, sanitizedData.length, sanitizedData[0].length);
+            targetRange.setNumberFormat("@");
+            targetRange.setValues(sanitizedData);
+          }
+
+          finalFileIds.set(robustBaseName, destinationSheetFile.id);
+        }
+
+        processedCount++;
+      } catch (e) {
+        Logger.log(`Fehler bei ${fileName}: ${e.message}\n${e.stack}`);
+      } finally {
+        if (tempFile) {
+          try {
+            Drive.Files.trash(tempFile.id, { supportsAllDrives: true });
+          } catch (e) {
+            Logger.log(`Temp-Datei konnte nicht gelöscht werden: ${e.message}`);
+          }
+        }
       }
-
-      const formulaDestinationRange = destSheet.getRange("H6:R" + newLastRow);
-      formulaDestinationRange.setFormulasR1C1(formulaRows);
-
-      SpreadsheetApp.flush();
-      Utilities.sleep(3000);
-
-      const calculatedValues = formulaDestinationRange.getDisplayValues();
-      formulaDestinationRange.setValues(calculatedValues);
-    } else {
-      Logger.log("Keine Formeln in H3:R3 gefunden.");
     }
 
-    const fullDataRange = destSheet.getRange("A6:R" + newLastRow);
-    fullDataRange.sort({ column: 7, ascending: true });
-    fullDataRange.sort([
-      { column: 1, ascending: true },
-      { column: 2, ascending: true },
-      { column: 3, ascending: true }
-    ]);
+    const outputIdsArray = fileNamesValues.map(row => {
+      const name = convertNormalizeText_(row);
+      let baseName = name;
+      if (name.toLowerCase().endsWith(".xlsx")) baseName = name.slice(0, -5);
+      else if (name.toLowerCase().endsWith(".xls")) baseName = name.slice(0, -4);
 
-    const formatTemplateRange = destSheet.getRange("A6:R6");
-    if (newLastRow > 6) {
-      formatTemplateRange.copyTo(destSheet.getRange("A7:R" + newLastRow), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-    }
+      return [finalFileIds.get(normalizeGermanUmlauts(baseName)) || ""];
+    });
 
-    const maxRows = destSheet.getMaxRows();
-    if (maxRows > newLastRow) {
-      destSheet.getRange(newLastRow + 1, 1, maxRows - newLastRow, 18).clearContent();
-    }
+    const outputUrlsArray = outputIdsArray.map(([fileId]) => {
+      return [fileId ? `https://docs.google.com/spreadsheets/d/${fileId}/edit` : ""];
+    });
 
-    destSheet.getRange("A1").activate();
-
-    if (typeof navigateOnSuccess === "function") {
-      navigateOnSuccess();
-    } else {
-      ss.toast(`${processedData.length} Zeilen importiert.`, "Änderungswünsche Sortierung", 8);
-    }
-
-    Logger.log("--- Finished importToChangeWishesSorting ---");
+    sheet.getRange("E4:E17").setValues(outputIdsArray);
+    sheet.getRange("F4:F17").setValues(outputUrlsArray);
+    SpreadsheetApp.getActive().toast(`${processedCount} Dateien verarbeitet.`, "Fertig", 5);
   } catch (e) {
-    ui.alert("Importfehler", `${e.message}\n\n${e.stack}`, ui.ButtonSet.OK);
-    Logger.log(`ERROR: ${e.stack}`);
+    ui.alert("Fehler", `Details: ${e.message}`, ui.ButtonSet.OK);
   }
 }
