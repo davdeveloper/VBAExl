@@ -1,160 +1,392 @@
-function ogqgNormalizeText_(value) {
-  return String(value == null ? "" : value).normalize("NFC").trim();
-}
+GENERATE_DATA_Rohdaten Food Qualitätsfälle.gs
 
-function ogqgFoldText_(value) {
-  return ogqgNormalizeText_(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase().trim();
-}
+/**
+ * ⚙️ Generates processed data for 'Rohdaten Food Qualitätsfälle'.
+ * Replicates VBA macro 'RohdatenFoodQualitätsfälleFormelnKopieren' (Modul33).
+ *
+ * This script FIRST sets a new user-defined formula in the template row O6:V6,
+ * THEN copies/autofills all template formulas (A:Y) down,
+ * and finally converts all results to static values.
+ */
+function generateRawFoodQualityCases() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  Logger.log("--- Starting generateRawFoodQualityCases ---");
 
-function ogqgExtractDriveId_(value) {
-  const text = ogqgNormalizeText_(value);
-  if (!text) return "";
+  const targetSheet = ss.getSheetByName("Rohdaten Food Qualitätsfälle");
+  const settingsSheet = ss.getSheetByName("Einstellungen"); // Needed for formula
 
-  const patterns = [
-    /\/d\/([a-zA-Z0-9_-]+)/,
-    /[?&]id=([a-zA-Z0-9_-]+)/,
-    /^([a-zA-Z0-9_-]{20,})$/,
-    /([a-zA-Z0-9_-]{25,})/
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) return match[1];
+  if (!targetSheet || !settingsSheet) {
+    ui.alert('Error', 'Could not find "Einstellungen" or "Rohdaten Food Qualitätsfälle" sheet.', ui.ButtonSet.OK);
+    Logger.log('Error: A required sheet is missing.');
+    return;
   }
 
-  return "";
-}
+  // --- 1. Find the Source File ID Row (for the formula) ---
+  // Assuming the formula needs the same file as the import
+  const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchFileName = "8WS_Food_DE_Qualitätsfälle"; 
+  let sourceFileUrl = null;
+  let sourceFileId = null;
+  let foundRowNumber = -1;
 
-function ogqgFindSettingsSource_(settingsSheet, searchFileName) {
-  const values = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
-  const searchBase = ogqgFoldText_(searchFileName);
-  const searchExcel = ogqgFoldText_(searchFileName + ".xlsx");
-
-  for (let i = 0; i < values.length; i++) {
-    const cellA = ogqgFoldText_(values[i][0]);
-    const cellB = ogqgFoldText_(values[i][1]);
-
-    if (cellA === searchBase || cellB === searchBase || cellA === searchExcel || cellB === searchExcel ||
-        cellA.includes(searchBase) || cellB.includes(searchBase)) {
-      const fileId = ogqgExtractDriveId_(values[i][4]) || ogqgExtractDriveId_(values[i][5]);
-      if (!fileId) return null;
-
-      const rowNumber = i + 1;
-      settingsSheet.getRange(rowNumber, 5).setValue(fileId);
-      settingsSheet.getRange(rowNumber, 6).setValue(`https://docs.google.com/spreadsheets/d/${fileId}/edit`);
-      return { rowNumber, fileId };
+  for (let i = 0; i < settingsValues.length; i++) {
+    const cellA = settingsValues[i][0].toString().trim();
+    const cellB = settingsValues[i][1].toString().trim();
+    const excelFileName = searchFileName + ".xlsx";
+    const options = { sensitivity: 'base' }; 
+    if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+        (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+      foundRowNumber = i + 1;
+      sourceFileUrl = settingsValues[i][5]; // Get the URL from Column F
+      Logger.log(`Found source file URL on row: ${foundRowNumber}: ${sourceFileUrl}`);
+      
+      try {
+        const match = sourceFileUrl.match(/\/d\/(.+?)\//);
+        if (match && match[1]) {
+          sourceFileId = match[1];
+          Logger.log(`Successfully extracted File ID: ${sourceFileId}`);
+        } else {
+          throw new Error("Could not parse File ID from URL.");
+        }
+      } catch (e) {
+        ui.alert('Configuration Error', `Invalid Google Sheet URL found for "${searchFileName}".`, ui.ButtonSet.OK);
+        Logger.log(`Error: Could not extract File ID from URL: ${sourceFileUrl}`);
+        return;
+      }
+      break; 
     }
   }
 
-  return null;
-}
-
-function ogqgLastDataRowInColumn_(sheet, columnNumber, startRow) {
-  const maxRows = sheet.getMaxRows();
-  const values = sheet.getRange(startRow, columnNumber, maxRows - startRow + 1, 1).getDisplayValues();
-
-  for (let i = values.length - 1; i >= 0; i--) {
-    if (ogqgNormalizeText_(values[i][0]) !== "") return startRow + i;
+  if (!sourceFileId) {
+    ui.alert('Configuration Error', `Could not find the file ID for "${searchFileName}". Check the 'Einstellungen' sheet.`, ui.ButtonSet.OK);
+    Logger.log(`Error: File ID for "${searchFileName}" not found.`);
+    return;
+  }
+  
+  // Find last row based on Column K ("LFN") as per VBA
+  const columnKValues = targetSheet.getRange("K1:K" + targetSheet.getMaxRows()).getValues();
+  let lastRow = 0;
+  for (let i = columnKValues.length - 1; i >= 0; i--) {
+    if (String(columnKValues[i][0]).trim() !== "") {
+      lastRow = i + 1;
+      break;
+    }
   }
 
-  return startRow - 1;
+  Logger.log(`Last row with data found in column K is: ${lastRow}`);
+  if (lastRow < 8) {
+    ui.alert('No Data', 'No imported data found in Column K (rows 8 or below) to process.', ui.ButtonSet.OK);
+    Logger.log('Warning: No data to process below row 7.');
+    return;
+  }
+
+  try {
+    // --- 2. SET TEMPLATE FORMULA (User Request) ---
+    Logger.log("Setting user-defined formula in template row O6:V6...");
+
+    // !!! PASTE YOUR FORMULA FOR CELL O6 HERE, using semicolons for EU locale !!!
+    // It should reference $G6, $H6, etc. and the 'sourceFileId' variable.
+    const formulaForO6 = `=ARRAY_CONSTRAIN(ARRAYFORMULA(IFERROR(IF(O$5=O$4;INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$I$3:$T$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$A$3:$A$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($I6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"))*($J6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$D$3:$D$1000"))*($K6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$E$1000"))*($L6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$F$3:$F$1000"))*($M6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$G$3:$G$1000"))*($N6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$H$3:$H$1000"));0);MATCH(O$5;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$I$1:$T$1");0));IFERROR(NUMBERVALUE(INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$I$3:$T$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$A$3:$A$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($I6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"))*($J6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$D$3:$D$1000"))*($K6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$E$1000"))*($L6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$F$3:$F$1000"))*($M6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$G$3:$G$1000"))*($N6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$H$3:$H$1000"));0);MATCH(O$5;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$I$1:$T$1");0)));0)+IFERROR(NUMBERVALUE(INDEX(IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$I$3:$T$1000");MATCH(1;($G6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$A$3:$A$1000"))*($H6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$B$3:$B$1000"))*($I6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$C$3:$C$1000"))*($J6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$D$3:$D$1000"))*($K6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$E$3:$E$1000"))*($L6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$F$3:$F$1000"))*($M6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$G$3:$G$1000"))*($N6=IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$H$3:$H$1000"));0);MATCH(O$4;IMPORTRANGE(Einstellungen!$F$${foundRowNumber};"In_Development_8_weeks_Report_F!$I$1:$T$1");0)));0));"")); 1; 1)`; // <<< PASTE YOUR FORMULA HERE
+
+    if (formulaForO6 === `=""`) {
+      Logger.log("Formula for O6 is blank. Please edit the script and paste your formula.");
+      // You might want to stop the script here if the formula is required
+      // ui.alert("Script Error", "The formula for O6 is missing in the script.", ui.ButtonSet.OK);
+      // return;
+    }
+
+    const templateFormulaCell = targetSheet.getRange("O6");
+    templateFormulaCell.setFormula(formulaForO6);
+    
+    // Autofill it across to V6
+    const templateRangeOtoV = targetSheet.getRange("O6:V6");
+    templateFormulaCell.autoFill(templateRangeOtoV, SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+    Logger.log("Template formula set for O6:V6.");
+
+    // --- 3. Clear Specific Columns (as per VBA) ---
+    Logger.log("Clearing target columns A:F and O:Y...");
+    targetSheet.getRange("A8:F" + lastRow).clearContent();
+    targetSheet.getRange("O8:Y" + lastRow).clearContent();
+
+    // --- 4. Apply Formulas from Template Row 6 (as per VBA) ---
+    Logger.log("Copying formula sections from template row 6 to row 8...");
+    // --- FIX: Copy *only* the formula sections, leave G:N untouched ---
+    targetSheet.getRange("A6:F6").copyTo(targetSheet.getRange("A8:F8"), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+    targetSheet.getRange("O6:Y6").copyTo(targetSheet.getRange("O8:Y8"), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+
+
+    // --- 5. Autofill Formula Columns ---
+    Logger.log("Autofilling formula columns down to row " + lastRow);
+    const rangeA8toF8 = targetSheet.getRange("A8:F8");
+    const rangeO8toY8 = targetSheet.getRange("O8:Y8");
+
+    if (lastRow > 8) {
+      // Autofill A:F
+      rangeA8toF8.autoFill(targetSheet.getRange("A8:F" + lastRow), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+      // Autofill O:Y
+      rangeO8toY8.autoFill(targetSheet.getRange("O8:Y" + lastRow), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+    }
+    
+    // --- 6. Wait for Calculations and Convert to Values ---
+    SpreadsheetApp.flush();
+    Logger.log("Waiting for all formulas to calculate...");
+    Utilities.sleep(1000); // Allow time for IMPORTRANGE
+
+    Logger.log("Converting formulas in A8:Y" + lastRow + " to static values.");
+    const rangeToConvert = targetSheet.getRange("A8:Y" + lastRow);
+    rangeToConvert.copyTo(rangeToConvert, { contentsOnly: true });
+
+    // --- 7. Check for Warnings (Blanks in A:E or '-' in X) ---
+    Logger.log("Checking for warnings...");
+    const warningRangeAE = targetSheet.getRange("A8:E" + lastRow).getValues();
+    const warningRangeX = targetSheet.getRange("X8:X" + lastRow).getValues();
+    let warningFound = false;
+
+    for (let r = 0; r < warningRangeAE.length; r++) {
+      // Check A:E
+      for (let c = 0; c < warningRangeAE[r].length; c++) {
+        if (String(warningRangeAE[r][c]).trim() === "") {
+          warningFound = true;
+          Logger.log(`Warning: Found blank cell at row ${r + 8}, col ${c + 1}`);
+          break;
+        }
+      }
+      if (warningFound) break;
+
+      // Check X
+      if (warningRangeX[r][0] === "-") {
+         warningFound = true;
+         Logger.log(`Warning: Found '-' in cell X${r + 8}`);
+         break;
+      }
+    }
+
+    // --- 8. Display Appropriate Message ---
+    targetSheet.getRange("E2").activate(); // As per VBA
+    if (warningFound) {
+      Logger.log("Warning message triggered.");
+      ss.toast('WARNUNG: Für einige Datensätze fehlt der GF-EK DE/BL DE/EKL DE/GL-EK INT/EKL INT oder die Deutsche Übersetzung zum Grund.', "Achtung!", 15);
+    } else {
+      navigateOnSuccess();
+      // Optional: Activate next sheet
+      // const nextSheet = ss.getSheetByName("Food Qualitätsfälle");
+      // if (nextSheet) nextSheet.activate();
+    }
+
+  } catch (e) {
+    const processingError = `An error occurred while generating data: ${e.message}\n\nStack:\n${e.stack}`;
+    ui.alert('Processing Error', processingError, ui.ButtonSet.OK);
+    Logger.log(`ERROR during processing: ${e.stack}`);
+    return;
+  }
+
+  Logger.log("--- Finished generateRawFoodQualityCases ---");
 }
 
-function ogqgColumnIsNotReady_(displayValues, columnIndex) {
-  const values = displayValues.map(row => ogqgNormalizeText_(row[columnIndex]));
-  return values.every(value => value === "") || values.some(value => value.startsWith("#"));
-}
+IMPORT_DATA_Rohdaten Food Qualitätsfälle.gs
 
-function ogqgBuildWeekFormula_(settingsRow) {
-  const urlReference = `Einstellungen!$F$${settingsRow}`;
-  const sourceSheet = "In_Development_8_weeks_Report_F";
+// /**
+//  * 🔎 Imports raw data for 'Rohdaten Food Qualitätsfälle'.
+//  * V4: "Universal WG Fix" - Dynamic Header Scan (Rows 1-3), WG Sanitization.
+//  */
+// function importRawFoodQualityCases() {
+//   const ss = SpreadsheetApp.getActiveSpreadsheet();
+//   const ui = SpreadsheetApp.getUi();
+//   const settingsSheet = ss.getSheetByName("Einstellungen");
+//   const targetSheet = ss.getSheetByName("Rohdaten Food Qualitätsfälle");
 
-  return `=LET(` +
-    `url;${urlReference};` +
-    `data_range;IMPORTRANGE(url;"${sourceSheet}!G3:O1000");` +
-    `wg_range;IMPORTRANGE(url;"${sourceSheet}!A3:A1000");` +
-    `grund_range;IMPORTRANGE(url;"${sourceSheet}!C3:C1000");` +
-    `artikel_range;IMPORTRANGE(url;"${sourceSheet}!D3:D1000");` +
-    `lieferant_range;IMPORTRANGE(url;"${sourceSheet}!E3:E1000");` +
-    `lfn_range;IMPORTRANGE(url;"${sourceSheet}!F3:F1000");` +
-    `header_range;IMPORTRANGE(url;"${sourceSheet}!G1:O1");` +
-    `filtered_row;IFERROR(FILTER(data_range;TO_TEXT(wg_range)=TO_TEXT($B6);TO_TEXT(grund_range)=TO_TEXT($D6);TO_TEXT(artikel_range)=TO_TEXT($E6);TO_TEXT(lieferant_range)=TO_TEXT($F6);TO_TEXT(lfn_range)=TO_TEXT($G6)));` +
-    `IFERROR(IF(H$5=H$4;INDEX(filtered_row;1;MATCH(H$5;header_range;0));IFERROR(NUMBERVALUE(INDEX(filtered_row;1;MATCH(H$5;header_range;0)));0)+IFERROR(NUMBERVALUE(INDEX(filtered_row;1;MATCH(H$4;header_range;0)));0));"")` +
-    `)`;
-}
+//   Logger.log("--- Starting importRawFoodQualityCases (V4 - WG Fix) ---");
+
+//   if (!settingsSheet || !targetSheet) {
+//     ui.alert('Error', 'Required sheets missing.', ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+//   const searchFileName = "8WS_Food_DE_Qualitätsfälle";
+//   let sourceFileId = null;
+
+//   for (let i = 0; i < settingsValues.length; i++) {
+//     const cellA = settingsValues[i][0].toString().trim();
+//     const cellB = settingsValues[i][1].toString().trim();
+//     const excelFileName = searchFileName + ".xlsx";
+//     const options = { sensitivity: 'base' }; 
+//     if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+//         (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+//       sourceFileId = settingsValues[i][4]; 
+//       break;
+//     }
+//   }
+
+//   if (!sourceFileId) {
+//     ui.alert('Configuration Error', `File ID for "${searchFileName}" not found.`, ui.ButtonSet.OK);
+//     return;
+//   }
+
+//   const lastRowK = targetSheet.getRange("K" + targetSheet.getMaxRows()).getNextDataCell(SpreadsheetApp.Direction.UP).getRow();
+//   const lastRow = lastRowK < 8 ? 8 : lastRowK;
+//   if (lastRow >= 8) {
+//     targetSheet.getRange(8, 1, lastRow - 7, 25).clearContent();
+//   }
+
+//   let sourceSs;
+//   try {
+//     sourceSs = SpreadsheetApp.openById(sourceFileId);
+//   } catch (e) {
+//     ui.alert('File Access Error', `Could not open source file.`, ui.ButtonSet.OK);
+//     return;
+//   }
+  
+//   const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+//   if (!sourceDataSheet) {
+//     ui.alert('Sheet Error', 'Tab "In_Development_8_weeks_Report_F" not found.', ui.ButtonSet.OK);
+//     return;
+//   }
+//   const sourceLastRow = sourceDataSheet.getLastRow();
+//   if (sourceLastRow < 3) return;
+
+//   // --- DYNAMIC HEADER SCAN ---
+//   const potentialHeaders = sourceDataSheet.getRange(1, 1, 3, 10).getValues();
+//   let wgColIndex = -1;
+
+//   outerLoop:
+//   for (let r = 0; r < potentialHeaders.length; r++) {
+//     for (let c = 0; c < potentialHeaders[r].length; c++) {
+//       if (String(potentialHeaders[r][c]).trim().toUpperCase() === "WG") {
+//         wgColIndex = c;
+//         Logger.log(`Found 'WG' header at Row ${r + 1}, Column ${c + 1}`);
+//         break outerLoop;
+//       }
+//     }
+//   }
+
+//   // --- Read Data ---
+//   const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 8); 
+//   const sourceValues = sourceRange.getDisplayValues();
+
+//   // --- CLEANING LOOP ---
+//   for (let r = 0; r < sourceValues.length; r++) {
+//     for (let c = 0; c < sourceValues[r].length; c++) {
+//       let val = sourceValues[r][c];
+
+//       // WG Handling
+//       if (c === wgColIndex || (wgColIndex === -1 && c === 0)) {
+//         if (!val) {
+//           sourceValues[r][c] = "";
+//         } else {
+//           let strVal = String(val).trim();
+//           while (strVal.length > 5 && strVal.endsWith('0')) {
+//              strVal = strVal.slice(0, -1);
+//           }
+//           sourceValues[r][c] = strVal; 
+//         }
+//       } else {
+//         sourceValues[r][c] = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+//       }
+//     }
+//   }
+
+//   sourceRange.setNumberFormat("@"); 
+//   sourceRange.setValues(sourceValues);
+
+//   const destinationRange = targetSheet.getRange(8, 7, sourceValues.length, sourceValues[0].length);
+//   destinationRange.setNumberFormat("@");
+//   destinationRange.setValues(sourceValues);
+  
+//   targetSheet.getRange("E2").activate();
+//   ss.toast('Import successful! WG column sanitized.', 'Success', 5);
+// }
 
 /**
- * Button function: generateRawOGQualityCases
- * Generates formulas/results for "Rohdaten O+G Qualitätsfälle".
+ * 🔎 Imports raw data for 'Rohdaten Food Qualitätsfälle'.
+ * FIX: Plain Text method + Paste Values Only (Preserves existing borders/colors).
+ * Removes destructive .toFixed(3) logic that was altering WG codes.
  */
-function generateRawOGQualityCases() {
+function importRawFoodQualityCases() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  const targetSheet = ss.getSheetByName("Rohdaten O+G Qualitätsfälle");
   const settingsSheet = ss.getSheetByName("Einstellungen");
+  const targetSheet = ss.getSheetByName("Rohdaten Food Qualitätsfälle");
 
-  if (!targetSheet || !settingsSheet) {
-    ui.alert("Fehler", 'Benötigte Tabellenblätter fehlen: "Einstellungen" oder "Rohdaten O+G Qualitätsfälle".', ui.ButtonSet.OK);
+  Logger.log("--- Starting importRawFoodQualityCases (Strict Plain Text) ---");
+  if (!settingsSheet || !targetSheet) {
+    ui.alert('Error', 'Required sheets missing.', ui.ButtonSet.OK);
     return;
   }
 
-  const sourceInfo = ogqgFindSettingsSource_(settingsSheet, "8WS_O+G_DE_Qualitätsfälle");
-  if (!sourceInfo) {
-    ui.alert("Konfigurationsfehler", 'Quelle "8WS_O+G_DE_Qualitätsfälle" wurde in Einstellungen nicht gefunden oder enthält keine gültige ID/URL.', ui.ButtonSet.OK);
+  const settingsValues = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchFileName = "8WS_Food_DE_Qualitätsfälle";
+  let sourceFileId = null;
+
+  for (let i = 0; i < settingsValues.length; i++) {
+    const cellA = settingsValues[i][0].toString().trim();
+    const cellB = settingsValues[i][1].toString().trim();
+    const excelFileName = searchFileName + ".xlsx";
+    const options = { sensitivity: 'base' };
+
+    if ((cellA && cellA.localeCompare(searchFileName, undefined, options) === 0) ||
+        (cellB && cellB.localeCompare(excelFileName, undefined, options) === 0)) {
+      sourceFileId = settingsValues[i][4];
+      break;
+    }
+  }
+
+  if (!sourceFileId) {
+    ui.alert('Configuration Error', `File ID for "${searchFileName}" not found.`, ui.ButtonSet.OK);
     return;
   }
 
-  const lastRow = ogqgLastDataRowInColumn_(targetSheet, 5, 8);
-  if (lastRow < 8) {
-    ui.alert("Keine Daten", 'In "Rohdaten O+G Qualitätsfälle" wurden ab Zeile 8 keine Artikel in Spalte E gefunden.', ui.ButtonSet.OK);
+// --- Prepare Target Sheet (Clear CONTENT only to preserve borders/colors) ---
+  const lastRow = targetSheet.getLastRow(); 
+  
+  if (lastRow >= 8) {
+    targetSheet.getRange(8, 1, lastRow - 7, 25).clearContent();
+  }
+
+  let sourceSs;
+  try {
+    sourceSs = SpreadsheetApp.openById(sourceFileId);
+  } catch (e) {
+    ui.alert('File Access Error', `Could not open source file.`, ui.ButtonSet.OK);
     return;
   }
+  
+  const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F");
+  if (!sourceDataSheet) {
+    ui.alert('Sheet Error', 'Tab not found.', ui.ButtonSet.OK);
+    return;
+  }
+  const sourceLastRow = sourceDataSheet.getLastRow();
+  if (sourceLastRow < 3) return;
 
-  const clearLastRow = Math.max(lastRow, targetSheet.getLastRow());
-  targetSheet.getRange(`A8:A${clearLastRow}`).clearContent();
-  targetSheet.getRange(`H8:Q${clearLastRow}`).clearContent();
+  // --- Read Data (using getDisplayValues to capture exact text) ---
+  const sourceRange = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 8);
+  const sourceValues = sourceRange.getDisplayValues();
 
-  targetSheet.getRange("H6").setFormula(ogqgBuildWeekFormula_(sourceInfo.rowNumber));
-  targetSheet.getRange("H6").autoFill(targetSheet.getRange("H6:O6"), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
-  targetSheet.getRange("P6").setFormula('=IF(COUNTA($B6:$G6)=0;"";SUM(H6:O6))');
-
-  const qTemplateFormula = targetSheet.getRange("Q6").getFormula();
-  if (!qTemplateFormula) {
-    ss.toast("Hinweis: Q6 enthält keine Template-Formel für Grund EN.", "Rohdaten O+G Qualitätsfälle", 10);
+  // --- CLEANING LOOP (No Zero Manipulation) ---
+  for (let r = 0; r < sourceValues.length; r++) {
+    for (let c = 0; c < sourceValues[r].length; c++) {
+      let val = sourceValues[r][c];
+      
+      // Force string, remove quotes and non-breaking spaces
+      if (!val || String(val).trim() === "") {
+        sourceValues[r][c] = "";
+      } else {
+        sourceValues[r][c] = String(val).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+      }
+    }
   }
 
-  const targetA8 = targetSheet.getRange("A8");
-  const targetH8Q8 = targetSheet.getRange("H8:Q8");
-  targetSheet.getRange("A6").copyTo(targetA8, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
-  targetSheet.getRange("H6:Q6").copyTo(targetH8Q8, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+  // --- 1. Write clean data BACK to the source file as Plain Text ---
+  sourceRange.setNumberFormat("@");
+  sourceRange.setValues(sourceValues);
 
-  if (lastRow > 8) {
-    targetA8.autoFill(targetSheet.getRange(`A8:A${lastRow}`), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
-    targetH8Q8.autoFill(targetSheet.getRange(`H8:Q${lastRow}`), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
-  }
-
-  SpreadsheetApp.flush();
-  Utilities.sleep(8000);
-
-  const resultRange = targetSheet.getRange(`A8:Q${lastRow}`);
-  const resultValues = resultRange.getDisplayValues();
-
-  if (ogqgColumnIsNotReady_(resultValues, 15)) {
-    Utilities.sleep(12000);
-    SpreadsheetApp.flush();
-  }
-
-  const refreshedValues = resultRange.getDisplayValues();
-  if (ogqgColumnIsNotReady_(refreshedValues, 15)) {
-    ss.toast("Spalte P ist noch leer oder nicht fertig. Formeln bleiben stehen, damit Google Sheets/IMPORTRANGE weiter rechnen kann.", "Rohdaten O+G Qualitätsfälle", 10);
-  } else {
-    resultRange.copyTo(resultRange, { contentsOnly: true });
-  }
-
+  // --- 2. Write to Target Sheet (Column G / 7) as Plain Text (Values Only) ---
+  const destinationRange = targetSheet.getRange(8, 7, sourceValues.length, sourceValues[0].length); 
+  destinationRange.setNumberFormat("@");
+  destinationRange.setValues(sourceValues); // setValues inherently acts like "Paste Values Only"
+  
   targetSheet.getRange("E2").activate();
-  if (typeof navigateOnSuccess === "function") {
-    navigateOnSuccess();
-  } else {
-    ss.toast(`${lastRow - 7} Zeilen generiert.`, "Rohdaten O+G Qualitätsfälle", 8);
-  }
+  ss.toast('Import successful! Data formatted perfectly as Plain Text.', 'Success', 5);
 }
