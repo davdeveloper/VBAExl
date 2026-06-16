@@ -1,21 +1,19 @@
 /**
- * Converts German umlauts and ss to simple ASCII equivalents for robust file matching.
+ * MIS import with text-safe article/key handling.
+ *
+ * Fixes the Excel-to-Sheets migration issue where displayed values such as
+ * 190.164 were imported as raw numbers such as 190.163.788.
  */
-function normalizeGermanUmlauts(str) {
-  if (typeof str !== "string") return str;
-  return str.replace(/Ä/g, "A").replace(/ä/g, "a")
-            .replace(/Ö/g, "O").replace(/ö/g, "o")
-            .replace(/Ü/g, "U").replace(/ü/g, "u")
-            .replace(/ß/g, "s");
-}
-
-function convertNormalizeText_(value) {
+function misNormalizeText_(value) {
   return String(value == null ? "" : value).normalize("NFC").trim();
 }
 
-function convertExtractDriveFolderId_(value) {
-  const text = convertNormalizeText_(value);
+function misExtractDriveId_(value) {
+  const text = misNormalizeText_(value);
+  if (!text) return "";
+
   const patterns = [
+    /\/d\/([a-zA-Z0-9_-]+)/,
     /\/folders\/([a-zA-Z0-9_-]+)/,
     /[?&]id=([a-zA-Z0-9_-]+)/,
     /^([a-zA-Z0-9_-]{20,})$/,
@@ -30,207 +28,232 @@ function convertExtractDriveFolderId_(value) {
   return "";
 }
 
-function convertCleanDisplayText_(value) {
-  return convertNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+function misSanitizeDisplayValues_(values) {
+  return values.map(row => row.map(value => {
+    const text = misNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+    return text === "" ? "" : text;
+  }));
 }
 
-function convertCellForPlainText_(rawValue, displayValue) {
-  if (Object.prototype.toString.call(rawValue) === "[object Date]") {
-    const year = rawValue.getFullYear();
-    const month = String(rawValue.getMonth() + 1).padStart(2, "0");
-    return `${year}-${month}`;
+function misClearContentFromRow_(sheet, startRow, columnCount) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= startRow) {
+    sheet.getRange(startRow, 1, lastRow - startRow + 1, columnCount).clearContent();
+  }
+}
+
+function misFindSettingsRowContainingAny_(sheet, searchTerms) {
+  const values = sheet.getDataRange().getValues();
+  const normalizedTerms = searchTerms.map(term => misNormalizeText_(term).toLowerCase());
+
+  for (let i = 0; i < values.length; i++) {
+    const rowText = values[i].map(cell => misNormalizeText_(cell).toLowerCase()).join(" ");
+    if (normalizedTerms.some(term => term && rowText.includes(term))) {
+      return i + 1;
+    }
   }
 
-  return convertCleanDisplayText_(displayValue);
+  return -1;
+}
+
+// Compatibility helper for Deckblatt scripts that were split from all2.
+function all2FindRowContainingAny_(sheet, searchTerms) {
+  return misFindSettingsRowContainingAny_(sheet, searchTerms);
+}
+
+function misSetSettingsFileReference_(settingsSheet, rowNumber, fileId) {
+  if (!rowNumber || rowNumber < 1 || !fileId) return;
+
+  settingsSheet.getRange(rowNumber, 5).setValue(fileId);
+  settingsSheet.getRange(rowNumber, 6).setValue(`https://docs.google.com/spreadsheets/d/${fileId}/edit`);
+}
+
+function misBuildSourceValues_(rawValues, displayValues) {
+  return rawValues.map((row, rowIndex) => {
+    return row.map((value, colIndex) => {
+      const displayText = misNormalizeText_(displayValues[rowIndex][colIndex]).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+
+      // Column A is used as lookup key. Keep it exactly as displayed to avoid 190.164 -> 190.163.788.
+      if (colIndex === 0) return displayText;
+
+      // Keep numeric/date columns usable for formulas. Only clean strings.
+      if (value === "" || value == null) return "";
+      if (typeof value === "string") return misNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+      return value;
+    });
+  });
+}
+
+function misSafeCall_(fnName) {
+  if (typeof globalThis[fnName] !== "function") return;
+
+  try {
+    globalThis[fnName]();
+  } catch (e) {
+    Logger.log(`${fnName} konnte nach MIS Import nicht ausgeführt werden: ${e.message}\n${e.stack}`);
+    SpreadsheetApp.getActive().toast(`${fnName}: übersprungen (${e.message})`, "Hinweis", 8);
+  }
 }
 
 /**
- * Converts listed Excel files and updates/creates matching Google Sheets.
+ * Imports MIS data and updates the lookup formula in "MIS Final".
  *
- * Important fix:
- * - Reads getDisplayValues() from the converted temp sheet instead of getValues().
- *   This preserves values exactly as users see them in Excel/Sheets, e.g.
- *   190.164 does not become the raw unrounded value 190.163.788.
- *
- * Button function: convertExcelFilesToSheets
+ * Button function: runMisImportSmarter
  */
-function convertExcelFilesToSheets() {
+function runMisImportSmarter() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getActiveSheet();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
   const ui = SpreadsheetApp.getUi();
 
-  try {
-    const fileNamesRange = sheet.getRange("B4:B17");
-    const fileNamesValues = fileNamesRange.getValues();
-    const namesMap = new Map();
-
-    fileNamesValues.flat().forEach(name => {
-      const trimmedName = convertNormalizeText_(name);
-      if (trimmedName.length < 3) return;
-
-      let baseName = trimmedName;
-      if (trimmedName.toLowerCase().endsWith(".xlsx")) baseName = trimmedName.slice(0, -5);
-      else if (trimmedName.toLowerCase().endsWith(".xls")) baseName = trimmedName.slice(0, -4);
-
-      const robustName = normalizeGermanUmlauts(baseName);
-      if (robustName.length >= 3) {
-        namesMap.set(robustName, trimmedName);
-      }
-    });
-
-    if (namesMap.size === 0) {
-      ui.alert("Keine Dateien", "In B4:B17 wurden keine gültigen Dateinamen gefunden.", ui.ButtonSet.OK);
-      return;
-    }
-
-    const folderId = convertExtractDriveFolderId_(sheet.getRange("B19").getValue());
-    if (!folderId) {
-      ui.alert("Ordner-Link fehlt", "Bitte den vollständigen Google-Drive-Ordnerlink oder die Ordner-ID in B19 eintragen.", ui.ButtonSet.OK);
-      return;
-    }
-
-    let processedCount = 0;
-    const finalFileIds = new Map();
-    const allFilesInFolder = [];
-    let pageToken;
-
-    do {
-      const listResult = Drive.Files.list({
-        q: `'${folderId}' in parents and trashed = false`,
-        corpora: "allDrives",
-        supportsAllDrives: true,
-        includeItemsFromAllDrives: true,
-        pageToken: pageToken,
-        pageSize: 1000
-      });
-
-      if (listResult.items) allFilesInFolder.push(...listResult.items);
-      pageToken = listResult.nextPageToken;
-    } while (pageToken);
-
-    const excelFilesToProcess = allFilesInFolder.filter(file => {
-      const isExcel = file.title.toLowerCase().endsWith(".xlsx") || file.title.toLowerCase().endsWith(".xls");
-      if (!isExcel) return false;
-
-      const baseNameRaw = file.title.replace(/\.xlsx$/i, "").replace(/\.xls$/i, "");
-      return namesMap.has(normalizeGermanUmlauts(baseNameRaw));
-    });
-
-    for (const file of excelFilesToProcess) {
-      const fileName = file.title;
-      const baseNameRaw = fileName.replace(/\.xlsx$/i, "").replace(/\.xls$/i, "");
-      const robustBaseName = normalizeGermanUmlauts(baseNameRaw);
-      let tempFile = null;
-
-      try {
-        SpreadsheetApp.getActive().toast(`Konvertiere: ${fileName}`);
-
-        const destinationSheetFile = allFilesInFolder.find(item =>
-          item.mimeType === MimeType.GOOGLE_SHEETS &&
-          normalizeGermanUmlauts(item.title) === robustBaseName
-        );
-
-        let attempts = 0;
-        while (attempts < 7) {
-          try {
-            attempts++;
-            const fileBlob = DriveApp.getFileById(file.id).getBlob();
-            const resource = {
-              title: `temp_${new Date().getTime()}`,
-              mimeType: MimeType.GOOGLE_SHEETS
-            };
-
-            tempFile = Drive.Files.insert(resource, fileBlob, {
-              supportsAllDrives: true,
-              convert: true
-            });
-
-            if (tempFile) break;
-          } catch (err) {
-            Logger.log(`Versuch ${attempts} fehlgeschlagen für ${fileName}: ${err.message}`);
-            if (attempts >= 7) throw err;
-            Utilities.sleep(5000);
-          }
-        }
-
-        const tempSpreadsheet = SpreadsheetApp.openById(tempFile.id);
-        const tempSourceSheet = tempSpreadsheet.getSheets()[0];
-        const dataRange = tempSourceSheet.getDataRange();
-        const rawValues = dataRange.getValues();
-        const displayValues = dataRange.getDisplayValues();
-
-        const sanitizedData = rawValues.map((row, rowIndex) => {
-          return row.map((cell, columnIndex) => {
-            return convertCellForPlainText_(cell, displayValues[rowIndex][columnIndex]);
-          });
-        });
-
-        if (!destinationSheetFile) {
-          tempSourceSheet.clear();
-
-          if (sanitizedData.length > 0 && sanitizedData[0].length > 0) {
-            const targetRange = tempSourceSheet.getRange(1, 1, sanitizedData.length, sanitizedData[0].length);
-            targetRange.setNumberFormat("@");
-            targetRange.setValues(sanitizedData);
-          }
-
-          const tempFileParents = Drive.Files.get(tempFile.id, { supportsAllDrives: true }).parents;
-          const parentIdsToRemove = tempFileParents.map(parent => parent.id).join(",");
-
-          Drive.Files.update({ title: baseNameRaw }, tempFile.id, null, {
-            addParents: folderId,
-            removeParents: parentIdsToRemove,
-            supportsAllDrives: true
-          });
-
-          finalFileIds.set(robustBaseName, tempFile.id);
-          tempFile = null;
-        } else {
-          const destSpreadsheet = SpreadsheetApp.openById(destinationSheetFile.id);
-          const destSheet = destSpreadsheet.getSheets()[0];
-
-          destSheet.clear();
-
-          if (sanitizedData.length > 0 && sanitizedData[0].length > 0) {
-            const targetRange = destSheet.getRange(1, 1, sanitizedData.length, sanitizedData[0].length);
-            targetRange.setNumberFormat("@");
-            targetRange.setValues(sanitizedData);
-          }
-
-          finalFileIds.set(robustBaseName, destinationSheetFile.id);
-        }
-
-        processedCount++;
-      } catch (e) {
-        Logger.log(`Fehler bei ${fileName}: ${e.message}\n${e.stack}`);
-      } finally {
-        if (tempFile) {
-          try {
-            Drive.Files.trash(tempFile.id, { supportsAllDrives: true });
-          } catch (e) {
-            Logger.log(`Temp-Datei konnte nicht gelöscht werden: ${e.message}`);
-          }
-        }
-      }
-    }
-
-    const outputIdsArray = fileNamesValues.map(row => {
-      const name = convertNormalizeText_(row);
-      let baseName = name;
-      if (name.toLowerCase().endsWith(".xlsx")) baseName = name.slice(0, -5);
-      else if (name.toLowerCase().endsWith(".xls")) baseName = name.slice(0, -4);
-
-      return [finalFileIds.get(normalizeGermanUmlauts(baseName)) || ""];
-    });
-
-    const outputUrlsArray = outputIdsArray.map(([fileId]) => {
-      return [fileId ? `https://docs.google.com/spreadsheets/d/${fileId}/edit` : ""];
-    });
-
-    sheet.getRange("E4:E17").setValues(outputIdsArray);
-    sheet.getRange("F4:F17").setValues(outputUrlsArray);
-    SpreadsheetApp.getActive().toast(`${processedCount} Dateien verarbeitet.`, "Fertig", 5);
-  } catch (e) {
-    ui.alert("Fehler", `Details: ${e.message}`, ui.ButtonSet.OK);
+  if (!settingsSheet) {
+    ui.alert('Fehler', 'Tabellenblatt "Einstellungen" wurde nicht gefunden.', ui.ButtonSet.OK);
+    return;
   }
+
+  const values = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchTextData = "WE-Menge pro Artikel-Lieferant";
+  const searchTextFormula = "Abverkauf bereinigt pro Artikel";
+
+  let misFileId = "";
+  let misFileRowIndex = -1;
+  let formulaRowIndex = -1;
+
+  for (let i = 0; i < values.length; i++) {
+    const cellA = misNormalizeText_(values[i][0]);
+    const cellB = misNormalizeText_(values[i][1]);
+    const rowText = `${cellA} ${cellB}`;
+
+    if (rowText.includes(searchTextData)) {
+      misFileId = misExtractDriveId_(values[i][4]) || misExtractDriveId_(values[i][5]);
+      misFileRowIndex = i + 1;
+      Logger.log(`MIS Quelldatei gefunden in Zeile ${misFileRowIndex}: ${misFileId}`);
+    }
+
+    if (rowText.includes(searchTextFormula)) {
+      formulaRowIndex = i + 1;
+      Logger.log(`MIS Formelquelle gefunden in Zeile ${formulaRowIndex}`);
+    }
+  }
+
+  if (!misFileId || formulaRowIndex < 1) {
+    ui.alert(
+      'Konfigurationsfehler',
+      'In "Einstellungen" wurden nicht beide MIS-Zeilen gefunden: "WE-Menge pro Artikel-Lieferant" und "Abverkauf bereinigt pro Artikel".',
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+
+  misSetSettingsFileReference_(settingsSheet, misFileRowIndex, misFileId);
+
+  const misFinalSheet = ss.getSheetByName("MIS Final");
+  if (!misFinalSheet) {
+    ui.alert('Fehler', 'Tabellenblatt "MIS Final" wurde nicht gefunden.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const targetTabName = "8 W S DE Food - Abverkauf berei";
+
+  // Textvergleich statt A4*1/IMPORTRANGE*1: Punkte in Artikelnummern/Werten bleiben unverändert.
+  const newFormula = `=XLOOKUP(TO_TEXT(A4); ARRAYFORMULA(TO_TEXT(IMPORTRANGE(Einstellungen!$F$${formulaRowIndex}; "'${targetTabName}'!A:A"))); IMPORTRANGE(Einstellungen!$F$${formulaRowIndex}; "'${targetTabName}'!C:C"); 0; 0; 1)`;
+
+  try {
+    misFinalSheet.getRange("F4").setFormula(newFormula);
+  } catch (e) {
+    ui.alert('Formelfehler', `Die Formel in "MIS Final"!F4 konnte nicht gesetzt werden.\n\n${e.message}`, ui.ButtonSet.OK);
+    return;
+  }
+
+  const imported = importAndProcessMisData(misFileId);
+  if (!imported) return;
+
+  misSafeCall_("updateDeckblattFoodFormulas");
+  misSafeCall_("updateDeckblattNonFoodFormulas");
+  misSafeCall_("updateDeckblatt_O_G_Formulas");
+
+  if (typeof navigateOnSuccess === "function") {
+    navigateOnSuccess();
+  } else {
+    ss.toast("MIS Import erfolgreich abgeschlossen.", "Erfolg", 5);
+  }
+}
+
+/**
+ * Imports MIS source data into "MIS Final" as displayed text.
+ *
+ * @param {string} sourceFileId Google Drive ID of the converted source Google Sheet.
+ */
+function importAndProcessMisData(sourceFileId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const targetSheet = ss.getSheetByName("MIS Final");
+  const ui = SpreadsheetApp.getUi();
+
+  if (!targetSheet) {
+    ui.alert('Fehler', 'Tabellenblatt "MIS Final" wurde nicht gefunden.', ui.ButtonSet.OK);
+    return false;
+  }
+
+  let sourceSs;
+  try {
+    sourceSs = SpreadsheetApp.openById(misExtractDriveId_(sourceFileId));
+  } catch (e) {
+    ui.alert('Dateifehler', `Die MIS-Quelldatei konnte nicht geöffnet werden.\n\n${e.message}`, ui.ButtonSet.OK);
+    return false;
+  }
+
+  const sourceSheet = sourceSs.getSheets()[0];
+  const sourceLastRow = sourceSheet.getLastRow();
+
+  if (sourceLastRow < 2) {
+    ui.alert('Keine Daten', 'Die MIS-Quelldatei enthält keine importierbaren Daten.', ui.ButtonSet.OK);
+    return false;
+  }
+
+  const sourceRange = sourceSheet.getRange(2, 1, sourceLastRow - 1, 4);
+  const sourceValues = misBuildSourceValues_(sourceRange.getValues(), sourceRange.getDisplayValues());
+
+  if (!sourceValues.length || !sourceValues[0].length) {
+    ui.alert('Keine Daten', 'Die MIS-Quelldatei enthält keine importierbaren Daten.', ui.ButtonSet.OK);
+    return false;
+  }
+
+  misClearContentFromRow_(targetSheet, 6, 7);
+
+  const targetDataRange = targetSheet.getRange(6, 1, sourceValues.length, sourceValues[0].length);
+  targetDataRange.setValues(sourceValues);
+  targetSheet.getRange(6, 1, sourceValues.length, 1).setNumberFormat("@");
+
+  const newLastRow = 5 + sourceValues.length;
+
+  if (newLastRow >= 6) {
+    const formulaTemplateRange = targetSheet.getRange("E4:G4");
+    const formulaDestinationRange = targetSheet.getRange(6, 5, newLastRow - 5, 3);
+    const templateFormulas = formulaTemplateRange.getFormulasR1C1()[0];
+
+    if (templateFormulas.join("").length === 0) {
+      ui.alert(
+        "MIS Formeln fehlen",
+        'In "MIS Final"!E4:G4 wurden keine Template-Formeln gefunden. Der Import hat A:D geschrieben, aber E:G können ohne Template nicht berechnet werden.',
+        ui.ButtonSet.OK
+      );
+      return false;
+    }
+
+    const formulas = [];
+    for (let i = 0; i < newLastRow - 5; i++) {
+      formulas.push(templateFormulas);
+    }
+
+    formulaDestinationRange.setFormulasR1C1(formulas);
+    SpreadsheetApp.flush();
+    Utilities.sleep(5000);
+
+    const calculatedValues = formulaDestinationRange.getDisplayValues();
+    formulaDestinationRange.setValues(calculatedValues);
+    formulaDestinationRange.setFontColor("black");
+    formulaDestinationRange.setBackground("white");
+  }
+
+  targetSheet.getRange("D1").activate();
+  return true;
 }
