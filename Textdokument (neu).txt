@@ -1,13 +1,13 @@
-function ogqNormalizeText_(value) {
+function ogqgNormalizeText_(value) {
   return String(value == null ? "" : value).normalize("NFC").trim();
 }
 
-function ogqFoldText_(value) {
-  return ogqNormalizeText_(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase().trim();
+function ogqgFoldText_(value) {
+  return ogqgNormalizeText_(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase().trim();
 }
 
-function ogqExtractDriveId_(value) {
-  const text = ogqNormalizeText_(value);
+function ogqgExtractDriveId_(value) {
+  const text = ogqgNormalizeText_(value);
   if (!text) return "";
 
   const patterns = [
@@ -25,18 +25,18 @@ function ogqExtractDriveId_(value) {
   return "";
 }
 
-function ogqFindSettingsSource_(settingsSheet, searchFileName) {
+function ogqgFindSettingsSource_(settingsSheet, searchFileName) {
   const values = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
-  const searchBase = ogqFoldText_(searchFileName);
-  const searchExcel = ogqFoldText_(searchFileName + ".xlsx");
+  const searchBase = ogqgFoldText_(searchFileName);
+  const searchExcel = ogqgFoldText_(searchFileName + ".xlsx");
 
   for (let i = 0; i < values.length; i++) {
-    const cellA = ogqFoldText_(values[i][0]);
-    const cellB = ogqFoldText_(values[i][1]);
+    const cellA = ogqgFoldText_(values[i][0]);
+    const cellB = ogqgFoldText_(values[i][1]);
 
     if (cellA === searchBase || cellB === searchBase || cellA === searchExcel || cellB === searchExcel ||
         cellA.includes(searchBase) || cellB.includes(searchBase)) {
-      const fileId = ogqExtractDriveId_(values[i][4]) || ogqExtractDriveId_(values[i][5]);
+      const fileId = ogqgExtractDriveId_(values[i][4]) || ogqgExtractDriveId_(values[i][5]);
       if (!fileId) return null;
 
       const rowNumber = i + 1;
@@ -49,85 +49,112 @@ function ogqFindSettingsSource_(settingsSheet, searchFileName) {
   return null;
 }
 
-function ogqCleanText_(value) {
-  return ogqNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
-}
+function ogqgLastDataRowInColumn_(sheet, columnNumber, startRow) {
+  const maxRows = sheet.getMaxRows();
+  const values = sheet.getRange(startRow, columnNumber, maxRows - startRow + 1, 1).getDisplayValues();
 
-function ogqCleanWgText_(value) {
-  let text = ogqCleanText_(value);
-  while (text.length > 5 && text.endsWith("0")) text = text.slice(0, -1);
-  return text;
-}
-
-function ogqIsImportRow_(row) {
-  // Source col D becomes target col E and is the article key used by later formulas.
-  const article = ogqFoldText_(row[3]);
-  if (!article || article === "artikel" || article === "article") return false;
-
-  return row.some(value => ogqCleanText_(value) !== "");
-}
-
-function ogqClearContentFromRow_(sheet, startRow, columnCount) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow >= startRow) {
-    sheet.getRange(startRow, 1, lastRow - startRow + 1, columnCount).clearContent();
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (ogqgNormalizeText_(values[i][0]) !== "") return startRow + i;
   }
+
+  return startRow - 1;
+}
+
+function ogqgColumnIsNotReady_(displayValues, columnIndex) {
+  const values = displayValues.map(row => ogqgNormalizeText_(row[columnIndex]));
+  return values.every(value => value === "") || values.some(value => value.startsWith("#"));
+}
+
+function ogqgBuildWeekFormula_(settingsRow) {
+  const urlReference = `Einstellungen!$F$${settingsRow}`;
+  const sourceSheet = "In_Development_8_weeks_Report_F";
+
+  return `=LET(` +
+    `url;${urlReference};` +
+    `data_range;IMPORTRANGE(url;"${sourceSheet}!G3:O1000");` +
+    `wg_range;IMPORTRANGE(url;"${sourceSheet}!A3:A1000");` +
+    `grund_range;IMPORTRANGE(url;"${sourceSheet}!C3:C1000");` +
+    `artikel_range;IMPORTRANGE(url;"${sourceSheet}!D3:D1000");` +
+    `lieferant_range;IMPORTRANGE(url;"${sourceSheet}!E3:E1000");` +
+    `lfn_range;IMPORTRANGE(url;"${sourceSheet}!F3:F1000");` +
+    `header_range;IMPORTRANGE(url;"${sourceSheet}!G1:O1");` +
+    `filtered_row;IFERROR(FILTER(data_range;TO_TEXT(wg_range)=TO_TEXT($B6);TO_TEXT(grund_range)=TO_TEXT($D6);TO_TEXT(artikel_range)=TO_TEXT($E6);TO_TEXT(lieferant_range)=TO_TEXT($F6);TO_TEXT(lfn_range)=TO_TEXT($G6)));` +
+    `IFERROR(IF(H$5=H$4;INDEX(filtered_row;1;MATCH(H$5;header_range;0));IFERROR(NUMBERVALUE(INDEX(filtered_row;1;MATCH(H$5;header_range;0)));0)+IFERROR(NUMBERVALUE(INDEX(filtered_row;1;MATCH(H$4;header_range;0)));0));"")` +
+    `)`;
 }
 
 /**
- * Button function: importRawOGQualityCases
- * Imports "8WS_O+G_DE_Qualitätsfälle" into "Rohdaten O+G Qualitätsfälle".
+ * Button function: generateRawOGQualityCases
+ * Generates formulas/results for "Rohdaten O+G Qualitätsfälle".
  */
-function importRawOGQualityCases() {
+function generateRawOGQualityCases() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  const settingsSheet = ss.getSheetByName("Einstellungen");
   const targetSheet = ss.getSheetByName("Rohdaten O+G Qualitätsfälle");
+  const settingsSheet = ss.getSheetByName("Einstellungen");
 
-  if (!settingsSheet || !targetSheet) {
+  if (!targetSheet || !settingsSheet) {
     ui.alert("Fehler", 'Benötigte Tabellenblätter fehlen: "Einstellungen" oder "Rohdaten O+G Qualitätsfälle".', ui.ButtonSet.OK);
     return;
   }
 
-  const searchFileName = "8WS_O+G_DE_Qualitätsfälle";
-  const sourceInfo = ogqFindSettingsSource_(settingsSheet, searchFileName);
+  const sourceInfo = ogqgFindSettingsSource_(settingsSheet, "8WS_O+G_DE_Qualitätsfälle");
   if (!sourceInfo) {
-    ui.alert("Konfigurationsfehler", `Quelle "${searchFileName}" wurde in Einstellungen nicht gefunden oder enthält keine gültige ID/URL.`, ui.ButtonSet.OK);
+    ui.alert("Konfigurationsfehler", 'Quelle "8WS_O+G_DE_Qualitätsfälle" wurde in Einstellungen nicht gefunden oder enthält keine gültige ID/URL.', ui.ButtonSet.OK);
     return;
   }
 
-  let sourceSs;
-  try {
-    sourceSs = SpreadsheetApp.openById(sourceInfo.fileId);
-  } catch (e) {
-    ui.alert("Dateifehler", `Quelldatei konnte nicht geöffnet werden.\n\n${e.message}`, ui.ButtonSet.OK);
+  const lastRow = ogqgLastDataRowInColumn_(targetSheet, 5, 8);
+  if (lastRow < 8) {
+    ui.alert("Keine Daten", 'In "Rohdaten O+G Qualitätsfälle" wurden ab Zeile 8 keine Artikel in Spalte E gefunden.', ui.ButtonSet.OK);
     return;
   }
 
-  const sourceDataSheet = sourceSs.getSheetByName("In_Development_8_weeks_Report_F") || sourceSs.getSheets()[0];
-  const sourceLastRow = sourceDataSheet.getLastRow();
-  if (sourceLastRow < 3) {
-    ui.alert("Keine Daten", "Die Quelldatei enthält ab Zeile 3 keine Daten.", ui.ButtonSet.OK);
-    return;
+  const clearLastRow = Math.max(lastRow, targetSheet.getLastRow());
+  targetSheet.getRange(`A8:A${clearLastRow}`).clearContent();
+  targetSheet.getRange(`H8:Q${clearLastRow}`).clearContent();
+
+  targetSheet.getRange("H6").setFormula(ogqgBuildWeekFormula_(sourceInfo.rowNumber));
+  targetSheet.getRange("H6").autoFill(targetSheet.getRange("H6:O6"), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+  targetSheet.getRange("P6").setFormula('=IF(COUNTA($B6:$G6)=0;"";SUM(H6:O6))');
+
+  const qTemplateFormula = targetSheet.getRange("Q6").getFormula();
+  if (!qTemplateFormula) {
+    ss.toast("Hinweis: Q6 enthält keine Template-Formel für Grund EN.", "Rohdaten O+G Qualitätsfälle", 10);
   }
 
-  const rawValues = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 6).getDisplayValues();
-  const sourceValues = rawValues
-    .filter(row => ogqIsImportRow_(row))
-    .map(row => row.map((value, index) => index === 0 ? ogqCleanWgText_(value) : ogqCleanText_(value)))
-    .filter(row => ogqCleanText_(row[3]) !== "");
+  const targetA8 = targetSheet.getRange("A8");
+  const targetH8Q8 = targetSheet.getRange("H8:Q8");
+  targetSheet.getRange("A6").copyTo(targetA8, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+  targetSheet.getRange("H6:Q6").copyTo(targetH8Q8, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
 
-  if (!sourceValues.length) {
-    ui.alert("Keine Daten", "Nach Bereinigung wurden keine importierbaren Daten gefunden.", ui.ButtonSet.OK);
-    return;
+  if (lastRow > 8) {
+    targetA8.autoFill(targetSheet.getRange(`A8:A${lastRow}`), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
+    targetH8Q8.autoFill(targetSheet.getRange(`H8:Q${lastRow}`), SpreadsheetApp.AutoFillSeries.DEFAULT_SERIES);
   }
 
-  ogqClearContentFromRow_(targetSheet, 8, 17);
+  SpreadsheetApp.flush();
+  Utilities.sleep(8000);
 
-  const destinationRange = targetSheet.getRange(8, 2, sourceValues.length, sourceValues[0].length);
-  destinationRange.setNumberFormat("@");
-  destinationRange.setValues(sourceValues);
+  const resultRange = targetSheet.getRange(`A8:Q${lastRow}`);
+  const resultValues = resultRange.getDisplayValues();
+
+  if (ogqgColumnIsNotReady_(resultValues, 15)) {
+    Utilities.sleep(12000);
+    SpreadsheetApp.flush();
+  }
+
+  const refreshedValues = resultRange.getDisplayValues();
+  if (ogqgColumnIsNotReady_(refreshedValues, 15)) {
+    ss.toast("Spalte P ist noch leer oder nicht fertig. Formeln bleiben stehen, damit Google Sheets/IMPORTRANGE weiter rechnen kann.", "Rohdaten O+G Qualitätsfälle", 10);
+  } else {
+    resultRange.copyTo(resultRange, { contentsOnly: true });
+  }
 
   targetSheet.getRange("E2").activate();
-  ss.toast(`${sourceValues.length} Zeilen importiert.`, "Rohdaten O+G Qualitätsfälle", 8);
+  if (typeof navigateOnSuccess === "function") {
+    navigateOnSuccess();
+  } else {
+    ss.toast(`${lastRow - 7} Zeilen generiert.`, "Rohdaten O+G Qualitätsfälle", 8);
+  }
 }
