@@ -1,0 +1,124 @@
+function ogqNormalizeText_(value) {
+  return String(value == null ? "" : value).normalize("NFC").trim();
+}
+
+function ogqFoldText_(value) {
+  return ogqNormalizeText_(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase().trim();
+}
+
+function ogqExtractDriveId_(value) {
+  const text = ogqNormalizeText_(value);
+  if (!text) return "";
+
+  const patterns = [
+    /\/d\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /^([a-zA-Z0-9_-]{20,})$/,
+    /([a-zA-Z0-9_-]{25,})/
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) return match[1];
+  }
+
+  return "";
+}
+
+function ogqFindSettingsSource_(settingsSheet, searchFileName) {
+  const values = settingsSheet.getRange("A1:F" + settingsSheet.getLastRow()).getValues();
+  const searchBase = ogqFoldText_(searchFileName);
+  const searchExcel = ogqFoldText_(searchFileName + ".xlsx");
+
+  for (let i = 0; i < values.length; i++) {
+    const cellA = ogqFoldText_(values[i][0]);
+    const cellB = ogqFoldText_(values[i][1]);
+
+    if (cellA === searchBase || cellB === searchBase || cellA === searchExcel || cellB === searchExcel ||
+        cellA.includes(searchBase) || cellB.includes(searchBase)) {
+      const fileId = ogqExtractDriveId_(values[i][4]) || ogqExtractDriveId_(values[i][5]);
+      if (!fileId) return null;
+
+      const rowNumber = i + 1;
+      settingsSheet.getRange(rowNumber, 5).setValue(fileId);
+      settingsSheet.getRange(rowNumber, 6).setValue(`https://docs.google.com/spreadsheets/d/${fileId}/edit`);
+      return { rowNumber, fileId };
+    }
+  }
+
+  return null;
+}
+
+function ogqCleanText_(value) {
+  return ogqNormalizeText_(value).replace(/"/g, "").replace(/\u00A0/g, " ").trim();
+}
+
+function ogqCleanWgText_(value) {
+  let text = ogqCleanText_(value);
+  while (text.length > 5 && text.endsWith("0")) text = text.slice(0, -1);
+  return text;
+}
+
+function ogqClearContentFromRow_(sheet, startRow, columnCount) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= startRow) {
+    sheet.getRange(startRow, 1, lastRow - startRow + 1, columnCount).clearContent();
+  }
+}
+
+/**
+ * Button function: importRawOGQualityCases
+ * Imports "8WS_O+G_DE_Qualitätsfälle" into "Rohdaten O+G Qualitätsfälle".
+ */
+function importRawOGQualityCases() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const settingsSheet = ss.getSheetByName("Einstellungen");
+  const targetSheet = ss.getSheetByName("Rohdaten O+G Qualitätsfälle");
+
+  if (!settingsSheet || !targetSheet) {
+    ui.alert("Fehler", 'Benötigte Tabellenblätter fehlen: "Einstellungen" oder "Rohdaten O+G Qualitätsfälle".', ui.ButtonSet.OK);
+    return;
+  }
+
+  const searchFileName = "8WS_O+G_DE_Qualitätsfälle";
+  const sourceInfo = ogqFindSettingsSource_(settingsSheet, searchFileName);
+  if (!sourceInfo) {
+    ui.alert("Konfigurationsfehler", `Quelle "${searchFileName}" wurde in Einstellungen nicht gefunden oder enthält keine gültige ID/URL.`, ui.ButtonSet.OK);
+    return;
+  }
+
+  let sourceSs;
+  try {
+    sourceSs = SpreadsheetApp.openById(sourceInfo.fileId);
+  } catch (e) {
+    ui.alert("Dateifehler", `Quelldatei konnte nicht geöffnet werden.\n\n${e.message}`, ui.ButtonSet.OK);
+    return;
+  }
+
+  const sourceDataSheet = sourceSs.getSheets()[0];
+  const sourceLastRow = sourceDataSheet.getLastRow();
+  if (sourceLastRow < 3) {
+    ui.alert("Keine Daten", "Die Quelldatei enthält ab Zeile 3 keine Daten.", ui.ButtonSet.OK);
+    return;
+  }
+
+  const rawValues = sourceDataSheet.getRange(3, 1, sourceLastRow - 2, 6).getDisplayValues();
+  const sourceValues = rawValues
+    .map(row => row.map((value, index) => index === 0 ? ogqCleanWgText_(value) : ogqCleanText_(value)))
+    .filter(row => row.some(value => value !== ""));
+
+  if (!sourceValues.length) {
+    ui.alert("Keine Daten", "Nach Bereinigung wurden keine importierbaren Daten gefunden.", ui.ButtonSet.OK);
+    return;
+  }
+
+  ogqClearContentFromRow_(targetSheet, 8, 17);
+
+  const destinationRange = targetSheet.getRange(8, 2, sourceValues.length, sourceValues[0].length);
+  destinationRange.setNumberFormat("@");
+  destinationRange.setValues(sourceValues);
+
+  targetSheet.getRange("E2").activate();
+  ss.toast(`${sourceValues.length} Zeilen importiert.`, "Rohdaten O+G Qualitätsfälle", 8);
+}
